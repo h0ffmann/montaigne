@@ -1,120 +1,148 @@
 # -*- mode: conf -*-
 
 # Justfile for the Montaigne TTS project
+# Uses `uv` for environment and dependency management.
 
-# Default task (optional, runs if you just type `just`)
+# === Variables ===
+PROJECT_NAME := "montaigne" # Should match pyproject.toml
+VENV_DIR     := ".venv"
+PYTHON       := "{{VENV_DIR}}/bin/python"
+UV           := "uv" # Assumes uv is in PATH
+
+# === Default Task ===
+# Show CLI help by default
 default: run -- --help
 
-# === Environment & Dependencies ===
-# Define VENV_DIR relative to the Justfile location
-VENV_DIR := ".venv"
-PYTHON   := "{{VENV_DIR}}/bin/python"
-UV       := "uv" # Assumes uv is in PATH
+# === Environment & Dependencies (Managed by UV) ===
 
-# Setup the virtual environment and install dependencies
-setup: vendor_install install_editable
-
-# Create virtualenv if it doesn't exist
-create_venv:
+# Create virtualenv using uv if it doesn't exist
+_create_venv:
     @if [ ! -d "{{VENV_DIR}}" ]; then \
-        echo "Creating virtualenv at {{VENV_DIR}}..."; \
+        echo "🐍 Creating virtualenv at {{VENV_DIR}} using uv..."; \
         {{UV}} venv {{VENV_DIR}} --python 3.12 || exit 1; \
-        echo "Virtualenv created."; \
+        echo "✅ Virtualenv created."; \
     else \
-        echo "Virtualenv already exists."; \
+        echo "🐍 Virtualenv already exists at {{VENV_DIR}}."; \
     fi
 
-# Install dependencies using uv pip sync (faster)
-vendor_sync: create_venv
-    @echo "Syncing dependencies with uv..."
-    @{{UV}} pip sync pyproject.toml --python "{{VENV_DIR}}/bin/python" --require-hashes
+# Install the project in editable mode with all development dependencies
+# This is the main command for setting up the development environment.
+install: _create_venv
+    @echo "📦 Installing project in editable mode with dev dependencies using uv..."
+    @{{UV}} pip install --python "{{PYTHON}}" -e '.[dev]'
+    @echo "✅ Project installed."
 
-# Install dependencies using uv pip install (alternative, more flexible for installs)
-vendor_install: create_venv
-    @echo "Installing dependencies with uv pip install..."
-    # Install runtime and dev dependencies
-    @{{UV}} pip install --python "{{VENV_DIR}}/bin/python" -r requirements.txt # Assumes you might generate one, fallback
-    @{{UV}} pip install --python "{{VENV_DIR}}/bin/python" --all-extras -e . # Or use -e '.[dev]'
+# Install only production dependencies (useful for testing prod builds)
+install_prod: _create_venv
+    @echo "📦 Installing project with production dependencies only using uv..."
+    @{{UV}} pip install --python "{{PYTHON}}" .
+    @echo "✅ Production dependencies installed."
 
-# Install the package in editable mode with dev extras
-install_editable: create_venv
-    @echo "Installing project in editable mode with dev dependencies..."
-    @{{UV}} pip install --python "{{VENV_DIR}}/bin/python" -e '.[dev]'
-
-# Alias for easier install command
-install: install_editable
-
-# === Linting & Formatting ===
-lint:
-    @echo "Running Ruff linter..."
-    @{{PYTHON}} -m ruff check .
-
-format:
-    @echo "Running Ruff formatter..."
-    @{{PYTHON}} -m ruff format .
-
-check: lint format
-    @echo "Lint and format checks passed."
-
-# === Testing ===
-# Add actual tests in a `tests/` directory later
-test available=check_venv_cmd('pytest'):
-    @echo "Running tests with pytest..."
-    @{{PYTHON}} -m pytest tests/ # Assumes tests are in tests/
+# Alias for the main development setup
+setup: install
 
 # === Running the Application ===
-# Example run command - pass arguments after `--`
-# Usage: just run -- --text "Hello" --output-file o.wav --speaker-wav s.wav -l en
+
+# Run the Montaigne CLI application from the virtual environment
+# Pass arguments after `--`, e.g., `just run -- --text "Hello" ...`
 run *ARGS: available=check_venv_cmd('montaigne')
-    @echo "Running Montaigne CLI..."
+    @echo "🚀 Running Montaigne CLI..."
     @{{PYTHON}} -m {{PROJECT_NAME}}.main {{ARGS}}
 
+# === Linting & Formatting (using Ruff via venv) ===
+
+# Run Ruff linter
+lint: available=check_venv_cmd('ruff')
+    @echo "✨ Running Ruff linter..."
+    @{{PYTHON}} -m ruff check .
+
+# Run Ruff formatter
+format: available=check_venv_cmd('ruff')
+    @echo "🎨 Running Ruff formatter..."
+    @{{PYTHON}} -m ruff format .
+
+# Run both linter and formatter
+check: lint format
+    @echo "✅ Lint and format checks passed."
+
+# === Testing (using Pytest via venv) ===
+
+# Run tests using pytest (assumes tests are in tests/)
+test available=check_venv_cmd('pytest'):
+    @echo "🧪 Running tests with pytest..."
+    @{{PYTHON}} -m pytest tests/
+
 # === Building the Package ===
-# Requires `build` package installed (via [dev] extras)
+
+# Build wheel and sdist using the `build` package (requires dev deps)
 build available=check_venv_cmd('build'):
-    @echo "Building wheel and sdist..."
+    @echo "📦 Building wheel and sdist..."
     @{{PYTHON}} -m build
+    @echo "✅ Build artifacts are in dist/"
 
 # === Cleaning ===
+
+# Remove Python cache files
 clean_pycache:
-    @echo "Removing __pycache__ directories..."
+    @echo "🧹 Removing __pycache__ directories and .pyc files..."
     @find . -type d -name "__pycache__" -exec rm -r {} +
     @find . -type f -name "*.py[co]" -delete
 
+# Remove build artifacts
 clean_build:
-    @echo "Removing build artifacts..."
+    @echo "🧹 Removing build artifacts (build/, dist/, *.egg-info/)..."
     @rm -rf build/ dist/ *.egg-info/ htmlcov/ .coverage* .pytest_cache/
 
+# Remove the virtual environment
 clean_venv:
-    @echo "Removing virtual environment ({{VENV_DIR}})..."
+    @echo "🧹 Removing virtual environment ({{VENV_DIR}})..."
     @rm -rf {{VENV_DIR}}
 
-# Full clean including virtualenv
+# Clean build artifacts and pycache
 clean: clean_pycache clean_build
-    @echo "Project directories cleaned."
+    @echo "✅ Project directories cleaned (build artifacts, pycache)."
 
-# Deep clean including venv
+# Clean everything including the virtual environment
 clean_all: clean clean_venv
-    @echo "Full clean including virtualenv completed."
+    @echo "✅ Full clean including virtualenv completed."
 
 # === Docker ===
+
+# Define Docker image name and tag
 DOCKER_IMAGE_NAME := "{{PROJECT_NAME}}"
 DOCKER_TAG        := "latest"
+DOCKER_TAG_GIT    := $(shell git rev-parse --short HEAD)
 
+# Build the Docker image
 docker_build:
-    @echo "Building Docker image {{DOCKER_IMAGE_NAME}}:{{DOCKER_TAG}}..."
-    @docker build -t "{{DOCKER_IMAGE_NAME}}:{{DOCKER_TAG}}" .
+    @echo "🐳 Building Docker image {{DOCKER_IMAGE_NAME}}:{{DOCKER_TAG}} (and :{{DOCKER_TAG_GIT}})..."
+    @docker build -t "{{DOCKER_IMAGE_NAME}}:{{DOCKER_TAG}}" -t "{{DOCKER_IMAGE_NAME}}:{{DOCKER_TAG_GIT}}" .
+    @echo "✅ Docker image built."
 
-# Example docker run - requires mapping input/output
-# Usage: just docker_run -- --text "Docker test" --output-file /app/output/docker_out.wav --speaker-wav /app/input/speaker.wav -l en
-# Make sure to `mkdir input output` and place speaker.wav in `input/` first!
+# Run the application inside a Docker container (CPU only)
+# Mounts ./input (read-only) and ./output (read-write) directories.
+# Usage: just docker_run -- --text "Docker test" --output-file /app/output/out.wav ...
 docker_run *ARGS:
-    @echo "Running Docker container (mapping ./input:/app/input, ./output:/app/output)..."
+    @echo "🐳 Running Docker container (CPU)..."
     @mkdir -p ./input ./output # Ensure host directories exist
     @docker run --rm \
         -v "$(pwd)/input:/app/input:ro" \
         -v "$(pwd)/output:/app/output:rw" \
-        {{DOCKER_IMAGE_NAME}}:{{DOCKER_TAG}} {{ARGS}}
+        "{{DOCKER_IMAGE_NAME}}:{{DOCKER_TAG}}" {{ARGS}}
 
-# Helper function to check if command exists in venv
-check_venv_cmd(cmd) := `{{PYTHON}} -m {{cmd}} --version > /dev/null 2>&1 || (echo "Command '{{cmd}}' not found in venv. Run 'just install'?" && exit 1)`
+# Run the application inside a Docker container with GPU support
+# Requires NVIDIA Container Toolkit on the host.
+# Usage: just docker_run_gpu -- --text "GPU test" --output-file /app/output/out_gpu.wav ...
+docker_run_gpu *ARGS:
+    @echo "🐳 Running Docker container (GPU)..."
+    @mkdir -p ./input ./output # Ensure host directories exist
+    @docker run --rm --gpus all \
+        -v "$(pwd)/input:/app/input:ro" \
+        -v "$(pwd)/output:/app/output:rw" \
+        "{{DOCKER_IMAGE_NAME}}:{{DOCKER_TAG}}" {{ARGS}}
+
+# === Helper Functions ===
+
+# Check if a command is available as a module in the virtual environment
+# Usage: available=check_venv_cmd('module_name')
+check_venv_cmd(cmd) := `{{PYTHON}} -m {{cmd}} --version > /dev/null 2>&1 || (echo "❌ Command '{{cmd}}' not found in venv {{VENV_DIR}}. Run 'just install'?" && exit 1)`

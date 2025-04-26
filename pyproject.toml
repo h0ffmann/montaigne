@@ -1,0 +1,36 @@
+[project]
+name = "montaigne"
+version = "0.1.0"
+description = "CLI tool for TTS (XTTS) with text preprocessing (pauses, emphasis, tone tags) and evaluation (Whisper)."
+authors = [{ name = "Matheus Hoffmann", email = "hoffmann[at]poli.ufrj.br" }]
+requires-python = ">=3.12" # ATUALIZADO
+dependencies = [
+    "typer[all]>=0.9.0,<1.0.0",
+    "TTS>=0.22.0",           # >=0.22.0 recomendado para compatibilidade Python >3.10
+    "torch>=2.1.0",          # Verificar compatibilidade PyTorch com Python 3.12 e TTS
+    "torchaudio>=2.1.0",
+    "openai-whisper>=20231117",
+    "rapidfuzz>=3.0.0",
+]
+
+[project.optional-dependencies]
+dev = [
+    "ruff>=0.1.0",    # Linter/Formatter
+    "pytest>=7.0.0",  # Testing framework (adicionar testes depois)
+    "build>=0.10.0",  # Para construir pacotes (wheels/sdists)
+]
+
+[project.scripts]
+montaigne = "montaigne.main:app"
+
+[build-system]
+requires = ["setuptools>=61.0"]
+build-backend = "setuptools.build_meta"
+
+[tool.ruff] # Configuração Ruff básica
+line-length = 88
+select = ["E", "F", "W", "I", "N", "C4", "UP", "ARG", "B"] # Seleção razoável de regras
+ignore = ["B008"] # Exemplo: ignora B008 (Function call XYZ...) se for comum com Typer
+
+[tool.ruff.format]
+quote-style = "double"

@@ -1,0 +1,95 @@
+# Ambientes Virtuais e Dependências Locais
+.venv/
+venv/
+ENV/
+env/
+*/.venv/
+*/venv/
+*/ENV/
+*/env/
+lib/
+lib64/
+include/
+share/
+pip-wheel-metadata/
+
+# Python cache/compiled files
+__pycache__/
+*.py[cod]
+*.class
+
+# Distribution / packaging
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+parts/
+sdist/
+var/
+wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+MANIFEST
+
+# PyInstaller
+*.manifest
+*.spec
+
+# Jupyter Notebook
+.ipynb_checkpoints
+
+# Unit test / coverage reports
+htmlcov/
+.tox/
+.nox/
+.coverage
+.coverage.*
+.cache
+nosetests.xml
+coverage.xml
+*.cover
+*.py,cover
+.hypothesis/
+.pytest_cache/
+cover/
+
+# Type checking
+.mypy_cache/
+.pyre/
+.pytype/
+
+# IDEs and Editors
+.vscode/
+.idea/
+*.suo
+*.ntvs*
+*.njsproj
+*.sln
+*.sw?
+
+# macOS
+.DS_Store
+
+# Logs e Dados Temporários/Saída
+logs/
+*.log
+*.log.*
+*.wav
+*.mp3
+output.*
+output/
+results/
+*.pt
+*.onnx
+input/
+
+# Outros
+*.bak
+*.tmp
+uv.lock # uv lock file
+
+.go/
+.xdg-runtime-dir/

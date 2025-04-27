@@ -1,11 +1,6 @@
 # -*- mode: conf -*-
 
 # Justfile for the Montaigne TTS project
-# Uses `uv` for environment and dependency management.
-
-# -*- mode: conf -*-
-
-# Justfile for the Montaigne TTS project
 # Uses Nix Flake for environment and dependency management.
 
 # === Variables ===

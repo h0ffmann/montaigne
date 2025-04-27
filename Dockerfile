@@ -8,8 +8,9 @@ ENV PYTHONUNBUFFERED=1 \
     PIP_NO_CACHE_DIR=off \
     PIP_DISABLE_PIP_VERSION_CHECK=on \
     PIP_DEFAULT_TIMEOUT=100 \
-    DEBIAN_FRONTEND=noninteractive \
-    PATH="/root/.local/bin:$PATH" # Add local bin to PATH for uv
+    DEBIAN_FRONTEND=noninteractive
+# Add local bin to PATH separately
+ENV PATH="/root/.local/bin:$PATH"
 
 WORKDIR /app
 
@@ -66,12 +67,13 @@ FROM nvidia/cuda:12.1.1-cudnn8-runtime-ubuntu22.04
 ENV PYTHONUNBUFFERED=1 \
     PYTHONDONTWRITEBYTECODE=1 \
     DEBIAN_FRONTEND=noninteractive \
-    TZ=UTC \
-    PATH="/opt/venv/bin:$PATH" \
-    # Runtime GPU variables (optional if set outside container)
-    # CUDA_VISIBLE_DEVICES is typically managed by the container runtime or application
-    # TORCH_CUDA_ARCH_LIST is mainly for source builds; pre-built wheels handle this.
-    # FORCE_CUDA=1 # Removed - Let PyTorch detect CUDA availability naturally
+    TZ=UTC
+# Add venv bin to PATH separately
+ENV PATH="/opt/venv/bin:$PATH"
+# Runtime GPU variables (optional if set outside container)
+# CUDA_VISIBLE_DEVICES is typically managed by the container runtime or application
+# TORCH_CUDA_ARCH_LIST is mainly for source builds; pre-built wheels handle this.
+# FORCE_CUDA=1 # Removed - Let PyTorch detect CUDA availability naturally
 
 WORKDIR /app
 

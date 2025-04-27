@@ -9,14 +9,6 @@ VENV_DIR     := ".venv"
 PYTHON       := "{{VENV_DIR}}/bin/python"
 UV           := "uv" # Assumes uv is in PATH
 
-# === Helper Recipe ===
-
-# Private recipe to check if a command is available as a Python module in the venv.
-# Exits with an error if the command (module) is not found.
-# Usage: Add `_check_command 'module_name'` as a dependency to recipes requiring the module.
-_check_command cmd:
-    @{{PYTHON}} -m {{cmd}} --version > /dev/null 2>&1 || (echo "❌ Command '{{cmd}}' not found in venv {{VENV_DIR}}. Run 'just install'?" && exit 1)
-
 # === Default Task ===
 # List available recipes by default
 default:

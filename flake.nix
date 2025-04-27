@@ -35,8 +35,12 @@
           pkg-config
           gcc
           gnumake
-          python311
-          uv
+          # Use Nixpkgs Python 3.11 packages set
+          python311Packages.python
+          # Find the correct PyTorch package with CUDA 12.1 support
+          # Common names: pytorchWithCuda, pytorch-bin. Verify this attribute name.
+          python311Packages.pytorchWithCuda 
+          uv # Keep uv for installing other deps into venv
           nodejs_22
           corepack_22
           ffmpeg
@@ -49,22 +53,22 @@
           nmap
           lsof
           busybox
-          # Add CUDA toolkit explicitly
-          cuda_toolkit
+          # No longer explicitly needed if pytorchWithCuda pulls it in
+          # cuda_toolkit 
         ];
 
-        requiredSysLibs = with pkgs; [
-          ffmpeg
-          libsndfile
-          alsa-lib
-          libGL
-          stdenv.cc.cc.lib
-          # Add CUDA libraries
-          cuda_toolkit
-          cudaPackages_12_1.cudnn
-        ];
-
-        requiredLibPath = pkgs.lib.makeLibraryPath requiredSysLibs;
+        # Nix might handle library paths better now for its own packages.
+        # Commenting out explicit LD_LIBRARY_PATH setup for now.
+        # requiredSysLibs = with pkgs; [
+        #   ffmpeg.lib # Use .lib outputs for library paths
+        #   libsndfile.lib
+        #   alsa-lib
+        #   libGL
+        #   stdenv.cc.cc.lib
+        #   # CUDA libs likely handled by pytorchWithCuda dependency
+        #   # cudaPackages_12_1.cudnn 
+        # ];
+        # requiredLibPath = pkgs.lib.makeLibraryPath requiredSysLibs;
 
       in
       {
@@ -72,25 +76,21 @@
           name = "montaigne-dev-env";
           packages = montaignePkgs;
 
-          env = {
-            # Keep this minimal but include CUDA paths
-            LD_LIBRARY_PATH = requiredLibPath;
-            # Define NPM_CONFIG_PREFIX here to make it available throughout the shell
-            NPM_CONFIG_PREFIX = "$HOME/.npm-global";
-            # Set CUDA_HOME for PyTorch to find CUDA
-            CUDA_HOME = "${cuda_toolkit}";
-          };
+          # Remove explicit LD_LIBRARY_PATH and CUDA_HOME for now, let Nix manage it
+          # env = {
+          #   LD_LIBRARY_PATH = requiredLibPath;
+          #   NPM_CONFIG_PREFIX = "$HOME/.npm-global";
+          #   CUDA_HOME = "${cuda_toolkit}";
+          # };
 
           shellHook = ''
             # Welcome message
             echo "👋 Entering Focused Montaigne Development Environment (Flake)..."
-            
-            # Display CUDA information
-            echo "🚀 CUDA Environment:"
-            echo "   CUDA Toolkit: $(${pkgs.cudaPackages_12_1.cudatoolkit}/bin/nvcc --version 2>/dev/null || echo 'CUDA Toolkit installed but nvcc not found')"
-            echo "   CUDA_HOME: $CUDA_HOME"
-            
-            # --- CORRECTED: Use the explicit path in PATH modification ---
+
+            # --- Check Nix Python/PyTorch CUDA Status ---
+            echo "🚀 Checking Nix Python/PyTorch CUDA status:"
+            python -c "import torch; print(f'Nix PyTorch: {torch.__version__}, CUDA Available: {torch.cuda.is_available()}, Device Count: {torch.cuda.device_count()}')" || echo 'Python/Torch check failed in shellHook'
+
             # Ensure user's local bin and npm global bin are in PATH
             export PATH="$HOME/.local/bin:$HOME/.npm-global/bin:$PATH"
 

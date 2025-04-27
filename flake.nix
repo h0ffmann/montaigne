@@ -38,6 +38,7 @@
         # --- Python Packages Managed by Nix ---
         nixPythonMlPackages = with python.pkgs; [
           torchWithCuda
+          numpy # Add numpy here
           torchaudio
         ];
 

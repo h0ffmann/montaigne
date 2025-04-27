@@ -8,7 +8,7 @@ dependencies = [
     "click==8.1.8",
     "requests>=2.31.0",
     "TTS==0.22.0",            # Keep TTS version (will use Nix PyTorch)
-    # torch and torchaudio are now provided by the Nix environment
+    # torch and torchaudio are provided by the Nix environment
     "openai-whisper==20240930",
     "rapidfuzz==3.13.0",
     "pydub>=0.25.0", # For audio manipulation (concatenation, etc.)

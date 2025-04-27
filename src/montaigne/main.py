@@ -1,4 +1,4 @@
-import typer
+import click
 from pathlib import Path
 import logging
 import sys
@@ -35,9 +35,12 @@ def get_evaluator(use_cuda: bool):
         evaluator_instance = AudioEvaluator(use_cuda=use_cuda)
     return evaluator_instance
 
-app = typer.Typer(name="montaigne", help="""🚀 Montaigne TTS: Synthesizes speech using XTTS...""", pretty_exceptions_show_locals=False)
+@click.group(context_settings={'help_option_names': ['-h', '--help']})
+def cli():
+    """🚀 Montaigne TTS: Synthesizes speech using XTTS v2 with voice cloning."""
+    pass
 
-@app.command()
+@cli.command()
 def synthesize(
     text: str = typer.Option(None, "--text", "-t", help="Text to synthesize directly."),
     input_file: Path = typer.Option(None, "--input-file", "-i", help="Path to a text file.", exists=True, file_okay=True, dir_okay=False, readable=True, resolve_path=True),
@@ -52,7 +55,8 @@ def synthesize(
     use_cuda = not cpu
     logger.info(f"Starting Montaigne TTS process. CUDA enabled: {use_cuda}")
 
-    if not (text or input_file) or (text and input_file): print("❌ Error: Provide either --text OR --input-file."); raise typer.Exit(code=1)
+    if not (text or input_file) or (text and input_file):
+        raise click.UsageError("Provide either --text OR --input-file, but not both.")
 
     input_content: str; source_name: str
     if input_file:
@@ -87,4 +91,4 @@ def synthesize(
     if not synthesis_successful: raise typer.Exit(code=1)
 
 if __name__ == "__main__":
-    app()
+    cli()

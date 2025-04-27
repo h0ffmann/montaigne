@@ -21,7 +21,7 @@ dev = [
 ]
 
 [project.scripts]
-montaigne = "montaigne.main:app"
+montaigne = "montaigne.main:cli"
 
 [build-system]
 requires = ["setuptools>=61.0"]

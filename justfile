@@ -147,19 +147,32 @@ docker_build *ARGS:
     @docker build {{ARGS}} -t "{{DOCKER_IMAGE_NAME}}:{{DOCKER_TAG}}" -t "{{DOCKER_IMAGE_NAME}}:{{DOCKER_TAG_GIT}}" .
     @echo "✅ Docker image built."
 
-# Run the application inside a Docker container (CPU only)
+# Run a simple synthesis task inside a Docker container (CPU only) by default
 # Mounts ./input (read-only) and ./output (read-write) directories.
-# Usage: just docker_run -- --text "Docker test" --output-file /app/output/out.wav ...
+# Pass other Montaigne args after --, e.g., `just docker_run -- --language pt ...`
 docker_run *ARGS:
-    @echo "🐳 Running Docker container (CPU)..."
+    @echo "🐳 Running default synthesis task in Docker container (CPU)..."
     @mkdir -p ./input ./output # Ensure host directories exist
+    # Ensure a dummy speaker wav exists for the default run
+    @if [ ! -f "input/speaker.wav" ]; then \
+        echo "⚠️ No speaker.wav found in input/. Creating a dummy file for the test run."; \
+        ffmpeg -f lavfi -i "sine=frequency=1000:duration=5" -ac 1 -ar 16000 input/speaker.wav > /dev/null 2>&1 || \
+        (echo "❌ Could not create dummy WAV. Is ffmpeg installed on the host?"; exit 1); \
+    fi
     @docker run --rm \
         -v "$(pwd)/input:/app/input:ro" \
         -v "$(pwd)/output:/app/output:rw" \
-        "{{DOCKER_IMAGE_NAME}}:{{DOCKER_TAG}}" {{ARGS}}
+        "{{DOCKER_IMAGE_NAME}}:{{DOCKER_TAG}}" \
+        synthesize \
+          --text "This is a default test run [p=0.5] inside Docker." \
+          --output-file /app/output/docker_default_run_output.wav \
+          --speaker-wav /app/input/speaker.wav \
+          --language en \
+          --cpu \
+          {{ARGS}} # Pass any additional user arguments here
 
 # Run the application inside a Docker container with GPU support
-# Requires NVIDIA Container Toolkit on the host.
+# Mounts ./input (read-only) and ./output (read-write) directories.
 # Usage: just docker_run_gpu -- --text "GPU test" --output-file /app/output/out_gpu.wav ...
 docker_run_gpu *ARGS:
     @echo "🐳 Running Docker container (GPU)..."

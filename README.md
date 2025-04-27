@@ -199,53 +199,95 @@ just debug: Runs repomix to generate `repo-content.txt` and then performs a simp
 
 just docker_build: Builds the Docker image (tags as montaigne:latest and montaigne:<git-hash>).
 
-just docker_run -- [ARGS...]: Runs the application inside a Docker container (CPU only by default). Mounts ./input and ./output directories.
+just docker_run -- [ARGS...]: Runs a default synthesis task inside a Docker container (CPU only). Mounts ./input and ./output directories. Pass extra Montaigne args after `--`.
 
-just docker_run_gpu -- [ARGS...]: Runs the application inside a Docker container with GPU support (requires NVIDIA Container Toolkit on host). Mounts ./input and ./output.
+just docker_run_gpu -- [ARGS...]: Runs the application inside a Docker container with GPU support (requires NVIDIA Container Toolkit on host). Mounts ./input and ./output. You must provide the full `synthesize` command and arguments after `--`.
 
 🐳 Docker Usage
 
-You can build and run Montaigne within a Docker container for portability.
+You can build and run Montaigne within a Docker container for portability and dependency isolation.
 
-Build the Image:
+**1. Build the Image:**
 
+Build the image using `just`:
+```bash
 just docker_build
 ```
-# Or manually: `docker build -t montaigne:latest -t montaigne:$(git rev-parse --short HEAD) .`
 
-Prepare Input/Output Directories:
-The Docker container expects input files (like the speaker WAV) to be in a directory mapped to /app/input and writes output files to a directory mapped to /app/output.
+This command builds an image tagged as montaigne:latest and montaigne:<git-short-hash>. Dependencies are installed during this build process.
 
+**2. Prepare Input/Output Directories:**
+
+When running Montaigne in Docker, you need to explicitly map directories from your host machine to the container using the `-v` flag. The container expects:
+
+*   Input files (like `--speaker-wav` or `--text-file`) to be in a directory mapped to `/app/input` inside the container.
+*   Output files (specified by `--output-file`) to be written to a directory mapped to `/app/output` inside the container.
+
+Create these directories on your host if they don't exist:
+```bash
 mkdir -p input output
-cp /path/to/your/speaker.wav ./input/ # Copy your reference wav here
+# Copy your required input files (e.g., your speaker reference) here:
+cp /path/to/your/speaker_reference.wav ./input/my_speaker.wav
+cp /path/to/your/input_script.txt ./input/my_script.txt
 ```
 
-Run the Container (CPU):
+**3. Running the Container**
 
-# Example: Synthesize text and save to ./output/docker_out_cpu.wav on the host
-just docker_run -- synthesize \
-    --text "Hello from inside the Docker container!" \
-    --output-file /app/output/docker_out_cpu.wav \
-    --speaker-wav /app/input/speaker.wav \
-    --language en \
-    --evaluate
+**Important:** When specifying file paths as arguments (`--speaker-wav`, `--text-file`, `--output-file`) to Montaigne inside Docker, you must use the container's internal paths (e.g., `/app/input/my_speaker.wav`, `/app/output/result.wav`), not your host machine paths (`./input/my_speaker.wav`).
+
+**Running the Default Test (CPU):**
+The `just docker_run` command now runs a basic synthesis test using CPU:
+```bash
+just docker_run
+# This will create output/docker_default_run_output.wav on your host
+```
+It uses a generated test tone if `input/speaker.wav` isn't found on the host. You can pass extra Montaigne arguments after `--`:
+```bash
+# Example: Evaluate the default run and use Portuguese
+just docker_run -- --evaluate --language pt
 ```
 
-The output file will appear in the ./output directory on your host machine.
+**Running a Custom Synthesis (CPU):**
+To run a specific synthesis, provide the `synthesize` command and arguments directly to `docker run` (or use `just docker_run -- ...` overriding defaults).
+```bash
+# Example using docker run directly
+docker run --rm \
+    -v "$(pwd)/input:/app/input:ro" \
+    -v "$(pwd)/output:/app/output:rw" \
+    montaigne:latest \
+    synthesize \
+      --text-file /app/input/my_script.txt \
+      --speaker-wav /app/input/my_speaker.wav \
+      --output-file /app/output/custom_output.wav \
+      --language en \
+      --evaluate \
+      --cpu
+```
+The generated file `custom_output.wav` will appear in your host's `./output` directory.
 
-Run the Container (GPU):
-Requires the NVIDIA Container Toolkit to be installed on your Docker host.
-
-# Example: Synthesize using the GPU
+**Running with GPU Support:**
+Requires the NVIDIA Container Toolkit installed on your host. Use the `just docker_run_gpu` recipe, passing the full command you want to run after `--`:
+```bash
+# Example: Synthesize using the GPU and a custom speaker
 just docker_run_gpu -- synthesize \
-    --text "Running much faster with the GPU!" \
-    --output-file /app/output/docker_out_gpu.wav \
-    --speaker-wav /app/input/speaker.wav \
+    --text "Running faster with the GPU!" \
+    --output-file /app/output/gpu_output.wav \
+    --speaker-wav /app/input/my_speaker.wav \
     --language en
 ```
+Or use `docker run` directly with the `--gpus all` flag:
+```bash
+docker run --rm --gpus all \
+    -v "$(pwd)/input:/app/input:ro" \
+    -v "$(pwd)/output:/app/output:rw" \
+    montaigne:latest \
+    synthesize \
+      # Your synthesize arguments here using /app/input and /app/output paths
+```
+
 🧑‍💻 Development
 
-Install Dev Dependencies: Ensure you've run just setup or just install.
+Install Dev Dependencies: Ensure you've run `just setup` or `just install`.
 
 Activate Environment: source .venv/bin/activate (or equivalent for your OS).
 

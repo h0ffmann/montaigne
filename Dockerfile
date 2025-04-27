@@ -1,6 +1,12 @@
+# Temporary copy stage to make files available during RUN install step
+# This avoids invalidating the RUN layer cache if only source code changes
+FROM ubuntu:22.04 as file_copier
+WORKDIR /tmp/project_files
+COPY pyproject.toml ./
+COPY src/ ./src/
+
 # --- Final Image ---
-# Uses uv run, eliminating the need for a separate builder stage and venv copy.
-# Installs dependencies and runs directly in the final stage.
+# Installs dependencies during build for efficiency.
 # Start from the NVIDIA CUDA runtime image
 FROM nvidia/cuda:12.1.1-cudnn8-runtime-ubuntu22.04
 
@@ -16,55 +22,70 @@ ENV PYTHONUNBUFFERED=1
 ENV PYTHONDONTWRITEBYTECODE=1
 ENV DEBIAN_FRONTEND=noninteractive
 ENV TZ=UTC
-# Configure uv for PyTorch CUDA and network access
+# Configure uv for PyTorch CUDA and network access (still needed for build stage)
 ENV UV_EXTRA_INDEX_URL="https://download.pytorch.org/whl/cu121"
 ENV UV_INDEX_STRATEGY="unsafe-best-match"
 ENV UV_NATIVE_TLS="1"
 
 WORKDIR /app
 
-# Set SHELL to bash with pipefail before the RUN command that includes the uv installation pipe
+# Set SHELL to bash with pipefail for robust installation commands
 SHELL ["/bin/bash", "-o", "pipefail", "-c"]
 
-# Install system dependencies for runtime, Python 3.11 PPA, Python 3.11, and uv
+# Install system dependencies, Python 3.11, uv, AND application dependencies
 RUN apt-get update && apt-get install -y --no-install-recommends \
-    # Core runtime dependencies
+    # Core runtime dependencies required by the application/TTS/Whisper
     ffmpeg \
     libsndfile1 \
     ca-certificates \
-    # Needed for Python 3.11 PPA and uv install
+    # Needed temporarily for Python PPA and uv install
     software-properties-common \
     gpg-agent \
     curl \
-    # Needed if project build process requires git
-    git \
+    # Add Python 3.11 PPA
     && add-apt-repository ppa:deadsnakes/ppa -y \
     && apt-get update \
     && apt-get install -y --no-install-recommends \
     # Install Python itself
     python3.11 \
-    # python3.11-venv and python3.11-dev are likely NOT needed for uv run
-    # Add any other NON-PYTHON system library required by the application at runtime here
-    # Install uv using pipefail (uses the SHELL defined above)
+    python3.11-dev \
+    python3.11-venv \
+    # Needed for potential C extensions during pip install
+    build-essential \
+    pkg-config \
+    # Install uv
     && curl -LsSf https://astral.sh/uv/install.sh | sh \
-    # Clean up apt caches and lists to reduce image size
+    # --- Install Python Dependencies using uv ---
+    # Copy project definition first to leverage caching (from the file_copier stage)
+    && COPY --from=file_copier /tmp/project_files /tmp/project_files \
+    && cp /tmp/project_files/pyproject.toml /app/pyproject.toml \
+    # Copy source code required for installation
+    && cp -r /tmp/project_files/src /app/src \
+    # Now, install the project and its dependencies defined in pyproject.toml
+    # This installs dependencies into the system Python environment within the container
+    && uv pip install --system --no-cache /app \
+    # --- Clean up ---
+    # Remove temporary build files and PPA sources
+    && rm -rf /tmp/project_files \
+    # Remove packages only needed for build/install phase
+    && apt-get purge -y --auto-remove \
+        software-properties-common gpg-agent curl build-essential pkg-config \
+        python3.11-dev \
+    # Clean up apt caches and lists
     && apt-get clean \
     && rm -rf /var/lib/apt/lists/* /etc/apt/sources.list.d/deadsnakes*
 
-# Reset shell to default (optional, but good practice)
+# Copy the rest of the project files AFTER installing dependencies
+# This assumes they might be needed at runtime but not for installation itself.
+# If they are needed for install, adjust the RUN sequence above.
+# COPY . /app # You might not need to copy everything if install worked
+
+# Reset shell to default (good practice)
 SHELL ["/bin/sh", "-c"]
 
-# Copy project files needed for `uv run`
-# Copy pyproject.toml first for better layer caching
-COPY pyproject.toml ./pyproject.toml
-# Copy source code
-COPY src/ ./src/
+# Set the default entrypoint to run the installed script
+ENTRYPOINT ["montaigne"]
 
-# ENTRYPOINT uses `uv run` to execute the script defined in pyproject.toml[project.scripts]
-# uv will handle creating an isolated environment and installing dependencies
-# on the fly (using cache if available) based on pyproject.toml.
-ENTRYPOINT ["uv", "run", "montaigne"]
-
-# Default command arguments passed to the entrypoint (uv run montaigne --help)
-# This runs if no arguments are provided to `docker run`.
+# Default command arguments (now passed to 'montaigne' entrypoint)
+# Providing '--help' is still a reasonable default if no args are given
 CMD ["--help"]

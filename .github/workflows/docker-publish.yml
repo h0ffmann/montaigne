@@ -72,7 +72,7 @@ jobs:
       - name: Delete old container versions
         uses: actions/delete-package-versions@v5
         with:
-          package-name: 'montaigne' # Replace if your GHCR package name is different
+          package-name: ${{ env.GHCR_PACKAGE_NAME }} # Use the env var defined above
           package-type: 'container'
           min-versions-to-keep: 5 # Keep at least 5 most recent versions
           delete-older-versions-than-days: 15 # Delete versions older than 15 days

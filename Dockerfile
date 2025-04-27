@@ -84,10 +84,11 @@ ENV PYTHONDONTWRITEBYTECODE=1
 ENV DEBIAN_FRONTEND=noninteractive
 ENV TZ=UTC
 ENV VIRTUAL_ENV="/opt/venv"
-# Prioritize venv bin AND user local bin (where uv might be installed)
-ENV PATH="$VIRTUAL_ENV/bin:/root/.local/bin:$PATH"
+# Prioritize venv bin AND user local bin (where uv might be installed if kept)
+ENV PATH="$VIRTUAL_ENV/bin:/root/.local/bin:/usr/local/bin:/usr/local/sbin:/usr/bin:/usr/sbin:/bin:/sbin" # Expanded PATH
 
-WORKDIR /app
+# ---- CHANGE WORKDIR ----
+WORKDIR /work # Change working directory to avoid conflict with mounted volumes
 
 # Install runtime system dependencies AND UV
 RUN apt-get update && apt-get install -y --no-install-recommends \
@@ -116,9 +117,10 @@ COPY --from=builder /app/pyproject.toml ./pyproject.toml
 
 # Debugging: Check uv path and venv contents in final stage
 RUN which uv
-RUN echo "Contents of $VIRTUAL_ENV/bin (Final Stage):" && ls -l $VIRTUAL_ENV/bin
+# --- NO Debugging ls in final stage for production ---
 
-# Use uv run to execute the script defined in pyproject.toml
-ENTRYPOINT ["uv", "run", "montaigne"]
-# Default arguments if ENTRYPOINT is just `uv run`
-# CMD ["montaigne", "--help"]
+# Execute uv run FROM the location of pyproject.toml
+# ENTRYPOINT ["uv", "-- CWD=/app", "run", "montaigne"] <-- CWD isn't a uv arg
+# Better approach: invoke uv directly with knowledge of its context
+# ENTRYPOINT ["/root/.local/bin/uv", "run", "--manifest-path", "/app/pyproject.toml", "montaigne"]
+ENTRYPOINT ["uv", "run", "--manifest-path", "/app/pyproject.toml", "montaigne"] # Assuming uv is now in standard path via ENV

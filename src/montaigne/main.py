@@ -14,6 +14,7 @@ try:
     from .preprocessing import preprocess_text_for_tts
     from .tts_engine import TTSEngine
     from .evaluation import AudioEvaluator
+    from .voice_profiles import list_voice_profiles, get_voice_profile # Import necessary functions
 except ImportError as e:
     logger.critical(f"CRITICAL: Import error ({e}). Did you install with 'uv pip install -e .[dev]'?", exc_info=True)
     sys.exit(1)
@@ -41,47 +42,70 @@ def cli():
     pass
 
 @cli.command()
-@click.option('--voice-profile', type=click.Choice(list_voice_profiles()), help="Use a prebuilt famous voice profile")
-@click.option('--text', '-t', help="Text to synthesize directly.")
-@click.option('--input-file', '-i', type=click.Path(exists=True, file_okay=True, dir_okay=False, readable=True, path_type=Path), help="Path to a text file.")
+@click.option('--voice-profile', type=click.Choice(list_voice_profiles()), help="Use a prebuilt voice profile (e.g., 'lula', 'trump'). Mutually exclusive with --speaker-wav.")
+@click.option('--speaker-wav', '-s', type=click.Path(exists=True, file_okay=True, dir_okay=False, readable=True, path_type=Path), help="Path to a reference WAV file (10-30s). Mutually exclusive with --voice-profile.")
+@click.option('--text', '-t', help="Text to synthesize directly. Mutually exclusive with --input-file.")
+@click.option('--input-file', '-i', type=click.Path(exists=True, file_okay=True, dir_okay=False, readable=True, path_type=Path), help="Path to a text file. Mutually exclusive with --text.")
 @click.option('--output-file', '-o', type=click.Path(writable=True, path_type=Path), required=True, help="Path to save the output WAV audio file.")
-@click.option('--speaker-wav', '-s', type=click.Path(exists=True, file_okay=True, dir_okay=False, readable=True, path_type=Path), required=True, help="Path to a reference WAV file.")
 @click.option('--language', '-l', default="en", show_default=True, help="Language code for TTS.")
 @click.option('--speed', type=float, default=1.0, show_default=True, help="Adjust playback speed.")
 @click.option('--evaluate', '-e', is_flag=True, help="Evaluate audio quality using Whisper STT.")
 @click.option('--cpu', is_flag=True, help="Force CPU for TTS and evaluation.")
 def synthesize(
-    voice_profile: str,
-    text: str,
-    input_file: Path,
+    voice_profile: str | None,
+    speaker_wav: Path | None,
+    text: str | None,
+    input_file: Path | None,
     output_file: Path,
-    speaker_wav: Path,
     language: str,
     speed: float,
     evaluate: bool,
     cpu: bool
 ):
-    # Handle voice profile if specified
+    """Synthesizes speech from text using a speaker reference (file or profile)."""
+    # --- Validation ---
+    if not (voice_profile or speaker_wav):
+        raise click.UsageError("Either --voice-profile or --speaker-wav must be provided.")
+    if voice_profile and speaker_wav:
+        raise click.UsageError("--voice-profile and --speaker-wav are mutually exclusive.")
+    if not (text or input_file):
+        raise click.UsageError("Either --text or --input-file must be provided.")
+    if text and input_file:
+        raise click.UsageError("--text and --input-file are mutually exclusive.")
+
+    # Determine the speaker WAV path
+    actual_speaker_wav: Path
     if voice_profile:
         profile_path = get_voice_profile(voice_profile)
         if not profile_path:
-            click.echo(f"❌ Could not load voice profile: {voice_profile}", err=True)
+            # get_voice_profile logs errors, just exit
             sys.exit(1)
-        speaker_wav = profile_path
+        actual_speaker_wav = profile_path
+        logger.info(f"Using voice profile '{voice_profile}' ({actual_speaker_wav.name})")
+    else:
+        # If speaker_wav was provided, click already validated its existence.
+        actual_speaker_wav = speaker_wav
+        logger.info(f"Using speaker WAV file: {actual_speaker_wav.name}")
+    # --- Start Process ---
     start_total_time = time.time()
     use_cuda = not cpu
     logger.info(f"Starting Montaigne TTS process. CUDA enabled: {use_cuda}")
 
-    if not (text or input_file) or (text and input_file):
-        raise click.UsageError("Provide either --text OR --input-file, but not both.")
-
-    input_content: str; source_name: str
+    # Determine input content
+    input_content: str
+    source_name: str
     if input_file:
-        try: input_content = input_file.read_text('utf-8'); source_name = input_file.name; logger.info(f"Read {len(input_content)} chars from: {source_name}")
+        try:
+            input_content = input_file.read_text('utf-8')
+            source_name = input_file.name
+            logger.info(f"Read {len(input_content)} chars from file: {source_name}")
         except Exception as e: 
             click.echo(f"❌ Error reading {input_file}: {e}", err=True)
             sys.exit(1)
-    else: input_content = text; source_name = "CLI"; logger.info(f"Read {len(input_content)} chars from {source_name}.")
+    else: # text must be provided if input_file is None (validated above)
+        input_content = text
+        source_name = "CLI --text option"
+        logger.info(f"Read {len(input_content)} chars from {source_name}.")
 
     if not input_content.strip():
         click.echo("❌ Error: Input text is empty.", err=True)
@@ -92,9 +116,17 @@ def synthesize(
         click.echo("❌ Error: Text empty after preprocessing.", err=True)
         sys.exit(1)
 
-    print(f"🎙️ Starting synthesis (Lang: {language}, Speaker: {speaker_wav.name}, Target: {output_file.name})..."); synthesis_successful = False
+    click.echo(f"🎙️ Starting synthesis (Lang: {language}, Speaker: {actual_speaker_wav.name}, Target: {output_file.name})...")
+    synthesis_successful = False
     try:
-        engine = get_tts_engine(use_cuda); synthesis_successful = engine.synthesize(text=processed_text, speaker_wav=str(speaker_wav), language=language, output_path=output_file, speed=speed)
+        engine = get_tts_engine(use_cuda)
+        synthesis_successful = engine.synthesize(
+            text=processed_text,
+            speaker_wav=str(actual_speaker_wav), # Use the determined path
+            language=language,
+            output_path=output_file,
+            speed=speed
+        )
     except FileNotFoundError as e:
         click.echo(f"❌ Error: {e}", err=True)
         sys.exit(1)

@@ -47,3 +47,39 @@ def preprocess_text_for_tts(text: str) -> str:
     logger.info(f"Original text sample: '{original_for_logging}...'")
     logger.info(f"Processed text sample: '{processed_text[:150]}...'")
     return processed_text
+
+
+def chunk_text(text: str, max_chunk_len: int = 250, strategy: str = "paragraph") -> list[str]:
+    """
+    Splits text into chunks suitable for TTS processing.
+
+    Args:
+        text: The input text string.
+        max_chunk_len: Approximate maximum character length for each chunk.
+                       XTTSv2 limit is ~200-250 depending on language/complexity.
+        strategy: The chunking strategy ('paragraph' supported for now).
+
+    Returns:
+        A list of text chunks.
+    """
+    chunks = []
+    if strategy == "paragraph":
+        # Split by double newlines, preserving single newlines within paragraphs
+        paragraphs = re.split(r'\n\s*\n', text)
+        for i, para in enumerate(paragraphs):
+            para = para.strip()
+            if not para:
+                continue
+            # Basic check: if paragraph is too long, log a warning for now.
+            # Future: Implement sentence splitting within long paragraphs.
+            if len(para) > max_chunk_len * 1.5: # Allow some leeway
+                 logger.warning(f"Paragraph {i+1} significantly exceeds max_chunk_len ({len(para)} chars). Consider sentence splitting. Content: '{para[:100]}...'")
+            # Even if long, add it as one chunk for now with paragraph strategy
+            chunks.append(para)
+
+    else:
+        logger.warning(f"Unsupported chunking strategy '{strategy}'. Defaulting to single chunk.")
+        chunks.append(text) # Fallback
+
+    logger.info(f"Split text into {len(chunks)} chunks using '{strategy}' strategy.")
+    return chunks

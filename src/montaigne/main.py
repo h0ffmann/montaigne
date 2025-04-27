@@ -11,12 +11,13 @@ logging.basicConfig(
 logger = logging.getLogger("montaigne.cli")
 
 try:
-    from .preprocessing import preprocess_text_for_tts
+    from .preprocessing import preprocess_text_for_tts, chunk_text # Added chunk_text
     from .tts_engine import TTSEngine
     from .evaluation import AudioEvaluator
-    from .voice_profiles import list_voice_profiles, get_voice_profile # Import necessary functions
+    from .voice_profiles import list_voice_profiles, get_voice_profile
+    from .audio_utils import concatenate_audio_files, cleanup_files # Added audio utils
 except ImportError as e:
-    logger.critical(f"CRITICAL: Import error ({e}). Did you install with 'uv pip install -e .[dev]'?", exc_info=True)
+    logger.critical(f"CRITICAL: Import error ({e}). Did you run 'just setup' or 'uv pip install -e .[dev]'?", exc_info=True) # Updated hint
     sys.exit(1)
 
 tts_engine_instance = None
@@ -112,23 +113,81 @@ def synthesize(
         click.echo("❌ Error: Input text is empty.", err=True)
         sys.exit(1)
 
-    print("📝 Preprocessing text..."); processed_text = preprocess_text_for_tts(input_content)
-    logger.debug(f"Text after preprocessing: '{processed_text[:200]}...'") # Log processed text snippet
-    if not processed_text.strip():
-        click.echo("❌ Error: Text empty after preprocessing.", err=True)
+    # --- Text Chunking & Preprocessing ---
+    # Chunk the raw input first
+    text_chunks = chunk_text(input_content) # Using default paragraph strategy
+    if not text_chunks:
+        click.echo("❌ Error: Text content resulted in zero processable chunks.", err=True)
         sys.exit(1)
 
-    click.echo(f"🎙️ Starting synthesis (Lang: {language}, Speaker: {actual_speaker_wav.name}, Target: {output_file.name})...")
-    synthesis_successful = False
-    try:
-        engine = get_tts_engine(use_cuda)
-        synthesis_successful = engine.synthesize(
-            text=processed_text,
-            speaker_wav=str(actual_speaker_wav), # Use the determined path
-            language=language,
-            output_path=output_file,
-            speed=speed
-        )
+    processed_chunks = []
+    for i, chunk in enumerate(text_chunks):
+        print(f"📝 Preprocessing chunk {i+1}/{len(text_chunks)}...");
+        processed = preprocess_text_for_tts(chunk)
+        logger.debug(f"Chunk {i+1} after preprocessing: '{processed[:100]}...'")
+        if processed.strip():
+            processed_chunks.append(processed)
+        else:
+            logger.warning(f"Chunk {i+1} became empty after preprocessing, skipping.")
+
+    if not processed_chunks:
+        click.echo("❌ Error: All text chunks became empty after preprocessing.", err=True)
+        sys.exit(1)
+
+    # --- Synthesis Loop ---
+    chunk_output_files: list[Path] = []
+    synthesis_failed = False
+    output_dir = output_file.parent
+    output_base_name = output_file.stem
+    output_suffix = output_file.suffix # Usually .wav
+
+    click.echo(f"🎙️ Starting synthesis of {len(processed_chunks)} chunks (Lang: {language}, Speaker: {actual_speaker_wav.name})...")
+
+    engine = get_tts_engine(use_cuda) # Initialize engine once
+
+    for i, chunk_text_processed in enumerate(processed_chunks):
+        chunk_output_path = output_dir / f"{output_base_name}_chunk_{i}{output_suffix}"
+        chunk_output_files.append(chunk_output_path)
+        click.echo(f"   Synthesizing chunk {i+1}/{len(processed_chunks)} -> {chunk_output_path.name}")
+
+        try:
+            success = engine.synthesize(
+                text=chunk_text_processed,
+                speaker_wav=str(actual_speaker_wav),
+                language=language,
+                output_path=chunk_output_path,
+                speed=speed
+            )
+            if not success:
+                synthesis_failed = True
+                logger.error(f"Synthesis failed for chunk {i+1}. See previous logs.")
+                # Decide whether to stop or continue? Continue for now.
+        except Exception as e:
+            # Catch errors during individual chunk synthesis
+            synthesis_failed = True
+            logger.exception(f"Error synthesizing chunk {i+1}")
+            click.echo(f"❌ Error synthesizing chunk {i+1}: {e}", err=True)
+            # Continue to next chunk? Or break? Continue for now.
+
+    if not chunk_output_files or all(not f.exists() for f in chunk_output_files):
+         click.echo("❌ Error: No audio chunks were successfully generated.", err=True)
+         sys.exit(1)
+
+    # --- Concatenation ---
+    click.echo(f"\n🔗 Concatenating {len(chunk_output_files)} audio chunks into {output_file.name}...")
+    concatenation_successful = concatenate_audio_files(chunk_output_files, output_file)
+
+    # --- Cleanup ---
+    if chunk_output_files:
+        cleanup_files(chunk_output_files)
+
+    if not concatenation_successful:
+        click.echo("❌ Error: Failed to concatenate audio chunks.", err=True)
+        sys.exit(1) # Exit if concatenation failed
+
+    # Determine overall success based *only* on concatenation success for now
+    # A more robust check might consider if *any* chunk failed synthesis
+    synthesis_successful = concatenation_successful and not synthesis_failed
     except FileNotFoundError as e:
         click.echo(f"❌ Error: {e}", err=True)
         sys.exit(1)
@@ -140,15 +199,27 @@ def synthesize(
         click.echo(f"❌ Unexpected error: {e}", err=True)
         sys.exit(1)
 
+    # --- Evaluation (on the final concatenated file) ---
     if synthesis_successful and evaluate:
-        print("\n" + "📊 Starting audio evaluation (Whisper STT)...")
+        click.echo("\n" + "📊 Starting audio evaluation (Whisper STT) on final output...")
         try:
-            evaluator = get_evaluator(use_cuda); evaluation_result = evaluator.evaluate_audio(output_file, processed_text)
-            if evaluation_result: score, transcript = evaluation_result; print(f"    Transcript Sample: '{transcript[:100].strip()}...'"); print(f"    🎯 Similarity: {score:.2f}%")
-            else: print("    ⚠️ Evaluation incomplete (transcription error?).")
-        except RuntimeError as e: print(f"❌ Evaluator Error: {e}")
-        except Exception as e: logger.exception("Unexpected evaluation error."); print(f"❌ Unexpected eval error: {e}")
-    elif not synthesis_successful: print("\n" + "⚠️ Skipping evaluation (synthesis failed).")
+            # We need the full *original* processed text for comparison
+            full_processed_text = " ".join(processed_chunks) # Rejoin for evaluation target
+            evaluator = get_evaluator(use_cuda)
+            evaluation_result = evaluator.evaluate_audio(output_file, full_processed_text)
+            if evaluation_result:
+                score, transcript = evaluation_result
+                click.echo(f"    Transcript Sample: '{transcript[:100].strip()}...'")
+                click.echo(f"    🎯 Similarity Score (vs processed input): {score:.2f}%")
+            else:
+                 click.secho("    ⚠️ Evaluation incomplete (possible transcription error?).", fg='yellow')
+        except RuntimeError as e:
+            click.secho(f"❌ Evaluator Error: {e}", fg='red')
+        except Exception as e:
+            logger.exception("Unexpected evaluation error.")
+            click.secho(f"❌ Unexpected evaluation error: {e}", fg='red')
+    elif not synthesis_successful:
+        click.secho("\n" + "⚠️ Skipping evaluation because synthesis or concatenation failed.", fg='yellow')
 
     total_duration = time.time() - start_total_time
     print(f"\n✨ Montaigne process finished in {total_duration:.2f} seconds.")

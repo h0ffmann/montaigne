@@ -12,6 +12,7 @@ dependencies = [
     "torchaudio==2.3.1",      # Use corresponding torchaudio version
     "openai-whisper==20240930",
     "rapidfuzz==3.13.0",
+    "pydub>=0.25.0", # For audio manipulation (concatenation, etc.)
 ]
 
 [project.optional-dependencies]

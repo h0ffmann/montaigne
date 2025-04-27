@@ -60,6 +60,12 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     pkg-config \
     # Install uv
     && curl -LsSf https://astral.sh/uv/install.sh | sh \
+    # --- Create TTS License Marker ---
+    # Create the standard cache directory and the license file within it AND in home dir
+    # This should prevent the interactive license prompt.
+    && mkdir -p /root/.local/share/tts \
+    && touch /root/.local/share/tts/.TTS_LICENSE_ACCEPTED \
+    && touch /root/.TTS_LICENSE_ACCEPTED \
     # --- Install Python Dependencies using uv ---
     # CORRECT: Use 'cp' (a shell command) to copy files *already copied* into the build context
     && cp /tmp/project_files/pyproject.toml /app/pyproject.toml \

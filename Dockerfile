@@ -71,7 +71,7 @@ ENV PYTHONUNBUFFERED=1 \
     # Runtime GPU variables (optional if set outside container)
     # CUDA_VISIBLE_DEVICES is typically managed by the container runtime or application
     # TORCH_CUDA_ARCH_LIST is mainly for source builds; pre-built wheels handle this.
-    FORCE_CUDA=1
+    # FORCE_CUDA=1 # Removed - Let PyTorch detect CUDA availability naturally
 
 WORKDIR /app
 

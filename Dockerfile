@@ -26,7 +26,8 @@ ENV TZ=UTC
 ENV UV_EXTRA_INDEX_URL="https://download.pytorch.org/whl/cu121"
 ENV UV_INDEX_STRATEGY="unsafe-best-match"
 ENV UV_NATIVE_TLS="1"
-ENV TTS_LICENSE_ACCEPTED=1 # Attempt to auto-accept Coqui TTS license
+# Attempt to auto-accept Coqui TTS license via environment variable
+ENV TTS_LICENSE_ACCEPTED=1
 
 WORKDIR /app
 

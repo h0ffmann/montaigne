@@ -54,19 +54,19 @@ setup: install
 
 # Run the Montaigne CLI application from the virtual environment
 # Pass arguments after `--`, e.g., `just run -- --text "Hello" ...`
-run *ARGS: _check_command 'montaigne'
+run *ARGS: _check_command montaigne
     @echo "🚀 Running Montaigne CLI..."
     @{{PYTHON}} -m {{PROJECT_NAME}}.main {{ARGS}}
 
 # === Linting & Formatting (using Ruff via venv) ===
 
 # Run Ruff linter
-lint: _check_command 'ruff'
+lint: _check_command ruff
     @echo "✨ Running Ruff linter..."
     @{{PYTHON}} -m ruff check .
 
 # Run Ruff formatter
-format: _check_command 'ruff'
+format: _check_command ruff
     @echo "🎨 Running Ruff formatter..."
     @{{PYTHON}} -m ruff format .
 
@@ -77,14 +77,14 @@ check: lint format
 # === Testing (using Pytest via venv) ===
 
 # Run tests using pytest (assumes tests are in tests/)
-test: _check_command 'pytest'
+test: _check_command pytest
     @echo "🧪 Running tests with pytest..."
     @{{PYTHON}} -m pytest tests/
 
 # === Building the Package ===
 
 # Build wheel and sdist using the `build` package (requires dev deps)
-build: _check_command 'build'
+build: _check_command build
     @echo "📦 Building wheel and sdist..."
     @{{PYTHON}} -m build
     @echo "✅ Build artifacts are in dist/"

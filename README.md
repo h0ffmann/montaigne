@@ -265,11 +265,15 @@ Evaluation Accuracy: Whisper STT is very accurate but not perfect. The similarit
 
 Dependencies: Compatibility between specific versions of Python, PyTorch, CUDA, and Coqui TTS can sometimes be tricky. The versions in pyproject.toml are starting points.
 
-📄 License
+## 📄 License
 
-(Specify your chosen license here - e.g., MIT, Apache 2.0)
+This project itself is licensed under the **MIT License** - see the `LICENSE` file for details. (You'll need to create this file and confirm if MIT is correct).
 
-This project is licensed under the MIT License - see the LICENSE file for details (you'll need to create this file).
+**Component Licenses:**
+
+*   **Coqui TTS (XTTSv2 Model):** The underlying TTS model is provided by Coqui and is licensed under the **Mozilla Public License 2.0 (MPL 2.0)**. Usage requires accepting their terms upon first model download. Please review the MPL 2.0 license terms, especially regarding distribution and modifications if you plan to redistribute or use this commercially.
+*   **OpenAI Whisper:** The Whisper model used for evaluation is provided by OpenAI and has its own license terms (typically MIT).
+*   Other dependencies have their own respective licenses (check `pyproject.toml` and `uv.lock`).
 
 🙏 Acknowledgements
 

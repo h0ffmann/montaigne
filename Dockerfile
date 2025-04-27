@@ -39,8 +39,10 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     python3.11 \
     # python3.11-venv and python3.11-dev are likely NOT needed for uv run
     # Add any other NON-PYTHON system library required by the application at runtime
+    # Set SHELL for pipefail before installing uv
+    && SHELL ["/bin/bash", "-o", "pipefail", "-c"] \
     # Install uv using pipefail
-    && SHELL="/bin/bash -o pipefail -c" curl -LsSf https://astral.sh/uv/install.sh | sh \
+    && curl -LsSf https://astral.sh/uv/install.sh | sh \
     # Clean up apt caches and lists
     && apt-get clean \
     && rm -rf /var/lib/apt/lists/* /etc/apt/sources.list.d/deadsnakes*

@@ -3,7 +3,7 @@ name = "montaigne"
 version = "0.1.0"
 description = "CLI tool for TTS (XTTS) with text preprocessing (pauses, emphasis, tone tags) and evaluation (Whisper)."
 authors = [{ name = "Matheus Hoffmann", email = "hoffmann@poli.ufrj.br" }]
-requires-python = ">=3.12" # ATUALIZADO
+requires-python = "==3.11"
 dependencies = [
     "typer[all]>=0.9.0,<1.0.0",
     "TTS>=0.22.0",           # >=0.22.0 recomendado para compatibilidade Python >3.10

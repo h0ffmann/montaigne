@@ -20,7 +20,7 @@ default:
 _create_venv:
     @if [ ! -d "{{VENV_DIR}}" ]; then \
         echo "🐍 Creating virtualenv at {{VENV_DIR}} using uv..."; \
-        {{UV}} venv {{VENV_DIR}} --python 3.12 || exit 1; \
+        {{UV}} venv {{VENV_DIR}} --python 3.11 || exit 1; \
         echo "✅ Virtualenv created."; \
     else \
         echo "🐍 Virtualenv already exists at {{VENV_DIR}}."; \

@@ -3,7 +3,7 @@
 # --- Configuração ---
 PROJECT_NAME="montaigne"
 PYTHON_SRC_DIR="src/${PROJECT_NAME}"
-PYTHON_VERSION_REQ=">=3.12" # ATUALIZADO para Python 3.12
+PYTHON_VERSION_REQ="==3.11" # ATUALIZADO para Python 3.11
 
 # --- Verificação Preliminar ---
 if [ -d "$PROJECT_NAME" ]; then
@@ -28,7 +28,7 @@ name = "montaigne"
 version = "0.1.0"
 description = "CLI tool for TTS (XTTS) with text preprocessing (pauses, emphasis, tone tags) and evaluation (Whisper)."
 authors = [{ name = "Matheus Hoffmann", email = "hoffmann[at]poli.ufrj.br" }]
-requires-python = ">=3.12" # ATUALIZADO
+requires-python = "==3.11"
 dependencies = [
     "typer[all]>=0.9.0,<1.0.0",
     "TTS>=0.22.0",           # >=0.22.0 recomendado para compatibilidade Python >3.10
@@ -367,7 +367,7 @@ setup: vendor_install install_editable
 create_venv:
     @if [ ! -d "{{VENV_DIR}}" ]; then \
         echo "Creating virtualenv at {{VENV_DIR}}..."; \
-        {{UV}} venv {{VENV_DIR}} --python 3.12 || exit 1; \
+        {{UV}} venv {{VENV_DIR}} --python 3.11 || exit 1; \
         echo "Virtualenv created."; \
     else \
         echo "Virtualenv already exists."; \

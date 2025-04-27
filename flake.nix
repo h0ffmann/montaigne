@@ -31,7 +31,7 @@
           pkg-config
           gcc
           gnumake
-          python312
+          python311
           uv
           nodejs_22
           corepack_22

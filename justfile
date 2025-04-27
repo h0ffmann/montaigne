@@ -9,6 +9,12 @@ VENV_DIR     := ".venv"
 PYTHON       := "{{VENV_DIR}}/bin/python"
 UV           := "uv" # Assumes uv is in PATH
 
+# === Helper Functions ===
+
+# Check if a command is available as a module in the virtual environment
+# Usage: @{{check_venv_cmd('module_name')}} inside a recipe
+check_venv_cmd(cmd) := `{{PYTHON}} -m {{cmd}} --version > /dev/null 2>&1 || (echo "❌ Command '{{cmd}}' not found in venv {{VENV_DIR}}. Run 'just install'?" && exit 1)`
+
 # === Default Task ===
 # Show CLI help by default
 default: 
@@ -146,9 +152,3 @@ docker_run_gpu *ARGS:
         -v "$(pwd)/input:/app/input:ro" \
         -v "$(pwd)/output:/app/output:rw" \
         "{{DOCKER_IMAGE_NAME}}:{{DOCKER_TAG}}" {{ARGS}}
-
-# === Helper Functions ===
-
-# Check if a command is available as a module in the virtual environment
-# Usage: available=check_venv_cmd('module_name')
-check_venv_cmd(cmd) := `{{PYTHON}} -m {{cmd}} --version > /dev/null 2>&1 || (echo "❌ Command '{{cmd}}' not found in venv {{VENV_DIR}}. Run 'just install'?" && exit 1)`

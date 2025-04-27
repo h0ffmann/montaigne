@@ -197,6 +197,7 @@
                            echo "🏗️ Installing local Montaigne package in editable mode into venv..."
                            if ! uv pip install --no-deps -e "$_PROJECT_DIR"; then echo "⚠️ Warning: Failed to install local package '$_PROJECT_DIR' in editable mode with uv."; fi
                            echo "✅ uv dependency installation complete."
+                        fi # <-- Add missing fi here
                         # --- Final Message ---
                         echo "================================"; echo ""
                         echo "✅ Montaigne environment ready!"

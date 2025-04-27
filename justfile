@@ -169,3 +169,26 @@ docker_run_gpu *ARGS:
         -v "$(pwd)/input:/app/input:ro" \
         -v "$(pwd)/output:/app/output:rw" \
         "{{DOCKER_IMAGE_NAME}}:{{DOCKER_TAG}}" {{ARGS}}
+
+# Check Docker status and provide helpful messages
+docker_check:
+    @echo "🔍 Checking Docker setup..."
+    @if command -v docker >/dev/null 2>&1; then \
+        if docker info >/dev/null 2>&1; then \
+            echo "✅ Docker is working correctly!"; \
+            echo "Docker version: $$(docker --version)"; \
+            echo "Docker compose: $$(docker-compose --version)"; \
+            if docker info 2>/dev/null | grep -q "Runtimes.*nvidia"; then \
+                echo "✅ NVIDIA runtime available for GPU support"; \
+            else \
+                echo "⚠️ NVIDIA runtime not found - needed for GPU in containers"; \
+            fi; \
+        else \
+            echo "❌ Docker daemon is not running or permission issue"; \
+            echo "Try:"; \
+            echo "  sudo systemctl start docker"; \
+            echo "  sudo usermod -aG docker $$USER && newgrp docker"; \
+        fi; \
+    else \
+        echo "❌ Docker not installed or not in PATH"; \
+    fi

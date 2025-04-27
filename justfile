@@ -177,7 +177,7 @@ docker_build *ARGS:
         -t '{{GHCR_TAG_LATEST}}' \
         -t '{{GHCR_TAG_COMMIT}}' \
         ."; \
-    echo "Executing: $${_BUILD_CMD}"; \
+    echo "Executing: $${_BUILD_CMD}";
     eval "$${_BUILD_CMD}" # Use eval to handle potential spaces/quotes in ARGS correctly
 
     @# Conditionally add the manual tag *after* the build succeeds

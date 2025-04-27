@@ -12,6 +12,10 @@
 - [ ] Implement proper tone handling in TTS synthesis
 - [ ] Add more comprehensive error handling for license-related issues
 - [ ] Create automated tests for license acceptance flow
+- [ ] Add YouTube integration to automatically:
+  - [ ] Download audio from YouTube video ID
+  - [ ] Extract clean voice track using voice separation
+  - [ ] Use as speaker reference for TTS
 
 ## Documentation
 

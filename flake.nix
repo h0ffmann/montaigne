@@ -43,16 +43,15 @@
 
         # --- Runtime Libraries ---
         runtimeLibs = with pkgs; [
+          # Core C/C++ libs
           stdenv.cc.cc.lib
           gcc-unwrapped.lib
-          cudatoolkit
-          cudnn
+          # Application runtime libs
           ffmpeg
           libsndfile
           alsa-lib
           libGL
           openssl
-          zlib
           ncurses5
         ];
         runtimeLibPath = pkgs.lib.makeLibraryPath runtimeLibs;
@@ -70,8 +69,8 @@
           curl
           wget
           repomix
-          pkg-config
           gcc
+          pkg-config # Needed for building some Python packages
           gnumake
           python
           uv
@@ -106,7 +105,7 @@
 
         # --- Compile-time Build Inputs ---
         devBuildInputs = with pkgs; [
-          stdenv.cc.cc
+          # System libraries needed for compiling Python extensions
           pkg-config
           cudatoolkit
           cudnn
@@ -115,7 +114,6 @@
           alsa-lib.dev
           libGL.dev
           openssl.dev
-          zlib.dev
           ncurses5.dev
         ];
 
@@ -125,38 +123,32 @@
         devShells.default = pkgs.mkShell {
           name = "montaigne-dev-env-nix-torch";
           packages = montaigneTools ++ nixPythonMlPackages;
-          buildInputs = devBuildInputs;
+          # buildInputs are implicitly added to PATH and include .dev outputs
+          # Needed for compiling non-Nix Python packages if they require these libs.
+          buildInputs = devBuildInputs; 
 
           # --- Environment Variables ---
           env = {
+            # These might still be useful for tools *other* than PyTorch's runtime linking
             CUDA_HOME = "${cudatoolkit}";
             CUDA_PATH = "${cudatoolkit}";
-            LD_LIBRARY_PATH = runtimeLibPath;
-            VIRTUAL_ENV = "$PWD/.venv";
-            PATH = "$PWD/.venv/bin:${pkgs.lib.makeBinPath montaigneTools}";
+            # Let torchWithCuda's dependencies primarily manage runtime linking.
+            # Prepend our specific runtime libs if needed, but avoid explicit CUDA paths here.
+            LD_LIBRARY_PATH = runtimeLibPath + pkgs.lib.optionalString (LD_LIBRARY_PATH != "") ":${LD_LIBRARY_PATH}";
+            # Setup Venv path - shellHook will handle creation/activation
+            VIRTUAL_ENV = "$PWD/.venv"; # Standard venv location
+            PATH = "$PWD/.venv/bin:${pkgs.lib.makeBinPath montaigneTools}:${pkgs.stdenv.cc.cc.bin}/bin"; # Prepend venv bin in hook
             UV_NATIVE_TLS = "1";
-            NIX_CFLAGS_COMPILE = toString (pkgs.lib.optionals pkgs.stdenv.isLinux ([
+            # Simplify NIX_CFLAGS/LDFLAGS - rely on buildInputs and pkg-config more
+            # Keep essential ones if known to be required by specific non-Nix packages
+            NIX_CFLAGS_COMPILE = toString ([
               "-I${pkgs.lib.getDev pkgs.openssl}/include"
-              "-I${pkgs.lib.getDev pkgs.zlib}/include"
               "-I${pkgs.lib.getDev pkgs.libsndfile}/include"
-              "-I${pkgs.lib.getDev cudatoolkit}/include"
-              "-I${pkgs.lib.getDev cudnn}/include"
-            ] ++ pkgs.lib.optionals (pkgs.libGL.dev != null) [ "-I${pkgs.lib.getDev pkgs.libGL}/include" ]
-            ++ pkgs.lib.optionals (pkgs.alsa-lib.dev != null) [ "-I${pkgs.lib.getDev pkgs.alsa-lib}/include" ]
-            ));
-            NIX_LDFLAGS = toString (pkgs.lib.optionals pkgs.stdenv.isLinux ([
+            ] ++ pkgs.lib.optionals (pkgs.libGL.dev != null) [ "-I${pkgs.lib.getDev pkgs.libGL}/include" ]);
+            NIX_LDFLAGS = toString ([
               "-L${pkgs.lib.getLib pkgs.openssl}/lib"
-              "-L${pkgs.lib.getLib pkgs.zlib}/lib"
               "-L${pkgs.lib.getLib pkgs.libsndfile}/lib"
-              "-L${pkgs.lib.getLib cudatoolkit}/lib"
-              "-L${pkgs.lib.getLib cudnn}/lib"
-              "-L${pkgs.stdenv.cc.cc.lib}/lib"
-              "-L${pkgs.gcc-unwrapped.lib}/lib"
-            ] ++ pkgs.lib.optionals (pkgs.libGL.out != null) [ "-L${pkgs.lib.getLib pkgs.libGL}/lib" ]
-            ++ pkgs.lib.optionals (pkgs.alsa-lib.out != null) [ "-L${pkgs.lib.getLib pkgs.alsa-lib}/lib" ]
-            ));
-            EXTRA_LDFLAGS = "-L${pkgs.stdenv.cc.cc.lib}/lib -L${pkgs.gcc-unwrapped.lib}/lib";
-            EXTRA_CPPFLAGS = "-I${pkgs.stdenv.cc.cc.lib}/include";
+            ] ++ pkgs.lib.optionals (pkgs.libGL.out != null) [ "-L${pkgs.lib.getLib pkgs.libGL}/lib" ]);
             DOCKER_BUILDKIT = "1";
             COMPOSE_DOCKER_CLI_BUILD = "1";
             PKG_CONFIG_PATH = "${pkgs.lib.makeSearchPathOutput "dev" "lib/pkgconfig" devBuildInputs}";
@@ -168,10 +160,12 @@
                         echo "👋 Entering Montaigne Dev Env (Nix managing Python core + PyTorch/CUDA)..."
 
                         # --- Venv Setup ---
-                        _NIX_PYTHON_INTERPRETER="${python}/bin/python"
-                        if ! command -v "$_NIX_PYTHON_INTERPRETER" &> /dev/null; then echo "❌ Fatal: Nix Python interpreter not found at '$_NIX_PYTHON_INTERPRETER'." && return 1; fi
-                        echo "🐍 Using Nix Python for venv base: $_NIX_PYTHON_INTERPRETER"
+                        # Use the python provided in `packages` which should be the correct one
+                        _NIX_PYTHON_INTERPRETER=$(command -v python)
+                        if ! command -v "$_NIX_PYTHON_INTERPRETER" &> /dev/null; then echo "❌ Fatal: Nix Python interpreter not found in PATH." && return 1; fi
+                        echo "🐍 Using Nix Python for venv base: $_NIX_PYTHON_INTERPRETER ($($_NIX_PYTHON_INTERPRETER --version))"
                         _PROJECT_DIR="$(pwd)"; VENV_DIR="$_PROJECT_DIR/.venv"; export VIRTUAL_ENV="$VENV_DIR"; export PATH="$VENV_DIR/bin:$PATH"
+
                         echo "   Resolved VIRTUAL_ENV='$VIRTUAL_ENV'"; echo "   Prepended venv bin to PATH."
                         if [ ! -f "$VENV_DIR/bin/activate" ]; then
                           echo "🐍 Creating Python virtual environment using uv in '$VENV_DIR'..."
@@ -198,6 +192,39 @@
                            if ! uv pip install --no-deps -e "$_PROJECT_DIR"; then echo "⚠️ Warning: Failed to install local package '$_PROJECT_DIR' in editable mode with uv."; fi
                            echo "✅ uv dependency installation complete."
                         fi # <-- Add missing fi here
+                        # --- Sanity Checks ---
+                        echo "" && echo "=== Sanity Checks ==="
+                        # --- PyTorch/Torchaudio Check ---
+                        echo "🔍 Checking PyTorch & Torchaudio (managed by Nix, accessed via venv Python)..."
+                        python -c "import torch; print(f'---> Torch Version: {torch.__version__}'); print(f'---> CUDA Available: {torch.cuda.is_available()}'); print(f'---> Device Count: {torch.cuda.device_count()}')"
+
+                        # --- Docker Check ---
+                        echo "🐳 Checking Docker status..."
+                        if command -v docker &> /dev/null; then
+                          if timeout 5 docker info >/dev/null 2>&1; then
+                             echo "✅ Docker daemon is running and accessible."
+                             if timeout 5 docker info 2>/dev/null | grep -qE 'Runtimes:.* nvidia( |$)'; then echo "✅ NVIDIA Docker runtime detected in docker info."
+                             elif command -v nvidia-container-runtime &>/dev/null || command -v nvidia-container-runtime-hook &>/dev/null ; then echo "ℹ️ NVIDIA container runtime binary found, but not listed in 'docker info Runtimes'."
+                             else echo "⚠️ NVIDIA Docker runtime not detected."; fi
+                          else echo "⚠️ Docker daemon not running, not responsive within 5s, or permission error."; fi
+                        else echo "❌ Docker command not found \(is 'docker' included in 'packages'?\)."; fi
+
+                        # --- Host NVIDIA Driver Check ---
+                        echo "💻 Checking Host NVIDIA driver via nvidia-smi wrapper..."
+                        if command -v nvidia-smi &> /dev/null; then
+                          nvidia_smi_output=""; nvidia_smi_status=1
+                          if nvidia_smi_output=$(timeout 5 nvidia-smi --query-gpu=driver_version --format=csv,noheader 2>&1); nvidia_smi_status=$?; then
+                             if [ $nvidia_smi_status -eq 0 ] && [ -n "$nvidia_smi_output" ]; then echo "✅ nvidia-smi query successful. Host Driver Version: $nvidia_smi_output"
+                             else
+                               echo "   ℹ️ nvidia-smi query failed (Status: $nvidia_smi_status)/empty. Trying generic 'nvidia-smi'..."
+                               if nvidia_smi_output=$(timeout 5 nvidia-smi 2>&1); nvidia_smi_status=$?; then
+                                  if [ $nvidia_smi_status -eq 0 ] && echo "$nvidia_smi_output" | grep -q "Driver Version:"; then echo "✅ nvidia-smi generic command successful. Host drivers okay."; echo "$nvidia_smi_output" | grep "Driver Version:" | sed 's/ *|//'
+                                  else echo "⚠️ nvidia-smi generic command issue (Status: $nvidia_smi_status). Output:"; echo "--- START ---"; echo "$nvidia_smi_output"; echo "--- END ---"; fi
+                               else echo "⚠️ nvidia-smi generic command failed/timed out (Status: $nvidia_smi_status). Output:"; echo "--- START ---"; echo "$nvidia_smi_output"; echo "--- END ---"; fi
+                             fi
+                          else echo "⚠️ Error running/capturing nvidia-smi status."; fi
+                        else echo "❌ nvidia-smi command (wrapper) not found in PATH."; fi
+
                         # --- Final Message ---
                         echo "================================"; echo ""
                         echo "✅ Montaigne environment ready!"

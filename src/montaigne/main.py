@@ -44,8 +44,8 @@ def cli():
 @cli.command()
 @click.option('--voice-profile', type=click.Choice(list_voice_profiles()), help="Use a prebuilt voice profile (e.g., 'lula', 'trump'). Mutually exclusive with --speaker-wav.")
 @click.option('--speaker-wav', '-s', type=click.Path(exists=True, file_okay=True, dir_okay=False, readable=True, path_type=Path), help="Path to a reference WAV file (10-30s). Mutually exclusive with --voice-profile.")
-@click.option('--text', '-t', help="Text to synthesize directly. Mutually exclusive with --input-file.")
-@click.option('--input-file', '-i', type=click.Path(exists=True, file_okay=True, dir_okay=False, readable=True, path_type=Path), help="Path to a text file. Mutually exclusive with --text.")
+@click.option('--text', '-t', help="Text to synthesize directly. Mutually exclusive with --text-file.")
+@click.option('--text-file', '-f', type=click.Path(exists=True, file_okay=True, dir_okay=False, readable=True, resolve_path=True, path_type=Path), help="Path to a text file containing the synthesis text. Mutually exclusive with --text.")
 @click.option('--output-file', '-o', type=click.Path(writable=True, path_type=Path), required=True, help="Path to save the output WAV audio file.")
 @click.option('--language', '-l', default="en", show_default=True, help="Language code for TTS.")
 @click.option('--speed', type=float, default=1.0, show_default=True, help="Adjust playback speed.")
@@ -55,7 +55,7 @@ def synthesize(
     voice_profile: str | None,
     speaker_wav: Path | None,
     text: str | None,
-    input_file: Path | None,
+    text_file: Path | None, # Renamed from input_file
     output_file: Path,
     language: str,
     speed: float,
@@ -68,10 +68,10 @@ def synthesize(
         raise click.UsageError("Either --voice-profile or --speaker-wav must be provided.")
     if voice_profile and speaker_wav:
         raise click.UsageError("--voice-profile and --speaker-wav are mutually exclusive.")
-    if not (text or input_file):
-        raise click.UsageError("Either --text or --input-file must be provided.")
-    if text and input_file:
-        raise click.UsageError("--text and --input-file are mutually exclusive.")
+    if not (text or text_file): # Use text_file
+        raise click.UsageError("Either --text or --text-file must be provided.")
+    if text and text_file: # Use text_file
+        raise click.UsageError("--text and --text-file are mutually exclusive.")
 
     # Determine the speaker WAV path
     actual_speaker_wav: Path
@@ -89,20 +89,21 @@ def synthesize(
     # --- Start Process ---
     start_total_time = time.time()
     use_cuda = not cpu
+    logger.info(f"--- Synthesize Command Start ---") # Added marker
     logger.info(f"Starting Montaigne TTS process. CUDA enabled: {use_cuda}")
 
     # Determine input content
     input_content: str
     source_name: str
-    if input_file:
+    if text_file: # Use text_file
         try:
-            input_content = input_file.read_text('utf-8')
-            source_name = input_file.name
+            input_content = text_file.read_text('utf-8')
+            source_name = text_file.name
             logger.info(f"Read {len(input_content)} chars from file: {source_name}")
-        except Exception as e: 
-            click.echo(f"❌ Error reading {input_file}: {e}", err=True)
+        except Exception as e:
+            click.echo(f"❌ Error reading text file '{text_file}': {e}", err=True) # Updated error message
             sys.exit(1)
-    else: # text must be provided if input_file is None (validated above)
+    else: # text must be provided if text_file is None (validated above)
         input_content = text
         source_name = "CLI --text option"
         logger.info(f"Read {len(input_content)} chars from {source_name}.")
@@ -112,6 +113,7 @@ def synthesize(
         sys.exit(1)
 
     print("📝 Preprocessing text..."); processed_text = preprocess_text_for_tts(input_content)
+    logger.debug(f"Text after preprocessing: '{processed_text[:200]}...'") # Log processed text snippet
     if not processed_text.strip():
         click.echo("❌ Error: Text empty after preprocessing.", err=True)
         sys.exit(1)

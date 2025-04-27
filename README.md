@@ -70,9 +70,9 @@ Key Arguments:
 
 --speaker-wav PATH / -s PATH (Required): Path to a high-quality reference .wav file (ideally 10-30 seconds, clear, mono, without background noise) of the voice you want to clone/synthesize.
 
---text TEXT / -t TEXT: The text string you want to convert to speech directly.
+--text TEXT / -t TEXT: The text string you want to convert to speech directly. Mutually exclusive with `--text-file`.
 
---input-file PATH / -i PATH: Path to a .txt file containing the text you want to convert to speech. Use either --text or `--input-file*.
+--text-file PATH / -f PATH: Path to a .txt file containing the text you want to convert to speech. Mutually exclusive with `--text`.
 
 --language CODE / -l CODE: Language code for the TTS model (e.g., en, pt, es, fr, de, it, ru, zh-cn). Defaults to 'en'.
 
@@ -109,15 +109,15 @@ Synthesize from direct text:
 
 # Example using Portuguese ('pt')
 # Make sure referencia_voz.wav exists
-montaigne synthesize -t "Olá mundo! [p=0.5] Este é um teste *simples*." \
+montaigne synthesize --text "Olá mundo! [p=0.5] Este é um teste *simples*." \
                      -o output/saida_simples.wav \
                      -s input/referencia_voz.wav \
                      -l pt
 
 Synthesize from a file and evaluate the result:
 
-# Assuming entrada.txt and speaker_ref.wav exist
-montaigne synthesize -i input/entrada.txt \
+# Assuming input/entrada.txt and input/speaker_ref.wav exist
+montaigne synthesize --text-file input/entrada.txt \
                      -o output/saida_avaliada.wav \
                      -s input/speaker_ref.wav \
                      -l en \

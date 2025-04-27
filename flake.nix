@@ -46,7 +46,8 @@
           python311Packages.click
           # python311Packages.typer # Typer is often pulled in by click or other tools, or might need specific setup if extras are complex. Let's omit for now unless needed.
           python311Packages.requests
-          python311Packages.coqui-tts # Corrected attribute name for the TTS package
+          #python311Packages.coqui-tts # Corrected attribute name for the TTS package
+          tts
           python311Packages.openai-whisper
           python311Packages.rapidfuzz
           python311Packages.pydub

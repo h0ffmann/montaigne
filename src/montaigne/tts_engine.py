@@ -52,7 +52,7 @@ class TTSEngine:
             # Suppress specific UserWarnings if necessary during model loading
             with warnings.catch_warnings():
                 warnings.simplefilter("ignore", UserWarning)
-                model = TTS(model_name=XTTS_MODEL_NAME, progress_bar=True).to(self.device)
+                model = TTS(model_name=XTTS_MODEL_NAME, progress_bar=True, gpu=True, split_sentences=True).to(self.device)
             end_time = time.time()
             logger.info(f"TTS model '{XTTS_MODEL_NAME}' loaded in {end_time - start_time:.2f} seconds.")
             return model

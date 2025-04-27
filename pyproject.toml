@@ -5,19 +5,19 @@ description = "CLI tool for TTS (XTTS) with text preprocessing (pauses, emphasis
 authors = [{ name = "Matheus Hoffmann", email = "hoffmann@poli.ufrj.br" }]
 requires-python = ">=3.11,<3.12"
 dependencies = [
-    "click>=8.0.0,<9.0.0",
-    "TTS>=0.22.0",           # >=0.22.0 recomendado para compatibilidade Python >3.10
-    "torch>=2.1.0",          # Verificar compatibilidade PyTorch com Python 3.12 e TTS
-    "torchaudio>=2.1.0",
-    "openai-whisper>=20231117",
-    "rapidfuzz>=3.0.0",
+    "click==8.1.8",
+    "TTS==0.22.0",
+    "torch==2.7.0",
+    "torchaudio==2.7.0",
+    "openai-whisper==20240930",
+    "rapidfuzz==3.13.0",
 ]
 
 [project.optional-dependencies]
 dev = [
-    "ruff>=0.1.0",    # Linter/Formatter
-    "pytest>=7.0.0",  # Testing framework (adicionar testes depois)
-    "build>=0.10.0",  # Para construir pacotes (wheels/sdists)
+    "ruff==0.11.7",
+    "pytest==8.3.5",
+    "build==1.2.2.post1",
 ]
 
 [project.scripts]

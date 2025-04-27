@@ -84,7 +84,7 @@ test: _check_command pytest
 # === Building the Package ===
 
 # Build wheel and sdist using the `build` package (requires dev deps)
-build: _check_command build
+build_package: _check_command build
     @echo "📦 Building wheel and sdist..."
     @{{PYTHON}} -m build
     @echo "✅ Build artifacts are in dist/"

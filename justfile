@@ -133,7 +133,7 @@ debug-gpu:
 # === Docker ===
 
 # Define Docker image name and tag
-DOCKER_IMAGE_NAME := "{{PROJECT_NAME}}"
+DOCKER_IMAGE_NAME := PROJECT_NAME # Assign the value of PROJECT_NAME directly
 DOCKER_TAG        := "latest"
 DOCKER_TAG_GIT    := `git rev-parse --short HEAD`
 

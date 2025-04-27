@@ -14,7 +14,7 @@
           inherit system;
           config = {
             allowUnfree = true;
-            # cudaSupport = true; https://discourse.nixos.org/t/pytorch-with-cuda-support/51189/8
+            cudaSupport = true; # Uncommented to enable CUDA support in nixpkgs
           };
         };
 

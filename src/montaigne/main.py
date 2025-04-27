@@ -50,6 +50,7 @@ def cli():
 @click.option('--evaluate', '-e', is_flag=True, help="Evaluate audio quality using Whisper STT.")
 @click.option('--cpu', is_flag=True, help="Force CPU for TTS and evaluation.")
 def synthesize(
+    voice_profile: str,
     text: str,
     input_file: Path,
     output_file: Path,
@@ -59,6 +60,13 @@ def synthesize(
     evaluate: bool,
     cpu: bool
 ):
+    # Handle voice profile if specified
+    if voice_profile:
+        profile_path = get_voice_profile(voice_profile)
+        if not profile_path:
+            click.echo(f"❌ Could not load voice profile: {voice_profile}", err=True)
+            sys.exit(1)
+        speaker_wav = profile_path
     start_total_time = time.time()
     use_cuda = not cpu
     logger.info(f"Starting Montaigne TTS process. CUDA enabled: {use_cuda}")

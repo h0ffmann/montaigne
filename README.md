@@ -82,6 +82,15 @@ Key Arguments:
 
 --cpu: Flag to force the use of CPU for both TTS and evaluation, even if a GPU is available (will be much slower).
 
+Prebuilt Voice Profiles:
+- `bolsonaro`: Jair Bolsonaro - strong, authoritative tone
+- `lula`: Luiz Inácio Lula da Silva - charismatic, raspy voice  
+- `supla`: Supla - distinctive rock voice
+- `serginho`: Serginho Malandro - playful, energetic tone
+- `bonner`: William Bonner - clear, professional news anchor
+- `marilia`: Marília Gabriela - sophisticated, articulate
+- `bk`: BK (Rapper) - urban, rhythmic speech pattern
+
 Examples:
 
 Synthesize from direct text:

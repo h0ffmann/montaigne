@@ -134,7 +134,7 @@ debug_gpu:
 # === Docker ===
 
 # Define core Docker details
-PROJECT_NAME      := "montaigne" # Should match pyproject.toml
+# PROJECT_NAME is defined at the top level
 DOCKER_TAG_LATEST := "latest"
 DOCKER_TAG_GIT    := `git rev-parse --short HEAD`
 # Define local image name (without registry)

@@ -112,7 +112,7 @@ clean_all: clean clean_venv
 # Define Docker image name and tag
 DOCKER_IMAGE_NAME := "{{PROJECT_NAME}}"
 DOCKER_TAG        := "latest"
-DOCKER_TAG_GIT    := $(shell git rev-parse --short HEAD)
+DOCKER_TAG_GIT    := `git rev-parse --short HEAD`
 
 # Build the Docker image
 docker_build:

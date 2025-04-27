@@ -22,7 +22,7 @@ Montaigne is a powerful command-line tool designed for generating high-quality T
 *   **Command-Line Interface:** Easy-to-use CLI built with Typer.
 *   **Modern Python & Tooling:**
     *   Python >=3.11,<3.12
-    *   Dependency & Environment Management: `uv`
+    *   Dependency & Environment Management: `uv` + Nix Flakes
     *   Task Runner: `just`
     *   Code Formatting/Linting: `ruff`
 *   **Containerization:** Includes a `Dockerfile` for building and running the application in an isolated environment.
@@ -32,15 +32,16 @@ Montaigne is a powerful command-line tool designed for generating high-quality T
 Before you begin, ensure you have the following installed on your system:
 
 1.  **Git:** For cloning the repository.
-2.  **Python:** Version 3.12 or higher.
-3.  **`uv`:** The fast Python package installer and resolver. ([Installation Guide](https://github.com/astral-sh/uv#installation)).
-4.  **`just`:** A handy command runner. ([Installation Guide](https://github.com/casey/just#installation)).
-5.  **Docker Engine:** Required for building and running the Docker container. ([Installation Guide](https://docs.docker.com/engine/install/)).
-6.  **(Highly Recommended for Performance)** **NVIDIA GPU & CUDA:** XTTS and Whisper run *significantly* faster on a CUDA-enabled NVIDIA GPU.
-    *   Ensure you have the appropriate NVIDIA drivers installed.
+2.  **Nix:** The package manager with Flakes enabled. ([Installation Guide](https://nixos.org/download.html)).
+3.  **`just`:** A handy command runner. ([Installation Guide](https://github.com/casey/just#installation)).
+4.  **Docker Engine:** Required for building and running the Docker container. ([Installation Guide](https://docs.docker.com/engine/install/)).
+5.  **(Highly Recommended for Performance)** **NVIDIA GPU & CUDA:** TTS (especially XTTS) and Whisper run *significantly* faster on a CUDA-enabled NVIDIA GPU.
+    *   Ensure you have the appropriate NVIDIA drivers installed on your host.
     *   For Docker GPU support, you'll also need the **NVIDIA Container Toolkit**. ([Installation Guide](https://docs.nvidia.com/datacenter/cloud-native/container-toolkit/latest/install-guide.html)).
 
-## 💾 Installation
+## 💾 Installation & Environment Setup
+
+This project uses **Nix Flakes** to manage the development environment, ensuring reproducible builds and handling complex dependencies like PyTorch with CUDA.
 
 1.  **Clone the Repository:**
     ```bash
@@ -48,44 +49,52 @@ Before you begin, ensure you have the following installed on your system:
     cd montaigne
     ```
 
-2.  **Set up Environment & Install Dependencies:**
-    Use `just` to automatically create a virtual environment (`.venv/`) and install all necessary dependencies (including development tools like `ruff` and `pytest`).
+2.  **Enter the Development Environment:**
+    Use `just nix` (or `nix develop --impure`) to enter the Nix shell. This command will:
+    *   Download and build all Nix-managed dependencies (Python, PyTorch+CUDA, core libraries, etc.) based on `flake.nix`.
+    *   Automatically create/activate a Python virtual environment (`.venv/`) using `uv`.
+    *   Install remaining Python dependencies (like `TTS`, `bark`, `openai-whisper`) into the venv using `uv`.
+    *   Install the `montaigne` package itself in editable mode.
     ```bash
-    just setup
+    just nix
     ```
-    *This command might take a while, especially when downloading PyTorch, TTS, and Whisper models for the first time.*
+    *The first time you run this, it might take a significant amount of time to download and build everything.* Subsequent runs will be much faster due to Nix caching.
 
 ## 🚀 Usage
 
-The primary way to use Montaigne is through its command-line interface.
+Once inside the Nix development shell (`just nix`), you can use the `montaigne` CLI.
 
 **Basic Structure:**
 
 ```bash
-montaigne [OPTIONS] --output-file OUTPUT_WAV --speaker-wav SPEAKER_WAV (--text "INPUT TEXT" | --input-file INPUT_TXT)
+# Select engine (xtts or bark), provide relevant args
+montaigne synthesize --engine [xtts|bark] [ENGINE-SPECIFIC ARGS] --output-file OUTPUT_WAV (--text "INPUT TEXT" | --text-file INPUT_TXT)
+```
 
+**Key Arguments:**
 
-Key Arguments:
+*   `--engine {xtts|bark}`: Selects the Text-to-Speech engine. Defaults to `xtts`.
+*   `--output-file PATH` / `-o PATH` (**Required**): Path to save the generated `.wav` audio file.
+*   `--text TEXT` / `-t TEXT`: Text string to synthesize. Mutually exclusive with `--text-file`.
+*   `--text-file PATH` / `-f PATH`: Path to a `.txt` file containing the text. Mutually exclusive with `--text`.
+*   `--language CODE` / `-l CODE`: Language code (e.g., `en`, `pt`). Defaults to `en`. (Used by XTTS directly, used by Bark for generic voice prompt if `--speaker-prompt` isn't set).
+*   `--evaluate` / `-e`: Flag to enable audio quality evaluation using Whisper STT.
+*   `--cpu`: Flag to force CPU use for both TTS and evaluation.
 
---output-file PATH / -o PATH (Required): Path to save the generated .wav audio file.
+**Engine-Specific Arguments:**
 
---speaker-wav PATH / -s PATH (Required): Path to a high-quality reference .wav file (ideally 10-30 seconds, clear, mono, without background noise) of the voice you want to clone/synthesize.
+*   **XTTS (`--engine xtts`):**
+    *   `--speaker-wav PATH` / `-s PATH`: Path to a reference WAV file for voice cloning. (Required if `--voice-profile` is not used).
+    *   `--voice-profile NAME`: Use a prebuilt voice profile (e.g., 'lula', 'trump'). See list below. (Required if `--speaker-wav` is not used).
+    *   `--speed FLOAT`: Adjust playback speed. Defaults to 1.0.
+*   **Bark (`--engine bark`):**
+    *   `--speaker-prompt PROMPT`: Optional. Provide a Bark speaker prompt (e.g., `en_speaker_1`, `fr_speaker_0`, or a custom voice history prompt). If not provided, a generic language prompt (like `en_speaker`) might be used if available for the specified `--language`, otherwise Bark defaults.
+    *   *Note:* Bark does not use `--speaker-wav`, `--voice-profile`, or `--speed`.
 
---text TEXT / -t TEXT: The text string you want to convert to speech directly. Mutually exclusive with `--text-file`.
+**Prebuilt Voice Profiles (XTTS Only):**
 
---text-file PATH / -f PATH: Path to a .txt file containing the text you want to convert to speech. Mutually exclusive with `--text`.
-
---language CODE / -l CODE: Language code for the TTS model (e.g., en, pt, es, fr, de, it, ru, zh-cn). Defaults to 'en'.
-
---speed FLOAT: Adjust the playback speed factor (e.g., 1.0 is normal, 0.9 is slower, 1.1 is faster). Defaults to 1.0.
-
---evaluate / -e: Flag to enable audio quality evaluation using Whisper STT after synthesis.
-
---cpu: Flag to force the use of CPU for both TTS and evaluation, even if a GPU is available (will be much slower).
-
-Prebuilt Voice Profiles:
-- `bolsonaro`: Jair Bolsonaro - strong, authoritative tone
-- `lula`: Luiz Inácio Lula da Silva - charismatic, raspy voice  
+*   `bolsonaro`: Jair Bolsonaro - strong, authoritative tone
+*   `lula`: Luiz Inácio Lula da Silva - charismatic, raspy voice  
 - `supla`: Supla - distinctive rock voice
 - `serginho`: Serginho Malandro - playful, energetic tone
 - `bonner`: William Bonner - clear, professional news anchor

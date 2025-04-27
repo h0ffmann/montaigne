@@ -137,7 +137,7 @@
             LD_LIBRARY_PATH = runtimeLibPath;
             # Setup Venv path - shellHook will handle creation/activation
             VIRTUAL_ENV = "$PWD/.venv"; # Standard venv location
-            PATH = "$PWD/.venv/bin:${pkgs.lib.makeBinPath montaigneTools}:${pkgs.stdenv.cc.cc.bin}/bin"; # Prepend venv bin in hook
+            PATH = "$PWD/.venv/bin:${pkgs.lib.makeBinPath montaigneTools}:${pkgs.lib.getBin pkgs.stdenv.cc}/bin"; # Prepend venv bin in hook, add C compiler bin path
             UV_NATIVE_TLS = "1";
             # Simplify NIX_CFLAGS/LDFLAGS - rely on buildInputs and pkg-config more
             # Keep essential ones if known to be required by specific non-Nix packages

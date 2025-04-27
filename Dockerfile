@@ -26,8 +26,6 @@ ENV TZ=UTC
 ENV UV_EXTRA_INDEX_URL="https://download.pytorch.org/whl/cu121"
 ENV UV_INDEX_STRATEGY="unsafe-best-match"
 ENV UV_NATIVE_TLS="1"
-# Attempt to auto-accept Coqui TTS license via environment variable
-ENV TTS_LICENSE_ACCEPTED=1
 
 WORKDIR /app
 
@@ -64,8 +62,6 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     # CORRECT: Use 'cp' (a shell command) to copy files *already copied* into the build context
     && cp /tmp/project_files/pyproject.toml /app/pyproject.toml \
     && cp -r /tmp/project_files/src /app/src \
-    # Create the license marker file before installing the app, which might trigger model download
-    && touch /root/.TTS_LICENSE_ACCEPTED \
     # Now, install the project and its dependencies defined in pyproject.toml
     # This installs dependencies into the system Python environment within the container
     && uv pip install --system --no-cache --python /usr/bin/python3.11 /app \

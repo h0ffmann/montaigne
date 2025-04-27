@@ -19,7 +19,7 @@
 
 ## Documentation
 
-- [ ] Add license section to README explaining requirements
+- [x] Add license section to README explaining requirements (Initial version added)
 - [ ] Document how to handle license changes/updates
 - [ ] Add FAQ about commercial use cases
 

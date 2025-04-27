@@ -92,6 +92,11 @@ Prebuilt Voice Profiles:
 - `bk`: BK (Rapper) - urban, rhythmic speech pattern
 - `maria_rita`: Maria Rita - smooth, melodic singing voice
 - `clarice`: Clarice Lispector - thoughtful, philosophical tone
+- `abujamra`: Luiz Fernando Abujamra - deep, dramatic voice
+- `ponde`: L.F. Ponde - slow, reflective philosophical tone
+- `paulo_francis`: Paulo Francis - sophisticated, critical journalist
+- `millor`: Millôr Fernandes - witty, ironic humorist
+- `djavan`: Djavan - smooth, melodic musical voice
 
 Examples:
 

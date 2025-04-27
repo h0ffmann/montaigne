@@ -60,6 +60,36 @@ VOICE_PROFILES = {
         "description": "Brazilian writer - thoughtful, philosophical tone",
         "url": "https://example.com/voices/clarice.wav",
         "local_path": "voices/clarice.wav"
+    },
+    "abujamra": {
+        "name": "Luiz Fernando Abujamra",
+        "description": "Brazilian actor - deep, dramatic voice",
+        "url": "https://example.com/voices/abujamra.wav",
+        "local_path": "voices/abujamra.wav"
+    },
+    "ponde": {
+        "name": "L.F. Ponde",
+        "description": "Brazilian philosopher - slow, reflective tone",
+        "url": "https://example.com/voices/ponde.wav",
+        "local_path": "voices/ponde.wav"
+    },
+    "paulo_francis": {
+        "name": "Paulo Francis",
+        "description": "Brazilian journalist - sophisticated, critical tone",
+        "url": "https://example.com/voices/paulo_francis.wav",
+        "local_path": "voices/paulo_francis.wav"
+    },
+    "millor": {
+        "name": "Millôr Fernandes",
+        "description": "Brazilian humorist - witty, ironic tone",
+        "url": "https://example.com/voices/millor.wav",
+        "local_path": "voices/millor.wav"
+    },
+    "djavan": {
+        "name": "Djavan",
+        "description": "Brazilian musician - smooth, melodic voice",
+        "url": "https://example.com/voices/djavan.wav",
+        "local_path": "voices/djavan.wav"
     }
 }
 

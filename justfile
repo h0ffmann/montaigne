@@ -11,14 +11,15 @@ UV           := "uv" # Assumes uv is in PATH
 
 # === Helper Functions ===
 
-# Check if a command is available as a module in the virtual environment
-# Usage: @{{check_venv_cmd('module_name')}} inside a recipe
-check_venv_cmd cmd := `{{PYTHON}} -m {{cmd}} --version > /dev/null 2>&1 || (echo "❌ Command '{{cmd}}' not found in venv {{VENV_DIR}}. Run 'just install'?" && exit 1)`
+# Check if a command is available as a Python module within the virtual environment.
+# Exits with an error if the command (module) is not found.
+# Usage: Add `@{{check_venv_cmd('module_name')}}` at the start of recipes requiring the module.
+check_venv_cmd cmd = `{{PYTHON}} -m {{cmd}} --version > /dev/null 2>&1 || (echo "❌ Command '{{cmd}}' not found in venv {{VENV_DIR}}. Run 'just install'?" && exit 1)`
 
 # === Default Task ===
-# Show CLI help by default
-default: 
-    @just run -- --help
+# List available recipes by default
+default:
+    @just --list
 
 # === Environment & Dependencies (Managed by UV) ===
 

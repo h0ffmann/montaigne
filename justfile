@@ -146,42 +146,72 @@ DOCKER_IMAGE_NAME := PROJECT_NAME
 # Use env_or_default when available in `just`, otherwise simple `env`:
 GITHUB_OWNER_REPO := env('GITHUB_REPOSITORY', "YOUR_USERNAME/YOUR_REPO") # REPLACE FALLBACK
 # Define the full base image path for GHCR
-GHCR_IMAGE_BASE   := "ghcr.io/{{GITHUB_OWNER_REPO}}"
-# Define full GHCR tags
+GHCR_IMAGE_BASE   := "ghcr.io/{{GITHUB_OWNER_REPO}}/{{DOCKER_IMAGE_NAME}}" # Use project name in path
+# Standard GHCR tags
 GHCR_TAG_LATEST   := GHCR_IMAGE_BASE + ":" + DOCKER_TAG_LATEST
 GHCR_TAG_COMMIT   := GHCR_IMAGE_BASE + ":" + DOCKER_TAG_GIT
 
+# --- Manual Tag Handling ---
+MANUAL_TAG        := env('MANUAL_TAG', '') # Read manual tag from env, default to empty
+# Define full GHCR manual tag only if MANUAL_TAG is not empty
+# We'll construct this within the recipe conditionally
 
 # Build the Docker image, including tags for local use and GHCR
-# Pass extra Docker build args like --no-cache after --, e.g., `just docker_build -- --no-cache`
+# If MANUAL_TAG is set via env, also tag with that for GHCR
 docker_build *ARGS:
     @echo "🐳 Linting Dockerfile..."
-    @# Optional: run hadolint if available
     @command -v hadolint > /dev/null && hadolint Dockerfile --ignore DL3008 || echo "ℹ️ Hadolint not found, skipping lint."
-    @echo "🐳 Building Docker image with tags:"
-    @echo "   Local:  {{DOCKER_IMAGE_NAME}}:{{DOCKER_TAG_LATEST}}"
-    @echo "   Local:  {{DOCKER_IMAGE_NAME}}:{{DOCKER_TAG_GIT}}"
-    @echo "   GHCR:   {{GHCR_TAG_LATEST}}"
-    @echo "   GHCR:   {{GHCR_TAG_COMMIT}}"
-    @# Check if GITHUB_REPOSITORY fallback is being used and warn if needed for push
-    @test {{GITHUB_OWNER_REPO}} != "YOUR_USERNAME/YOUR_REPO" || echo "⚠️ Using fallback GITHUB_REPOSITORY. Set env var for correct GHCR tagging/push."
-    @docker build {{ARGS}} \
-        -t "{{DOCKER_IMAGE_NAME}}:{{DOCKER_TAG_LATEST}}" \
-        -t "{{DOCKER_IMAGE_NAME}}:{{DOCKER_TAG_GIT}}" \
-        -t "{{GHCR_TAG_LATEST}}" \
-        -t "{{GHCR_TAG_COMMIT}}" \
-        .
+
+    # Base build command with standard tags
+    _BUILD_CMD := 'docker build {{ARGS}} ' + \
+                  '-t "{{DOCKER_IMAGE_NAME}}:{{DOCKER_TAG_LATEST}}" ' + \
+                  '-t "{{DOCKER_IMAGE_NAME}}:{{DOCKER_TAG_GIT}}" ' + \
+                  '-t "{{GHCR_TAG_LATEST}}" ' + \
+                  '-t "{{GHCR_TAG_COMMIT}}" '
+
+    @echo "🐳 Building Docker image..."
+    @echo "   Standard Tags:"
+    @echo "     Local:  {{DOCKER_IMAGE_NAME}}:{{DOCKER_TAG_LATEST}}, {{DOCKER_IMAGE_NAME}}:{{DOCKER_TAG_GIT}}"
+    @echo "     GHCR:   {{GHCR_TAG_LATEST}}, {{GHCR_TAG_COMMIT}}"
+
+    @# Warn if using fallback repository
+    @test {{GITHUB_OWNER_REPO}} != "YOUR_USERNAME/YOUR_REPO" || echo "⚠️ Using fallback GITHUB_REPOSITORY. Set env var or run from Actions for correct GHCR tagging."
+
+    @# Perform the main build
+    @{{_BUILD_CMD}} .
+
+    @# Conditionally add the manual tag *after* the build succeeds
+    @if [ -n "{{MANUAL_TAG}}" ]; then \
+        _GHCR_TAG_MANUAL="{{GHCR_IMAGE_BASE}}:{{MANUAL_TAG}}"; \
+        echo "   Manual Tag (GHCR): $${_GHCR_TAG_MANUAL}"; \
+        echo "   Applying manual tag..."; \
+        docker tag "{{DOCKER_IMAGE_NAME}}:{{DOCKER_TAG_LATEST}}" "$${_GHCR_TAG_MANUAL}"; \
+    else \
+        echo "   No manual tag provided."; \
+    fi
     @echo "✅ Docker image built."
 
-# Push the GHCR-tagged images
+
+# Push the GHCR-tagged images (latest, commit, and manual if set)
 docker_push:
     @echo "⏫ Pushing GHCR images..."
     @# Check if GITHUB_REPOSITORY fallback is being used and fail if so
-    @test {{GITHUB_OWNER_REPO}} != "YOUR_USERNAME/YOUR_REPO" || (echo "❌ Cannot push using fallback GITHUB_REPOSITORY. Set the env var or run from GitHub Actions." && exit 1)
-    @echo "   Pushing: {{GHCR_TAG_LATEST}}"
+    @test {{GITHUB_OWNER_REPO}} != "YOUR_USERNAME/YOUR_REPO" || (echo "❌ Cannot push using fallback GITHUB_REPOSITORY. Run from GitHub Actions or set env var GITHUB_REPOSITORY=owner/repo." && exit 1)
+
+    @# Push standard tags
+    @echo "   Pushing GHCR Tag: {{GHCR_TAG_LATEST}}"
     @docker push "{{GHCR_TAG_LATEST}}"
-    @echo "   Pushing: {{GHCR_TAG_COMMIT}}"
+    @echo "   Pushing GHCR Tag: {{GHCR_TAG_COMMIT}}"
     @docker push "{{GHCR_TAG_COMMIT}}"
+
+    @# Conditionally push the manual tag
+    @if [ -n "{{MANUAL_TAG}}" ]; then \
+        _GHCR_TAG_MANUAL="{{GHCR_IMAGE_BASE}}:{{MANUAL_TAG}}"; \
+        echo "   Pushing GHCR Manual Tag: $${_GHCR_TAG_MANUAL}"; \
+        docker push "$${_GHCR_TAG_MANUAL}"; \
+    else \
+        echo "   No manual tag to push."; \
+    fi
     @echo "✅ Images pushed to GHCR."
 
 # Run a simple synthesis task inside a Docker container (CPU only) by default

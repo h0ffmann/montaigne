@@ -133,22 +133,59 @@ debug_gpu:
 
 # === Docker ===
 
-# Define Docker image name and tag
-DOCKER_IMAGE_NAME := PROJECT_NAME # Assign the value of PROJECT_NAME directly
-DOCKER_TAG        := "latest"
+# Define core Docker details
+PROJECT_NAME      := "montaigne" # Should match pyproject.toml
+DOCKER_TAG_LATEST := "latest"
 DOCKER_TAG_GIT    := `git rev-parse --short HEAD`
+# Define local image name (without registry)
+DOCKER_IMAGE_NAME := PROJECT_NAME
 
-# Build the Docker image
-# Pass extra args like --no-cache after --, e.g., `just docker_build -- --no-cache`
+# --- GHCR Specific Variables ---
+# Get OWNER/REPO, fallback for local runs (replace if needed)
+# GITHUB_REPOSITORY env var is set automatically in GitHub Actions
+# Use env_or_default when available in `just`, otherwise simple `env`:
+GITHUB_OWNER_REPO := env('GITHUB_REPOSITORY', "YOUR_USERNAME/YOUR_REPO") # REPLACE FALLBACK
+# Define the full base image path for GHCR
+GHCR_IMAGE_BASE   := "ghcr.io/{{GITHUB_OWNER_REPO}}"
+# Define full GHCR tags
+GHCR_TAG_LATEST   := GHCR_IMAGE_BASE + ":" + DOCKER_TAG_LATEST
+GHCR_TAG_COMMIT   := GHCR_IMAGE_BASE + ":" + DOCKER_TAG_GIT
+
+
+# Build the Docker image, including tags for local use and GHCR
+# Pass extra Docker build args like --no-cache after --, e.g., `just docker_build -- --no-cache`
 docker_build *ARGS:
     @echo "🐳 Linting Dockerfile..."
-    @hadolint Dockerfile --ignore DL3008 
-    @echo "🐳 Building Docker image {{DOCKER_IMAGE_NAME}}:{{DOCKER_TAG}} (and :{{DOCKER_TAG_GIT}})..."
-    @docker build {{ARGS}} -t "{{DOCKER_IMAGE_NAME}}:{{DOCKER_TAG}}" -t "{{DOCKER_IMAGE_NAME}}:{{DOCKER_TAG_GIT}}" .
+    @# Optional: run hadolint if available
+    @command -v hadolint > /dev/null && hadolint Dockerfile --ignore DL3008 || echo "ℹ️ Hadolint not found, skipping lint."
+    @echo "🐳 Building Docker image with tags:"
+    @echo "   Local:  {{DOCKER_IMAGE_NAME}}:{{DOCKER_TAG_LATEST}}"
+    @echo "   Local:  {{DOCKER_IMAGE_NAME}}:{{DOCKER_TAG_GIT}}"
+    @echo "   GHCR:   {{GHCR_TAG_LATEST}}"
+    @echo "   GHCR:   {{GHCR_TAG_COMMIT}}"
+    @# Check if GITHUB_REPOSITORY fallback is being used and warn if needed for push
+    @test {{GITHUB_OWNER_REPO}} != "YOUR_USERNAME/YOUR_REPO" || echo "⚠️ Using fallback GITHUB_REPOSITORY. Set env var for correct GHCR tagging/push."
+    @docker build {{ARGS}} \
+        -t "{{DOCKER_IMAGE_NAME}}:{{DOCKER_TAG_LATEST}}" \
+        -t "{{DOCKER_IMAGE_NAME}}:{{DOCKER_TAG_GIT}}" \
+        -t "{{GHCR_TAG_LATEST}}" \
+        -t "{{GHCR_TAG_COMMIT}}" \
+        .
     @echo "✅ Docker image built."
 
+# Push the GHCR-tagged images
+docker_push:
+    @echo "⏫ Pushing GHCR images..."
+    @# Check if GITHUB_REPOSITORY fallback is being used and fail if so
+    @test {{GITHUB_OWNER_REPO}} != "YOUR_USERNAME/YOUR_REPO" || (echo "❌ Cannot push using fallback GITHUB_REPOSITORY. Set the env var or run from GitHub Actions." && exit 1)
+    @echo "   Pushing: {{GHCR_TAG_LATEST}}"
+    @docker push "{{GHCR_TAG_LATEST}}"
+    @echo "   Pushing: {{GHCR_TAG_COMMIT}}"
+    @docker push "{{GHCR_TAG_COMMIT}}"
+    @echo "✅ Images pushed to GHCR."
+
 # Run a simple synthesis task inside a Docker container (CPU only) by default
-# Mounts ./input (read-only) and ./output (read-write) directories.
+# Uses the locally tagged image.
 # Pass other Montaigne args after --, e.g., `just docker_run -- --language pt ...`
 docker_run *ARGS:
     @echo "🐳 Running default synthesis task in Docker container (CPU)..."
@@ -162,7 +199,7 @@ docker_run *ARGS:
     @docker run --rm \
         -v "$(pwd)/input:/app/input:ro" \
         -v "$(pwd)/output:/app/output:rw" \
-        "{{DOCKER_IMAGE_NAME}}:{{DOCKER_TAG}}" \
+        "{{DOCKER_IMAGE_NAME}}:{{DOCKER_TAG_LATEST}}" \
         synthesize \
           --text "This is a default test run [p=0.5] inside Docker." \
           --output-file /app/output/docker_default_run_output.wav \
@@ -171,6 +208,8 @@ docker_run *ARGS:
           --cpu \
           {{ARGS}} # Pass any additional user arguments here
 
+# Run the application inside a Docker container with GPU support
+# Uses the locally tagged image.
 # Usage: just docker_run_gpu -- synthesize --text "GPU test" ...
 docker_run_gpu *ARGS:
     @echo "🐳 Running Docker container (GPU)..."
@@ -178,12 +217,12 @@ docker_run_gpu *ARGS:
     @docker run --rm --gpus all \
         -v "$(pwd)/input:/app/input:ro" \
         -v "$(pwd)/output:/app/output:rw" \
-        "{{DOCKER_IMAGE_NAME}}:{{DOCKER_TAG}}" {{ARGS}} # Requires user to pass 'synthesize' and all args
+        "{{DOCKER_IMAGE_NAME}}:{{DOCKER_TAG_LATEST}}" {{ARGS}} # Requires user to pass 'synthesize' and all args
 
 # Run a debug synthesis inside a Docker container (CPU)
-# Kept separate for clarity, very similar to the new docker_run default
+# Uses the locally tagged image.
 docker_debug:
-    @echo "🐳 Running debug synthesis inside Docker container (CPU)..."
+    @echo "🐳 Running explicit debug synthesis inside Docker container (CPU)..."
     @mkdir -p ./input ./output # Ensure host directories exist
     @if [ ! -f "input/speaker.wav" ]; then \
         echo "⚠️ No speaker.wav found in input/. Creating a dummy file for the test."; \
@@ -193,9 +232,9 @@ docker_debug:
     @docker run --rm \
         -v "$(pwd)/input:/app/input:ro" \
         -v "$(pwd)/output:/app/output:rw" \
-        "{{DOCKER_IMAGE_NAME}}:{{DOCKER_TAG}}" \
+        "{{DOCKER_IMAGE_NAME}}:{{DOCKER_TAG_LATEST}}" \
         synthesize \
-          --text "This is a debug test [p=0.5] with *emphasis*." \
+          --text "This is an explicit docker debug test [p=0.5] with *emphasis*." \
           --output-file /app/output/docker_debug_output.wav \
           --speaker-wav /app/input/speaker.wav \
           --language en \
@@ -209,8 +248,8 @@ docker_check:
         if docker info >/dev/null 2>&1; then \
             echo "✅ Docker is working correctly!"; \
             echo "Docker version: $$(docker --version)"; \
-            echo "Docker compose: $$(docker-compose --version)"; \
-            if docker info 2>/dev/null | grep -q "Runtimes.*nvidia"; then \
+            echo "Docker compose: $$(docker-compose --version || echo 'not found')"; \
+            if docker info 2>/dev/null | grep -qE "Runtimes:.*nvidia"; then \
                 echo "✅ NVIDIA runtime available for GPU support"; \
             else \
                 echo "⚠️ NVIDIA runtime not found - needed for GPU in containers"; \

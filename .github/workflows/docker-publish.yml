@@ -6,15 +6,21 @@ on:
       - master # Trigger build/push on merge/push to master
   schedule:
     - cron: '0 0 * * 0' # Run cleanup every Sunday at 00:00 UTC
+  workflow_dispatch: {} # <-- ADDED: Allows manual triggering from the Actions UI
 
 permissions: # Define permissions at the workflow level
   contents: read
   packages: write # Needed for push and delete
 
+env: # Define environment variables accessible by all jobs/steps
+  # Sets the GHCR package name based on the repository name
+  # Ensures consistency between jobs and with the cleanup action
+  GHCR_PACKAGE_NAME: ${{ github.event.repository.name }}
+
 jobs:
   build-and-push:
-    # Only run this job on push events, not scheduled events
-    if: github.event_name == 'push'
+    # Only run this job on push or workflow_dispatch events
+    if: github.event_name == 'push' || github.event_name == 'workflow_dispatch'
     runs-on: ubuntu-latest
     # Permissions are now inherited from the workflow level
 
@@ -31,14 +37,22 @@ jobs:
         uses: docker/login-action@v3
         with:
           registry: ghcr.io
-          username: ${{ github.actor }}
-          password: ${{ secrets.GITHUB_TOKEN }} # Use the default GITHUB_TOKEN
+          # Use github.repository_owner for robustness, or github.actor if preferred
+          username: ${{ github.repository_owner }}
+          password: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Build Docker image using Just
-        run: just docker_build # This will now also tag for GHCR
+        # Pass GITHUB_REPOSITORY to just so it knows how to tag for GHCR
+        run: just docker_build
+        env:
+          # GITHUB_REPOSITORY is automatically available in actions (format: owner/repo)
+          GITHUB_REPOSITORY: ${{ github.repository }}
 
       - name: Push Docker image using Just
-        run: just docker_push # This will push the tags created by docker_build
+        run: just docker_push
+        env:
+          # Pass GITHUB_REPOSITORY to just so it knows which images to push
+          GITHUB_REPOSITORY: ${{ github.repository }}
 
   cleanup-ghcr:
     # Only run this job on scheduled events

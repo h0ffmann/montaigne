@@ -3,10 +3,10 @@
 Montaigne is a powerful command-line tool designed for generating high-quality Text-to-Speech (TTS) audio using the advanced **Coqui XTTSv2** model. It offers features like voice cloning from short audio samples, text preprocessing for enhanced expressiveness, and optional audio quality evaluation using **OpenAI Whisper**. The project is built with Python 3.12+, managed with `uv`, provides common tasks via `just`, and includes Docker support for containerization.
 
 <!-- Optional Badges: Add your own -->
-<!-- ![License](https://img.shields.io/badge/License-MIT-blue.svg) -->
-<!-- ![Python Version](https://img.shields.io/badge/python-3.12+-blue.svg) -->
-<!-- ![Build Status](...) -->
-<!-- ![Code Style](https://img.shields.io/badge/code%20style-ruff-black.svg) -->
+![License](https://img.shields.io/badge/License-MIT-blue.svg)
+![Python Version](https://img.shields.io/badge/python-3.12+-blue.svg)
+![Build Status](wip)
+![Code Style](https://img.shields.io/badge/code%20style-ruff-black.svg)
 
 ## Features
 
@@ -282,9 +282,3 @@ Coqui TTS (XTTSv2): For the powerful underlying TTS model. (Coqui TTS GitHub)
 OpenAI Whisper: For the state-of-the-art Speech-to-Text model used in evaluation. (OpenAI Whisper GitHub)
 
 The creators of Click, uv, Just, Ruff, and other libraries used in this project.
-
-IGNORE_WHEN_COPYING_START
-content_copy
-download
-Use code with caution.
-IGNORE_WHEN_COPYING_END

@@ -141,6 +141,8 @@ DOCKER_TAG_GIT    := `git rev-parse --short HEAD`
 # Build the Docker image
 # Pass extra args like --no-cache after --, e.g., `just docker_build -- --no-cache`
 docker_build *ARGS:
+    @echo "🐳 Linting Dockerfile..."
+    @hadolint Dockerfile --ignore DL3008 
     @echo "🐳 Building Docker image {{DOCKER_IMAGE_NAME}}:{{DOCKER_TAG}} (and :{{DOCKER_TAG_GIT}})..."
     @docker build {{ARGS}} -t "{{DOCKER_IMAGE_NAME}}:{{DOCKER_TAG}}" -t "{{DOCKER_IMAGE_NAME}}:{{DOCKER_TAG_GIT}}" .
     @echo "✅ Docker image built."

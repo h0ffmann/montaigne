@@ -123,6 +123,8 @@ clean_all: clean clean_venv
 
 # Run a simple debug/test command that verifies basic functionality
 debug:
+    @echo "🐛 Running debug task: Generating fresh repo-content.txt + basic synthesis..."
+    @repomix . --output repo-content.txt
     @echo "🐞 Running debug/test command..."
     @mkdir -p input output
     @if [ ! -f "input/speaker.wav" ]; then \

@@ -103,6 +103,7 @@ clean_all: clean
 # === Debugging ===
 
 debug:
+  @echo "🐍 Provide edits in DIFF format, please."
   @echo "🐛 Running debug task..."
   @repomix . --output repo-content.txt
   @echo "🔍 Testing montaigne installation..."
@@ -125,7 +126,7 @@ debug:
   fi
 
 # Run a simple debug command that verifies Torch CUDA functionality using Nix Python
-debug-gpu:
+debug_gpu:
     python -c 'import torch; print(f"PyTorch: {torch.__version__}"); print(f"CUDA Available: {torch.cuda.is_available()}"); print(f"Device Count: {torch.cuda.device_count()}")'
 
 

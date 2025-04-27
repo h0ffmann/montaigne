@@ -70,7 +70,7 @@ ENV PYTHONUNBUFFERED=1 \
     PATH="/opt/venv/bin:$PATH" \
     # Runtime GPU variables (optional if set outside container)
     # CUDA_VISIBLE_DEVICES is typically managed by the container runtime or application
-    TORCH_CUDA_ARCH_LIST="7.0;7.5;8.0;8.6;8.9;9.0" \
+    # TORCH_CUDA_ARCH_LIST is mainly for source builds; pre-built wheels handle this.
     FORCE_CUDA=1
 
 WORKDIR /app

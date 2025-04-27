@@ -30,13 +30,15 @@ _create_venv:
 # This is the main command for setting up the development environment.
 install: _create_venv
     @echo "📦 Installing project in editable mode with dev dependencies using uv..."
-    @{{UV}} pip install --python "{{PYTHON}}" -e '.[dev]'
+    @# uv should automatically detect the .venv environment
+    @{{UV}} pip install -e '.[dev]'
     @echo "✅ Project installed."
 
 # Install only production dependencies (useful for testing prod builds)
 install_prod: _create_venv
     @echo "📦 Installing project with production dependencies only using uv..."
-    @{{UV}} pip install --python "{{PYTHON}}" .
+    @# uv should automatically detect the .venv environment
+    @{{UV}} pip install .
     @echo "✅ Production dependencies installed."
 
 # Alias for the main development setup

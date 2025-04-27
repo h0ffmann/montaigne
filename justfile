@@ -109,6 +109,10 @@ clean_all: clean
 
 # Run a simple debug/test command that verifies basic functionality using Nix Python
 debug:
+    @echo "🐛 Running debug task..."
+    @command -v python > /dev/null 2>&1 || (echo "❌ Python not found. Are you in nix shell?" && exit 1)
+    @echo "📦 Ensuring montaigne is installed..."
+    @pip install -e . || echo "⚠️ Warning: Could not install montaigne package."
     @echo "🐛 Running debug task: Generating fresh repo-content.txt + basic synthesis..."
     @repomix . --output repo-content.txt
     @echo "🐞 Running debug/test command..."

@@ -64,13 +64,15 @@ RUN uv pip install --no-cache-dir \
     . 
 
 # Debugging: Verify the entrypoint script exists using 'test -f'
-# Add SHELL directive to satisfy DL4006, although test doesn't pipe
-# Moved comment above
+# Add SHELL directive to satisfy DL4006
 SHELL ["/bin/bash", "-o", "pipefail", "-c"]
 RUN echo "Checking for montaigne script in builder..." && \
-    test -f $VIRTUAL_ENV/bin/montaigne && \
-    echo "✅ Montaigne script found in $VIRTUAL_ENV/bin (Builder)" || \
-    (echo "❌ ERROR: Montaigne script NOT found in $VIRTUAL_ENV/bin (Builder)" && exit 1)
+    if test -f "$VIRTUAL_ENV/bin/montaigne"; then \
+        echo "✅ Montaigne script found in $VIRTUAL_ENV/bin (Builder)"; \
+    else \
+        echo "❌ ERROR: Montaigne script NOT found in $VIRTUAL_ENV/bin (Builder)"; \
+        exit 1; \
+    fi
 # Reset shell
 SHELL ["/bin/sh", "-c"]
 
@@ -109,12 +111,14 @@ COPY --from=builder /opt/venv /opt/venv
 
 # Debugging: Verify the entrypoint script is present after COPY using 'test -f'
 # Add SHELL directive to satisfy DL4006
-# Moved comment above
 SHELL ["/bin/bash", "-o", "pipefail", "-c"]
 RUN echo "Checking for montaigne script in final stage..." && \
-    test -f $VIRTUAL_ENV/bin/montaigne && \
-    echo "✅ Montaigne script found in $VIRTUAL_ENV/bin (Final Stage)" || \
-    (echo "❌ ERROR: Montaigne script NOT found in $VIRTUAL_ENV/bin (Final Stage)" && exit 1)
+    if test -f "$VIRTUAL_ENV/bin/montaigne"; then \
+        echo "✅ Montaigne script found in $VIRTUAL_ENV/bin (Final Stage)"; \
+    else \
+        echo "❌ ERROR: Montaigne script NOT found in $VIRTUAL_ENV/bin (Final Stage)"; \
+        exit 1; \
+    fi
 # Reset shell
 SHELL ["/bin/sh", "-c"]
 

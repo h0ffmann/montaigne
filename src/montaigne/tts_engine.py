@@ -10,10 +10,28 @@ XTTS_MODEL_NAME = "tts_models/multilingual/multi-dataset/xtts_v2"
 
 class TTSEngine:
     def __init__(self, use_cuda: bool = True):
-        self.device = "cuda" if use_cuda and torch.cuda.is_available() else "cpu"
+        logger.info(f"--- TTSEngine: Checking CUDA availability (use_cuda={use_cuda}) ---")
+        logger.info(f"PyTorch version: {torch.__version__}")
+        is_available = False
+        if not use_cuda:
+            logger.info("CUDA usage explicitly disabled via --cpu flag.")
+        else:
+            try:
+                is_available = torch.cuda.is_available()
+                logger.info(f"torch.cuda.is_available() check returned: {is_available}")
+                if is_available:
+                    device_count = torch.cuda.device_count()
+                    logger.info(f"Detected {device_count} CUDA-capable device(s).")
+                    logger.info(f"PyTorch compiled with CUDA version: {torch.version.cuda}")
+                else:
+                    logger.warning("torch.cuda.is_available() returned False.")
+            except Exception as e:
+                logger.error(f"Error during CUDA availability check: {e}", exc_info=False)
+
+        self.device = "cuda" if use_cuda and is_available else "cpu"
         logger.info(f"Initializing TTS engine on device: {self.device}")
         if self.device == "cpu":
-            logger.warning("CUDA not available/selected. TTS inference will be slow.")
+            logger.warning("TTS engine will run on CPU. Inference may be slow.")
         self.model = self._load_model()
 
     def _load_model(self):

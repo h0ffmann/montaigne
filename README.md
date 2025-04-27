@@ -4,9 +4,8 @@ Montaigne is a powerful command-line tool designed for generating high-quality T
 
 <!-- Optional Badges: Add your own -->
 ![License](https://img.shields.io/badge/License-MIT-blue.svg)
-![Python Version](https://img.shields.io/badge/python-3.12+-blue.svg)
-![Build Status](wip)
-![Code Style](https://img.shields.io/badge/code%20style-ruff-black.svg)
+![Python Version](https://img.shields.io/badge/python-3.11-blue.svg)
+![Code Style](https://img.shields.io/badge/code%20style-ruff-blue.svg)
 
 ## Features
 

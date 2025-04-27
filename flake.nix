@@ -14,7 +14,7 @@
           inherit system;
           config = {
             allowUnfree = true;
-            cudaSupport = true;
+            # cudaSupport = true; https://discourse.nixos.org/t/pytorch-with-cuda-support/51189/8
           };
         };
 
@@ -22,6 +22,7 @@
         cuda_toolkit = pkgs.cudaPackages_12_1.cudatoolkit;
 
         montaignePkgs = with pkgs; [
+          cachix
           bashInteractive
           coreutils
           git
@@ -39,7 +40,7 @@
           python311Packages.python
           # Find the correct PyTorch package with CUDA 12.1 support
           # Common names: pytorchWithCuda, pytorch-bin. Verify this attribute name.
-          python311Packages.pytorchWithCuda 
+          python311Packages.pytorchWithCuda
           uv # Keep uv for installing other deps into venv
           nodejs_22
           corepack_22
@@ -55,6 +56,7 @@
           busybox
           # No longer explicitly needed if pytorchWithCuda pulls it in
           # cuda_toolkit 
+
         ];
 
         # Nix might handle library paths better now for its own packages.

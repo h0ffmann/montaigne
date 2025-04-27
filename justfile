@@ -141,6 +141,12 @@ debug:
         --language en # Removed extra leading whitespace
     @echo "✨ Debug command completed. Check output/debug_output.wav"
 
+# Run a simple debug command that verifies Torch CUDA functionality
+debug-gpu:
+    python -c 'import torch; print(f"PyTorch: {torch.__version__}"); print(f"CUDA Available: {torch.cuda.is_available()}"); print(f"Device Count: {torch.cuda.device_count()}")'
+
+
+
 # === Docker ===
 
 # Define Docker image name and tag

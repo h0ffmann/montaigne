@@ -98,3 +98,4 @@ uv.lock # uv lock file
 
 .env
 repo-content.txt
+template_text_input.txt

@@ -46,6 +46,8 @@
           rapidfuzz # Add rapidfuzz (C++ extensions)
           librosa # Add librosa (audio analysis, C extensions)
           numba # Add numba (JIT compiler, C extensions)
+          transformers # Add transformers for Bark
+          accelerate # Add accelerate for HF/Bark
         ];
 
         # --- Runtime Libraries ---
@@ -189,20 +191,29 @@
 
                         # --- uv Dependency Installation ---
                         if command -v uv &> /dev/null; then
-                           echo "📦 Installing/Verifying project-specific Python dependencies via uv into active venv '$VENV_DIR'..."
-                           # Removed rapidfuzz (now managed by Nix)
+                           echo "📦 Installing/Verifying remaining project-specific Python dependencies via uv..."
+                           # Nix now manages: torch, torchaudio, numpy, pandas, scipy, soundfile,
+                           # rapidfuzz, librosa, numba, transformers, accelerate
+                           # Explicitly install only those NOT managed by Nix:
                            if ! uv pip install --no-cache-dir \
-                               click==8.1.8 requests'>=2.31.0' TTS==0.22.0 \
-                               openai-whisper==20240930 pydub'>=0.25.0'; then
+                               click==8.1.8 \
+                               requests'>=2.31.0' \
+                               TTS==0.22.0 \
+                               openai-whisper==20240930 \
+                               pydub'>=0.25.0' \
+                               'bark @ git+https://github.com/suno-ai/bark.git' \
+                               ; then
                              echo "❌ Fatal: Failed to install base dependencies with uv into venv '$VENV_DIR'." && return 1
                            fi
                            echo "🏗️ Installing local Montaigne package in editable mode into venv..."
-                           # Install the local package. uv should respect already installed Nix deps,
-                           # but might warn or try to reinstall. --no-deps is stricter if needed.
-                           if ! uv pip install -e "$_PROJECT_DIR"; then
-                              echo "⚠️ Warning: Failed to install local package '$_PROJECT_DIR' in editable mode with uv. It might reinstall already Nix-managed deps."
-                              # Consider using --no-deps if strictly necessary, but editable usually works
-                              # if ! uv pip install --no-deps -e "$_PROJECT_DIR"; then echo "❌ Alt: Failed install local package with --no-deps"; fi ;
+                           # Using -e attempts to install deps from pyproject.toml again.
+                           # Let's try --no-deps first to strictly avoid reinstalling Nix packages.
+                           if ! uv pip install --no-deps -e "$_PROJECT_DIR"; then
+                              echo "⚠️ Warning: Failed --no-deps editable install. Trying normal editable install..."
+                              # Fallback to normal editable if --no-deps fails (might reinstall some things)
+                              if ! uv pip install -e "$_PROJECT_DIR"; then
+                                 echo "❌ Error: Failed both --no-deps and normal editable install for local package."
+                              fi
                            fi
                            echo "✅ uv dependency installation complete."
                         fi

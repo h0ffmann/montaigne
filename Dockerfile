@@ -28,8 +28,7 @@ ENV UV_INDEX_STRATEGY="unsafe-best-match"
 ENV UV_NATIVE_TLS="1"
 
 WORKDIR /app
-# Create the license marker file in the home directory (/root)
-RUN touch /root/.TTS_LICENSE_ACCEPTED
+# --- REMOVED: RUN touch /root/.TTS_LICENSE_ACCEPTED ---
 
 # Set SHELL to bash with pipefail for robust installation commands
 SHELL ["/bin/bash", "-o", "pipefail", "-c"]
@@ -61,8 +60,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     # Install uv
     && curl -LsSf https://astral.sh/uv/install.sh | sh \
     # --- Create TTS License Marker ---
-    # Create the standard cache directory and the license file within it AND in home dir
-    # This should prevent the interactive license prompt.
+    # Coqui TTS checks both locations. Creating the file *might* bypass the prompt.
     && mkdir -p /root/.local/share/tts \
     && touch /root/.local/share/tts/.TTS_LICENSE_ACCEPTED \
     && touch /root/.TTS_LICENSE_ACCEPTED \

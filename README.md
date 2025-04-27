@@ -97,6 +97,11 @@ Prebuilt Voice Profiles:
 - `paulo_francis`: Paulo Francis - sophisticated, critical journalist
 - `millor`: Millôr Fernandes - witty, ironic humorist
 - `djavan`: Djavan - smooth, melodic musical voice
+- `trump`: Donald Trump - distinctive, assertive tone
+- `obama`: Barack Obama - calm, measured, charismatic tone
+- `snowden`: Edward Snowden - clear, deliberate, slightly nasal tone
+- `cillian`: Cillian Murphy - soft-spoken, intense Irish actor
+- `rust_cohle`: Matthew McConaughey (Rust Cohle) - Southern drawl, philosophical
 
 Examples:
 

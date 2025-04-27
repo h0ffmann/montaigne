@@ -90,6 +90,36 @@ VOICE_PROFILES = {
         "description": "Brazilian musician - smooth, melodic voice",
         "url": "https://example.com/voices/djavan.wav",
         "local_path": "voices/djavan.wav"
+    },
+    "trump": {
+        "name": "Donald Trump",
+        "description": "Former US president - distinctive, assertive tone",
+        "url": "https://example.com/voices/trump.wav",
+        "local_path": "voices/trump.wav"
+    },
+    "obama": {
+        "name": "Barack Obama",
+        "description": "Former US president - calm, measured, charismatic tone",
+        "url": "https://example.com/voices/obama.wav",
+        "local_path": "voices/obama.wav"
+    },
+    "snowden": {
+        "name": "Edward Snowden",
+        "description": "Whistleblower - clear, deliberate, slightly nasal tone",
+        "url": "https://example.com/voices/snowden.wav",
+        "local_path": "voices/snowden.wav"
+    },
+    "cillian": {
+        "name": "Cillian Murphy",
+        "description": "Irish actor - soft-spoken, intense, often with Irish accent",
+        "url": "https://example.com/voices/cillian.wav",
+        "local_path": "voices/cillian.wav"
+    },
+    "rust_cohle": {
+        "name": "Matthew McConaughey (Rust Cohle)",
+        "description": "Actor (True Detective) - Southern drawl, philosophical, world-weary",
+        "url": "https://example.com/voices/rust_cohle.wav",
+        "local_path": "voices/rust_cohle.wav"
     }
 }
 

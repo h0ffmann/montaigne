@@ -170,17 +170,14 @@ docker_build *ARGS:
     @# Warn if using fallback repository
     @test {{GITHUB_OWNER_REPO}} != "YOUR_USERNAME/YOUR_REPO" || echo "⚠️ Using fallback GITHUB_REPOSITORY. Set env var or run from Actions for correct GHCR tagging."
 
-    @# Construct the main build command
-    @_BUILD_CMD="docker build {{ARGS}} \
-        -t '{{DOCKER_IMAGE_NAME}}:{{DOCKER_TAG_LATEST}}' \
-        -t '{{DOCKER_IMAGE_NAME}}:{{DOCKER_TAG_GIT}}' \
-        -t '{{GHCR_TAG_LATEST}}' \
-        -t '{{GHCR_TAG_COMMIT}}' \
-        ."
-    @# Echo the command to be executed
-    @echo "Executing: $${_BUILD_CMD}"
-    @# Perform the main build using eval
-    @eval "$${_BUILD_CMD}" # Use eval to handle potential spaces/quotes in ARGS correctly
+    @# Construct and perform the main build command directly
+    @echo "Executing Docker Build Command..."
+    @docker build {{ARGS}} \
+        -t "{{DOCKER_IMAGE_NAME}}:{{DOCKER_TAG_LATEST}}" \
+        -t "{{DOCKER_IMAGE_NAME}}:{{DOCKER_TAG_GIT}}" \
+        -t "{{GHCR_TAG_LATEST}}" \
+        -t "{{GHCR_TAG_COMMIT}}" \
+        .
 
     @# Conditionally add the manual tag *after* the build succeeds
     @if [ -n "{{MANUAL_TAG}}" ]; then \

@@ -162,13 +162,6 @@ docker_build *ARGS:
     @echo "🐳 Linting Dockerfile..."
     @command -v hadolint > /dev/null && hadolint Dockerfile --ignore DL3008 || echo "ℹ️ Hadolint not found, skipping lint."
 
-    # Base build command with standard tags
-    _BUILD_CMD := 'docker build {{ARGS}} ' + \
-                  '-t "{{DOCKER_IMAGE_NAME}}:{{DOCKER_TAG_LATEST}}" ' + \
-                  '-t "{{DOCKER_IMAGE_NAME}}:{{DOCKER_TAG_GIT}}" ' + \
-                  '-t "{{GHCR_TAG_LATEST}}" ' + \
-                  '-t "{{GHCR_TAG_COMMIT}}" '
-
     @echo "🐳 Building Docker image..."
     @echo "   Standard Tags:"
     @echo "     Local:  {{DOCKER_IMAGE_NAME}}:{{DOCKER_TAG_LATEST}}, {{DOCKER_IMAGE_NAME}}:{{DOCKER_TAG_GIT}}"

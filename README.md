@@ -8,7 +8,7 @@ Montaigne is a powerful command-line tool designed for generating high-quality T
 <!-- ![Build Status](...) -->
 <!-- ![Code Style](https://img.shields.io/badge/code%20style-ruff-black.svg) -->
 
-## ✨ Features
+## Features
 
 *   **High-Quality TTS:** Leverages the multilingual Coqui XTTSv2 model (MPL 2.0 License) for natural-sounding speech generation.
     *   **Important:** First-time use of the TTS model requires accepting the Coqui TTS license terms when prompted during model download.

@@ -137,8 +137,8 @@ debug:
     @{{UV}} run {{PROJECT_NAME}} synthesize \
         --text "This is a debug test [p=0.5] with *emphasis*." \
         --output-file "output/debug_output.wav" \
-        --speaker-wav "input/speaker.wav" \ # Uses the generated/existing speaker file
-        --language en
+        --speaker-wav "input/speaker.wav" \
+        --language en # Removed extra leading whitespace
     @echo "✨ Debug command completed. Check output/debug_output.wav"
 
 # === Docker ===

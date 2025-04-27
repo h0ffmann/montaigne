@@ -41,6 +41,7 @@ def cli():
     pass
 
 @cli.command()
+@click.option('--voice-profile', type=click.Choice(list_voice_profiles()), help="Use a prebuilt famous voice profile")
 @click.option('--text', '-t', help="Text to synthesize directly.")
 @click.option('--input-file', '-i', type=click.Path(exists=True, file_okay=True, dir_okay=False, readable=True, path_type=Path), help="Path to a text file.")
 @click.option('--output-file', '-o', type=click.Path(writable=True, path_type=Path), required=True, help="Path to save the output WAV audio file.")

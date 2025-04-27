@@ -9,12 +9,13 @@ VENV_DIR     := ".venv"
 PYTHON       := "{{VENV_DIR}}/bin/python"
 UV           := "uv" # Assumes uv is in PATH
 
-# === Helper Functions ===
+# === Helper Recipe ===
 
-# Check if a command is available as a Python module within the virtual environment.
+# Private recipe to check if a command is available as a Python module in the venv.
 # Exits with an error if the command (module) is not found.
-# Usage: Add `@{{check_venv_cmd('module_name')}}` at the start of recipes requiring the module.
-check_venv_cmd cmd = `{{PYTHON}} -m {{cmd}} --version > /dev/null 2>&1 || (echo "❌ Command '{{cmd}}' not found in venv {{VENV_DIR}}. Run 'just install'?" && exit 1)`
+# Usage: Add `_check_command 'module_name'` as a dependency to recipes requiring the module.
+_check_command cmd:
+    @{{PYTHON}} -m {{cmd}} --version > /dev/null 2>&1 || (echo "❌ Command '{{cmd}}' not found in venv {{VENV_DIR}}. Run 'just install'?" && exit 1)
 
 # === Default Task ===
 # List available recipes by default
@@ -53,22 +54,19 @@ setup: install
 
 # Run the Montaigne CLI application from the virtual environment
 # Pass arguments after `--`, e.g., `just run -- --text "Hello" ...`
-run *ARGS:
-    @{{check_venv_cmd('montaigne')}}
+run *ARGS: _check_command 'montaigne'
     @echo "🚀 Running Montaigne CLI..."
     @{{PYTHON}} -m {{PROJECT_NAME}}.main {{ARGS}}
 
 # === Linting & Formatting (using Ruff via venv) ===
 
 # Run Ruff linter
-lint:
-    @{{check_venv_cmd('ruff')}}
+lint: _check_command 'ruff'
     @echo "✨ Running Ruff linter..."
     @{{PYTHON}} -m ruff check .
 
 # Run Ruff formatter
-format:
-    @{{check_venv_cmd('ruff')}}
+format: _check_command 'ruff'
     @echo "🎨 Running Ruff formatter..."
     @{{PYTHON}} -m ruff format .
 
@@ -79,16 +77,14 @@ check: lint format
 # === Testing (using Pytest via venv) ===
 
 # Run tests using pytest (assumes tests are in tests/)
-test:
-    @{{check_venv_cmd('pytest')}}
+test: _check_command 'pytest'
     @echo "🧪 Running tests with pytest..."
     @{{PYTHON}} -m pytest tests/
 
 # === Building the Package ===
 
 # Build wheel and sdist using the `build` package (requires dev deps)
-build:
-    @{{check_venv_cmd('build')}}
+build: _check_command 'build'
     @echo "📦 Building wheel and sdist..."
     @{{PYTHON}} -m build
     @echo "✅ Build artifacts are in dist/"

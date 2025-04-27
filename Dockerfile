@@ -1,42 +1,71 @@
-# Stage 1: Build Environment (Optional but good practice if build deps were heavy)
-# Using Python 3.12 slim version based on Debian Bookworm
-FROM python:3.12-slim-bookworm AS base
+# Use NVIDIA's CUDA image with Python 3.11 as the base
+FROM nvidia/cuda:12.1.1-cudnn8-runtime-ubuntu22.04 AS base
+
+# Set environment variables
+ENV PYTHONUNBUFFERED=1 \
+    PYTHONDONTWRITEBYTECODE=1 \
+    DEBIAN_FRONTEND=noninteractive \
+    TZ=UTC
 
 # Set working directory
 WORKDIR /app
 
-# Install system dependencies needed for TTS, Whisper, PyTorch, Audio processing
-# libsndfile1 is often needed for audio IO, ffmpeg for conversion/manipulation
-# git might be needed if uv/pip pulls git dependencies (less common now)
-# Depending on exact TTS/Whisper backends, others might be needed (e.g., espeak-ng)
+# Install Python 3.11 and system dependencies
 RUN apt-get update && apt-get install -y --no-install-recommends \
+    python3.11 \
+    python3.11-dev \
+    python3.11-venv \
+    python3-pip \
     ffmpeg \
     libsndfile1 \
+    curl \
+    git \
+    && apt-get clean \
     && rm -rf /var/lib/apt/lists/*
 
-# Install uv using the recommended installer
+# Set Python 3.11 as the default python
+RUN update-alternatives --install /usr/bin/python3 python3 /usr/bin/python3.11 1 \
+    && update-alternatives --install /usr/bin/python python /usr/bin/python3.11 1 \
+    && python -m pip install --upgrade pip
+
+# Create a virtual environment to isolate dependencies
+RUN python -m venv /opt/venv
+ENV PATH="/opt/venv/bin:$PATH"
+
+# Install uv package manager
 RUN curl -LsSf https://astral.sh/uv/install.sh | sh
 ENV PATH="/root/.cargo/bin:$PATH"
 
-# Copy only the dependency definition first to leverage Docker cache
+# Copy dependency definitions first (for better caching)
 COPY pyproject.toml ./
 
-# Install ONLY production dependencies using uv
-# --no-dev prevents installing [dev] optional-dependencies
-# Use --frozen or --require-hashes in the future if you generate a lock file
-# Pin uv version if desired for stricter reproducibility: uv==X.Y.Z
-RUN uv pip install --no-cache --system --no-deps -r requirements.txt # Assumes you MIGHT create one
-# Prioritize installing direct dependencies defined in pyproject.toml
-RUN uv pip install --no-cache --system .
+# Install dependencies with CUDA support
+RUN pip install --no-cache-dir \
+    torch==2.1.0+cu121 \
+    torchaudio==2.1.0+cu121 \
+    --extra-index-url https://download.pytorch.org/whl/cu121
 
-# Copy the rest of the application source code
+# Install the application's dependencies
+RUN pip install --no-cache-dir "click==8.1.8" \
+    "requests>=2.31.0" \
+    "TTS==0.22.0" \
+    "openai-whisper==20240930" \
+    "rapidfuzz==3.13.0" \
+    "pydub>=0.25.0"
+
+# Install the application itself
 COPY src/ ./src/
+RUN pip install --no-cache-dir -e .
+
+# Set environment variables for GPU usage
+ENV CUDA_VISIBLE_DEVICES=all \
+    TORCH_CUDA_ARCH_LIST="7.0;7.5;8.0;8.6;8.9;9.0" \
+    FORCE_CUDA=1
 
 # Set the default command to run the application
-# Makes the container executable like: docker run <image> --text "hello" ...
 ENTRYPOINT ["montaigne"]
 
-# Expose metadata (optional)
-LABEL maintainer="Your Name <your@email.com>"
-LABEL description="Montaigne TTS CLI Application"
+# Expose metadata
+LABEL maintainer="Matheus Hoffmann <hoffmann@poli.ufrj.br>"
+LABEL description="Montaigne TTS CLI Application with CUDA Support"
 LABEL version="0.1.0"

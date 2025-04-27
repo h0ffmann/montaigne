@@ -56,7 +56,6 @@ jobs:
           delete-older-versions-than-days: 15 # Delete versions older than 15 days
           ignore-versions: '^(latest)$' # Regex to ignore the 'latest' tag
           token: ${{ secrets.GITHUB_TOKEN }}
-````
 
 **2. Modify `justfile` to add `docker_push` and update `docker_build`:**
 

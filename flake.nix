@@ -38,8 +38,10 @@
         # --- Python Packages Managed by Nix ---
         nixPythonMlPackages = with python.pkgs; [
           torchWithCuda
-          numpy # Add numpy here
           torchaudio
+          numpy # Add NumPy
+          pandas # Add Pandas
+          scipy # Add SciPy
         ];
 
         # --- Runtime Libraries ---
@@ -190,9 +192,15 @@
                              echo "❌ Fatal: Failed to install base dependencies with uv into venv '$VENV_DIR'." && return 1
                            fi
                            echo "🏗️ Installing local Montaigne package in editable mode into venv..."
-                           if ! uv pip install --no-deps -e "$_PROJECT_DIR"; then echo "⚠️ Warning: Failed to install local package '$_PROJECT_DIR' in editable mode with uv."; fi
+                           # Install the local package. uv should respect already installed Nix deps,
+                           # but might warn or try to reinstall. --no-deps is stricter if needed.
+                           if ! uv pip install -e "$_PROJECT_DIR"; then
+                              echo "⚠️ Warning: Failed to install local package '$_PROJECT_DIR' in editable mode with uv. It might reinstall already Nix-managed deps."
+                              # Consider using --no-deps if strictly necessary, but editable usually works
+                              # if ! uv pip install --no-deps -e "$_PROJECT_DIR"; then echo "❌ Alt: Failed install local package with --no-deps"; fi ;
+                           fi
                            echo "✅ uv dependency installation complete."
-                        fi # <-- Add missing fi here
+                        fi
                         # --- Sanity Checks ---
                         echo "" && echo "=== Sanity Checks ==="
                         # --- PyTorch/Torchaudio Check ---

@@ -54,21 +54,27 @@ setup: install
 
 # Run the Montaigne CLI application from the virtual environment
 # Pass arguments after `--`, e.g., `just run -- --text "Hello" ...`
-run *ARGS: _check_command montaigne
-    @echo "🚀 Running Montaigne CLI..."
-    @{{PYTHON}} -m {{PROJECT_NAME}}.main {{ARGS}}
+run *ARGS:
+    @# First, check if the 'montaigne' command (entry point) is available via uv run
+    @{{UV}} run -- {{PROJECT_NAME}} --help > /dev/null 2>&1 || (echo "❌ Command '{{PROJECT_NAME}}' not runnable via uv in venv {{VENV_DIR}}. Run 'just install'?" && exit 1)
+    @echo "🚀 Running Montaigne CLI using uv..."
+    @{{UV}} run {{PROJECT_NAME}} {{ARGS}}
 
 # === Linting & Formatting (using Ruff via venv) ===
 
 # Run Ruff linter
-lint: _check_command ruff
-    @echo "✨ Running Ruff linter..."
-    @{{PYTHON}} -m ruff check .
+lint:
+    @# First, check if 'ruff' is available
+    @{{PYTHON}} -m ruff --version > /dev/null 2>&1 || (echo "❌ Command 'ruff' not found in venv {{VENV_DIR}}. Run 'just install'?" && exit 1)
+    @echo "✨ Running Ruff linter using uv..."
+    @{{UV}} run ruff check .
 
 # Run Ruff formatter
-format: _check_command ruff
-    @echo "🎨 Running Ruff formatter..."
-    @{{PYTHON}} -m ruff format .
+format:
+    @# First, check if 'ruff' is available
+    @{{PYTHON}} -m ruff --version > /dev/null 2>&1 || (echo "❌ Command 'ruff' not found in venv {{VENV_DIR}}. Run 'just install'?" && exit 1)
+    @echo "🎨 Running Ruff formatter using uv..."
+    @{{UV}} run ruff format .
 
 # Run both linter and formatter
 check: lint format
@@ -77,9 +83,11 @@ check: lint format
 # === Testing (using Pytest via venv) ===
 
 # Run tests using pytest (assumes tests are in tests/)
-test: _check_command pytest
-    @echo "🧪 Running tests with pytest..."
-    @{{PYTHON}} -m pytest tests/
+test:
+    @# First, check if 'pytest' is available
+    @{{PYTHON}} -m pytest --version > /dev/null 2>&1 || (echo "❌ Command 'pytest' not found in venv {{VENV_DIR}}. Run 'just install'?" && exit 1)
+    @echo "🧪 Running tests with pytest using uv..."
+    @{{UV}} run pytest tests/
 
 # === Building the Package ===
 

@@ -46,7 +46,7 @@
           python311Packages.pip
           python311Packages.setuptools
           python311Packages.wheel
-          python311Packages.venv
+          # python311Packages.venv # Removed - venv is a built-in module
 
           # System libraries for audio and ML
           ffmpeg
@@ -91,11 +91,37 @@
 
           shellHook = ''
             # Welcome message
-            echo "👋 Entering Focused Montaigne Development Environment (Flake)..."
+            echo "👋 Entering Montaigne Development Environment..."
 
-            # --- Check Nix Python/PyTorch CUDA Status ---
-            echo "🚀 Checking Nix Python/PyTorch CUDA status:"
-            python -c "import torch; print(f'Nix PyTorch: {torch.__version__}, CUDA Available: {torch.cuda.is_available()}, Device Count: {torch.cuda.device_count()}')" || echo 'Python/Torch check failed in shellHook'
+            # Make sure Python is in PATH
+            export PATH="${pkgs.python311}/bin:$PATH"
+
+            # Set up virtualenv
+            VENV_DIR=".venv"
+            if [ ! -d "$VENV_DIR" ]; then
+              echo "Creating Python virtual environment in $VENV_DIR..."
+              python -m venv $VENV_DIR
+            fi
+
+            # Activate virtualenv
+            source $VENV_DIR/bin/activate
+
+            # Install dependencies in a more robust way
+            if [ -f "$VENV_DIR/bin/pip" ]; then
+              echo "Installing project dependencies..."
+              $VENV_DIR/bin/pip install --upgrade pip
+              $VENV_DIR/bin/pip install TTS==0.22.0 openai-whisper==20240930
+              $VENV_DIR/bin/pip install -e .
+            else
+              echo "❌ pip not found in virtualenv"
+            fi
+
+            # Set library path for C++ libraries
+            export LD_LIBRARY_PATH="${pkgs.gcc-unwrapped.lib}/lib:${pkgs.stdenv.cc.cc.lib}/lib:$LD_LIBRARY_PATH"
+
+            # --- Check Nix Python/PyTorch CUDA Status (Keep this check if relevant) ---
+            # echo "🚀 Checking Nix Python/PyTorch CUDA status:"
+            # python -c "import torch; print(f'Nix PyTorch: {torch.__version__}, CUDA Available: {torch.cuda.is_available()}, Device Count: {torch.cuda.device_count()}')" || echo 'Python/Torch check failed in shellHook'
 
             # Ensure user's local bin and npm global bin are in PATH
             export PATH="$HOME/.local/bin:$HOME/.npm-global/bin:$PATH"
@@ -109,26 +135,6 @@
             if command -v docker &>/dev/null; then
                 if ! docker ps > /dev/null 2>&1; then echo "⚠️ Warning: Cannot connect to Docker daemon."; fi
             elif command -v podman &>/dev/null; then echo "ℹ️ Podman available."; else echo "⚠️ Warning: Docker/Podman not found."; fi
-
-            # Create a .venv directory if it doesn't exist
-            if [ ! -d ".venv" ]; then
-              echo "Creating Python virtual environment..."
-              ${pkgs.python311}/bin/python -m venv .venv
-            fi
-
-            # Activate the venv
-            source .venv/bin/activate
-
-            # Ensure pip is up to date
-            pip install --upgrade pip
-
-            # Install TTS and the local package
-            echo "Installing TTS and dependencies (this may take a while)..."
-            pip install TTS==0.22.0 --no-deps
-            pip install -e .
-
-            # Set library path for C++ libraries
-            export LD_LIBRARY_PATH=${pkgs.gcc-unwrapped.lib}/lib:${pkgs.stdenv.cc.cc.lib}/lib:$LD_LIBRARY_PATH
 
             # Node.js Instructions
             echo "🕸️ Node.js Environment ($(node -v)) ready."

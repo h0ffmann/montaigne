@@ -1,16 +1,22 @@
-name: Docker Build and Push
+name: Docker Build, Push, and Cleanup
 
 on:
   push:
     branches:
-      - master # Trigger on merge/push to master
+      - master # Trigger build/push on merge/push to master
+  schedule:
+    - cron: '0 0 * * 0' # Run cleanup every Sunday at 00:00 UTC
+
+permissions: # Define permissions at the workflow level
+  contents: read
+  packages: write # Needed for push and delete
 
 jobs:
   build-and-push:
+    # Only run this job on push events, not scheduled events
+    if: github.event_name == 'push'
     runs-on: ubuntu-latest
-    permissions:
-      contents: read
-      packages: write # Needed to push to GHCR
+    # Permissions are now inherited from the workflow level
 
     steps:
       - name: Checkout repository
@@ -33,6 +39,23 @@ jobs:
 
       - name: Push Docker image using Just
         run: just docker_push # This will push the tags created by docker_build
+
+  cleanup-ghcr:
+    # Only run this job on scheduled events
+    if: github.event_name == 'schedule'
+    runs-on: ubuntu-latest
+    # Permissions are inherited from the workflow level
+
+    steps:
+      - name: Delete old container versions
+        uses: actions/delete-package-versions@v5
+        with:
+          package-name: 'montaigne' # Replace if your GHCR package name is different
+          package-type: 'container'
+          min-versions-to-keep: 5 # Keep at least 5 most recent versions
+          delete-older-versions-than-days: 15 # Delete versions older than 15 days
+          ignore-versions: '^(latest)$' # Regex to ignore the 'latest' tag
+          token: ${{ secrets.GITHUB_TOKEN }}
 ````
 
 **2. Modify `justfile` to add `docker_push` and update `docker_build`:**

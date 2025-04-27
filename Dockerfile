@@ -64,7 +64,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     && cp -r /tmp/project_files/src /app/src \
     # Now, install the project and its dependencies defined in pyproject.toml
     # This installs dependencies into the system Python environment within the container
-    && uv pip install --system --no-cache /app \
+    && uv pip install --system --no-cache --python /usr/bin/python3.11 /app \
     # --- Clean up ---
     # Remove temporary build files
     && rm -rf /tmp/project_files \

@@ -188,16 +188,6 @@ def synthesize(
     # Determine overall success based *only* on concatenation success for now
     # A more robust check might consider if *any* chunk failed synthesis
     synthesis_successful = concatenation_successful and not synthesis_failed
-    except FileNotFoundError as e:
-        click.echo(f"❌ Error: {e}", err=True)
-        sys.exit(1)
-    except RuntimeError as e:
-        click.echo(f"❌ TTS Engine Error: {e}", err=True)
-        sys.exit(1)
-    except Exception as e:
-        logger.exception("Unexpected error during synthesis")
-        click.echo(f"❌ Unexpected error: {e}", err=True)
-        sys.exit(1)
 
     # --- Evaluation (on the final concatenated file) ---
     if synthesis_successful and evaluate:

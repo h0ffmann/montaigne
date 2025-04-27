@@ -42,8 +42,10 @@ RUN update-alternatives --install /usr/bin/python3 python3 /usr/bin/python3.11 1
     && update-alternatives --install /usr/bin/python python /usr/bin/python3.11 1
 
 # Install uv package manager
-SHELL ["/bin/bash", "-o", "pipefail", "-c"]
+# Set pipefail for curl | sh command below
+SHELL ["/bin/bash", "-o", "pipefail", "-c"] 
 RUN curl -LsSf https://astral.sh/uv/install.sh | sh
+# Reset shell to default after the pipe command
 SHELL ["/bin/sh", "-c"]
 
 # Create virtual environment using the newly installed python3.11
@@ -51,22 +53,26 @@ RUN python3.11 -m venv $VIRTUAL_ENV
 
 # Copy dependency definition first
 COPY pyproject.toml ./pyproject.toml
-# COPY uv.lock ./uv.lock # Uncomment if you use uv.lock
-
 # Copy the src directory into the WORKDIR (/app), creating /app/src
 COPY src/ /app/src/
 
 # Install ALL python dependencies using uv into the virtual environment
 RUN uv pip install --no-cache-dir \
-    # NOTE: Removed --system flag. When installing with explicit --python,
-    # uv correctly targets the specified venv.
     --python $VIRTUAL_ENV/bin/python \
     --extra-index-url https://download.pytorch.org/whl/cu121 \
     --index-strategy unsafe-best-match \
     . 
 
-# Debugging: Verify script exists in the builder's venv bin
-RUN echo "Contents of $VIRTUAL_ENV/bin (Builder):" && ls -l $VIRTUAL_ENV/bin
+# Debugging: Verify the entrypoint script exists using 'test -f'
+# Add SHELL directive to satisfy DL4006, although test doesn't pipe
+# Moved comment above
+SHELL ["/bin/bash", "-o", "pipefail", "-c"]
+RUN echo "Checking for montaigne script in builder..." && \
+    test -f $VIRTUAL_ENV/bin/montaigne && \
+    echo "✅ Montaigne script found in $VIRTUAL_ENV/bin (Builder)" || \
+    (echo "❌ ERROR: Montaigne script NOT found in $VIRTUAL_ENV/bin (Builder)" && exit 1)
+# Reset shell
+SHELL ["/bin/sh", "-c"]
 
 
 # --- Stage 2: Final Image ---
@@ -84,43 +90,33 @@ ENV PYTHONDONTWRITEBYTECODE=1
 ENV DEBIAN_FRONTEND=noninteractive
 ENV TZ=UTC
 ENV VIRTUAL_ENV="/opt/venv"
-# Prioritize venv bin AND user local bin (where uv might be installed if kept)
-ENV PATH="$VIRTUAL_ENV/bin:/root/.local/bin:/usr/local/bin:/usr/local/sbin:/usr/bin:/usr/sbin:/bin:/sbin" # Expanded PATH
+# IMPORTANT: Only the venv bin needs to be in the path for the entrypoint
+ENV PATH="$VIRTUAL_ENV/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin"
 
-# ---- CHANGE WORKDIR ----
-WORKDIR /work # Change working directory to avoid conflict with mounted volumes
+WORKDIR /app 
 
-# Install runtime system dependencies AND UV
+# Install ONLY essential runtime system dependencies (NO UV needed here)
 RUN apt-get update && apt-get install -y --no-install-recommends \
     ffmpeg \
     libsndfile1 \
     ca-certificates \
-    curl \
-    # Install uv requires curl
+    # Add any other NON-PYTHON system library required by the application at runtime
     && apt-get clean \
     && rm -rf /var/lib/apt/lists/*
 
-# Install uv in the final stage
-# Using /usr/local/bin to avoid needing /root/.local/bin in PATH for execution if installed as root
-# Or install as root and ensure /root/.local/bin is in PATH
-SHELL ["/bin/bash", "-o", "pipefail", "-c"]
-RUN curl -LsSf https://astral.sh/uv/install.sh | sh
-SHELL ["/bin/sh", "-c"]
-
 # Copy the entire virtual environment from the builder stage
 COPY --from=builder /opt/venv /opt/venv
-# Copy pyproject.toml so uv run can find the script definition
-COPY --from=builder /app/pyproject.toml ./pyproject.toml
 
-# Optional: Copy source if using `uv run python src/main.py...` instead of script name
-# COPY --from=builder /app/src/ ./src/
+# Debugging: Verify the entrypoint script is present after COPY using 'test -f'
+# Add SHELL directive to satisfy DL4006
+# Moved comment above
+SHELL ["/bin/bash", "-o", "pipefail", "-c"]
+RUN echo "Checking for montaigne script in final stage..." && \
+    test -f $VIRTUAL_ENV/bin/montaigne && \
+    echo "✅ Montaigne script found in $VIRTUAL_ENV/bin (Final Stage)" || \
+    (echo "❌ ERROR: Montaigne script NOT found in $VIRTUAL_ENV/bin (Final Stage)" && exit 1)
+# Reset shell
+SHELL ["/bin/sh", "-c"]
 
-# Debugging: Check uv path and venv contents in final stage
-RUN which uv
-# --- NO Debugging ls in final stage for production ---
-
-# Execute uv run FROM the location of pyproject.toml
-# ENTRYPOINT ["uv", "-- CWD=/app", "run", "montaigne"] <-- CWD isn't a uv arg
-# Better approach: invoke uv directly with knowledge of its context
-# ENTRYPOINT ["/root/.local/bin/uv", "run", "--manifest-path", "/app/pyproject.toml", "montaigne"]
-ENTRYPOINT ["uv", "run", "--manifest-path", "/app/pyproject.toml", "montaigne"] # Assuming uv is now in standard path via ENV
+# --- USE DIRECT ENTRYPOINT ---
+ENTRYPOINT ["/opt/venv/bin/montaigne"]

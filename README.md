@@ -10,7 +10,8 @@ Montaigne is a powerful command-line tool designed for generating high-quality T
 
 ## ✨ Features
 
-*   **High-Quality TTS:** Leverages the multilingual Coqui XTTSv2 model for natural-sounding speech generation.
+*   **High-Quality TTS:** Leverages the multilingual Coqui XTTSv2 model for natural-sounding speech generation.  
+    *Note:* First-time users must accept the non-commercial license agreement when the model downloads.
 *   **Voice Cloning (Zero-Shot):** Clone voices using just a short (~10-30 seconds) WAV file sample of the target voice.
 *   **Text Preprocessing:** Enhance expressiveness with simple markup in your input text:
     *   Pauses: `[p=SECONDS]` or `[pause=SECONDS]` (e.g., `[p=0.5]`) for controlling rhythm.

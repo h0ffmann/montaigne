@@ -1,0 +1,62 @@
+name: Docker Build and Push
+
+on:
+  push:
+    branches:
+      - master # Trigger on merge/push to master
+
+jobs:
+  build-and-push:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write # Needed to push to GHCR
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Install Just
+        uses: extractions/setup-just@v2
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }} # Optional: for downloading private assets if needed
+
+      - name: Log in to GitHub Container Registry
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }} # Use the default GITHUB_TOKEN
+
+      - name: Build Docker image using Just
+        run: just docker_build # This will now also tag for GHCR
+
+      - name: Push Docker image using Just
+        run: just docker_push # This will push the tags created by docker_build
+````
+
+**2. Modify `justfile` to add `docker_push` and update `docker_build`:**
+
+We need to update `docker_build` to tag the image with the GHCR path and add a new `docker_push` recipe.
+
+justfile
+````conf
+<<<<<<< SEARCH
+# === Docker ===
+
+# Define Docker image name and tag
+DOCKER_IMAGE_NAME := PROJECT_NAME # Assign the value of PROJECT_NAME directly
+DOCKER_TAG        := "latest"
+DOCKER_TAG_GIT    := `git rev-parse --short HEAD`
+
+# Build the Docker image
+# Pass extra args like --no-cache after --, e.g., `just docker_build -- --no-cache`
+docker_build *ARGS:
+    @echo "🐳 Linting Dockerfile..."
+    @hadolint Dockerfile --ignore DL3008 
+    @echo "🐳 Building Docker image {{DOCKER_IMAGE_NAME}}:{{DOCKER_TAG}} (and :{{DOCKER_TAG_GIT}})..."
+    @docker build {{ARGS}} -t "{{DOCKER_IMAGE_NAME}}:{{DOCKER_TAG}}" -t "{{DOCKER_IMAGE_NAME}}:{{DOCKER_TAG_GIT}}" .
+    @echo "✅ Docker image built."
+
+# Run the application inside a Docker container (CPU only)
+# Mounts ./input (read-only) and ./output (read-write) directories.

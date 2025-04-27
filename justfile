@@ -119,6 +119,26 @@ clean: clean_pycache clean_build
 clean_all: clean clean_venv
     @echo "✅ Full clean including virtualenv completed."
 
+# === Debugging ===
+
+# Run a simple debug/test command that verifies basic functionality
+debug:
+    @echo "🐞 Running debug/test command..."
+    @mkdir -p input output
+    @if [ ! -f "input/speaker.wav" ]; then \
+        echo "⚠️ No speaker.wav found in input/. Creating a dummy file (you'll need a real WAV for actual synthesis)"; \
+        ffmpeg -f lavfi -i "sine=frequency=1000:duration=5" -ac 1 -ar 16000 "input/speaker.wav" 2>/dev/null || \
+        (echo "❌ Could not create dummy WAV. Install ffmpeg or provide a real speaker.wav in input/"; exit 1); \
+    fi
+    @echo "✅ Created input/speaker.wav dummy file"
+    @echo "🚀 Running simple synthesis test..."
+    @{{UV}} run {{PROJECT_NAME}} synthesize \
+        --text "This is a debug test [p=0.5] with *emphasis*." \
+        --output-file "output/debug_output.wav" \
+        --speaker-wav "input/speaker.wav" \
+        --language en
+    @echo "✨ Debug command completed. Check output/debug_output.wav"
+
 # === Docker ===
 
 # Define Docker image name and tag

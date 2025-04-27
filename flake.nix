@@ -20,6 +20,20 @@
 
         # Get CUDA toolkit for PyTorch 2.3.1 (which expects CUDA 12.1)
         cuda_toolkit = pkgs.cudaPackages_12_1.cudatoolkit;
+        cudnn = pkgs.cudaPackages_12_1.cudnn;
+
+        # Define required system libraries
+        requiredSysLibs = with pkgs; [
+          cuda_toolkit
+          cudnn
+          linuxPackages.nvidia_x11
+          stdenv.cc.cc.lib
+          zlib
+          ncurses5
+        ];
+
+        # Create library path for LD_LIBRARY_PATH
+        requiredLibPath = pkgs.lib.makeLibraryPath requiredSysLibs;
 
         montaignePkgs = with pkgs; [
           # Basic tools
@@ -82,12 +96,15 @@
           name = "montaigne-dev-env";
           packages = montaignePkgs;
 
-          # Remove explicit LD_LIBRARY_PATH and CUDA_HOME for now, let Nix manage it
-          # env = {
-          #   LD_LIBRARY_PATH = requiredLibPath;
-          #   NPM_CONFIG_PREFIX = "$HOME/.npm-global";
-          #   CUDA_HOME = "${cuda_toolkit}";
-          # };
+          # Add explicit environment variables for CUDA
+          env = {
+            CUDA_HOME = "${cuda_toolkit}";
+            CUDNN_HOME = "${cudnn}";
+            CUDA_PATH = "${cuda_toolkit}";
+            LD_LIBRARY_PATH = "${requiredLibPath}";
+            EXTRA_LDFLAGS = "-L/lib -L${pkgs.linuxPackages.nvidia_x11}/lib";
+            EXTRA_CCFLAGS = "-I/usr/include";
+          };
 
           shellHook = ''
             # Welcome message

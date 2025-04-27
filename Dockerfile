@@ -1,109 +1,124 @@
 # --- Stage 1: Builder ---
-# Use a standard Python image for building dependencies
-FROM python:3.11-slim-bookworm AS builder
+# Use the NVIDIA CUDA development image as the builder base.
+FROM nvidia/cuda:12.1.1-devel-ubuntu22.04 AS builder
 
 # Set environment variables for build stage
-ENV PYTHONUNBUFFERED=1 \
-    PYTHONDONTWRITEBYTECODE=1 \
-    PIP_NO_CACHE_DIR=off \
-    PIP_DISABLE_PIP_VERSION_CHECK=on \
-    PIP_DEFAULT_TIMEOUT=100 \
-    DEBIAN_FRONTEND=noninteractive
-# Add local bin to PATH separately
+ENV PYTHONUNBUFFERED=1
+ENV PYTHONDONTWRITEBYTECODE=1
+ENV PIP_NO_CACHE_DIR=off
+ENV PIP_DISABLE_PIP_VERSION_CHECK=on
+ENV PIP_DEFAULT_TIMEOUT=100
+ENV DEBIAN_FRONTEND=noninteractive
+# Set base path first
+ENV PATH="/usr/local/bin:/usr/local/sbin:/usr/bin:/usr/sbin:/bin:/sbin"
+# Add user local bin for uv installation location
 ENV PATH="/root/.local/bin:$PATH"
+# Set virtual environment location
+ENV VIRTUAL_ENV="/opt/venv"
+# Add virtual environment bin to PATH (will be updated after python3.11 install)
+ENV PATH="$VIRTUAL_ENV/bin:$PATH"
 
 WORKDIR /app
 
-# Install build-time system dependencies (minimal needed)
-# build-essential contains gcc, g++, make etc. needed for some wheels
-# python3.11-dev is needed to build some Python extensions (like Cython based ones)
-# git might be needed if a dependency is pulled from a git repo directly
-# curl is needed to install uv
+# Install build-time system dependencies for Python 3.11 from PPA and uv build requirements
 RUN apt-get update && apt-get install -y --no-install-recommends \
-    build-essential \
-    python3.11-dev \
-    git \
+    software-properties-common \
+    gpg-agent \
     curl \
+    libsndfile1-dev \
+    # Needed if project depends on git for versions or installs
+    git \
+    && add-apt-repository ppa:deadsnakes/ppa \
+    && apt-get update \
+    && apt-get install -y --no-install-recommends \
+    python3.11 \
+    python3.11-dev \
+    python3.11-venv \
     && apt-get clean \
-    && rm -rf /var/lib/apt/lists/*
+    && rm -rf /var/lib/apt/lists/* /etc/apt/sources.list.d/deadsnakes*
+
+# Update alternatives to ensure python3 points to 3.11 *within the builder*
+RUN update-alternatives --install /usr/bin/python3 python3 /usr/bin/python3.11 1 \
+    && update-alternatives --install /usr/bin/python python /usr/bin/python3.11 1
 
 # Install uv package manager
+SHELL ["/bin/bash", "-o", "pipefail", "-c"]
 RUN curl -LsSf https://astral.sh/uv/install.sh | sh
+SHELL ["/bin/sh", "-c"]
 
-# Create and activate virtual environment
-RUN python -m venv /opt/venv
-ENV PATH="/opt/venv/bin:$PATH"
+# Create virtual environment using the newly installed python3.11
+RUN python3.11 -m venv $VIRTUAL_ENV
 
-# Upgrade pip within the venv (good practice before installing)
-RUN pip install --upgrade pip
+# Copy dependency definition first
+COPY pyproject.toml ./pyproject.toml
+# COPY uv.lock ./uv.lock # Uncomment if you use uv.lock
 
-# Copy dependency definitions
-COPY pyproject.toml ./
+# Copy the src directory into the WORKDIR (/app), creating /app/src
+COPY src/ /app/src/
 
-# Install PyTorch+CUDA first using pip (more reliable for specific index)
-# Pin versions exactly as in the original Dockerfile
-RUN pip install --no-cache-dir \
-    torch==2.1.0+cu121 \
-    torchaudio==2.1.0+cu121 \
-    --extra-index-url https://download.pytorch.org/whl/cu121
+# Install ALL python dependencies using uv into the virtual environment
+RUN uv pip install --no-cache-dir \
+    # NOTE: Removed --system flag. When installing with explicit --python,
+    # uv correctly targets the specified venv.
+    --python $VIRTUAL_ENV/bin/python \
+    --extra-index-url https://download.pytorch.org/whl/cu121 \
+    --index-strategy unsafe-best-match \
+    . 
 
-# Install the rest of the application dependencies using uv (potentially faster)
-# uv should pick up the venv automatically. Using '.' installs from pyproject.toml
-RUN uv pip install --no-cache-dir .
-
-# Copy application source code
-COPY src/ ./src/
-
-# Install the application itself into the venv
-# Use regular install, not editable (-e) for the final image artifact
-RUN pip install --no-cache-dir .
+# Debugging: Verify script exists in the builder's venv bin
+RUN echo "Contents of $VIRTUAL_ENV/bin (Builder):" && ls -l $VIRTUAL_ENV/bin
 
 
 # --- Stage 2: Final Image ---
 # Start from the NVIDIA CUDA runtime image
 FROM nvidia/cuda:12.1.1-cudnn8-runtime-ubuntu22.04
 
-# Set environment variables for runtime
-ENV PYTHONUNBUFFERED=1 \
-    PYTHONDONTWRITEBYTECODE=1 \
-    DEBIAN_FRONTEND=noninteractive \
-    TZ=UTC
-# Add venv bin to PATH separately
-ENV PATH="/opt/venv/bin:$PATH"
-# Runtime GPU variables (optional if set outside container)
-# CUDA_VISIBLE_DEVICES is typically managed by the container runtime or application
-# TORCH_CUDA_ARCH_LIST is mainly for source builds; pre-built wheels handle this.
-# FORCE_CUDA=1 # Removed - Let PyTorch detect CUDA availability naturally
-
-WORKDIR /app
-
-# Install runtime system dependencies
-# We need python3.11 runtime, ffmpeg, libsndfile1
-# The base CUDA image might have Python 3.10, so we install 3.11
-RUN apt-get update && apt-get install -y --no-install-recommends \
-    python3.11 \
-    python3.11-venv \
-    ffmpeg \
-    libsndfile1 \
-    && apt-get clean \
-    && rm -rf /var/lib/apt/lists/*
-
-# Link python3.11 to python3 and python
-RUN update-alternatives --install /usr/bin/python3 python3 /usr/bin/python3.11 1 \
-    && update-alternatives --install /usr/bin/python python /usr/bin/python3.11 1
-
-# Copy the virtual environment with all installed packages from the builder stage
-COPY --from=builder /opt/venv /opt/venv
-
-# Copy only the installed application code (if needed - usually venv is sufficient)
-# If your pip install '.' correctly packages src, this might be optional.
-# Keeping it for safety unless you verify packaging.
-COPY --from=builder /app/src /app/src
-
-# Set the default command to run the application using the full path
-ENTRYPOINT ["/opt/venv/bin/montaigne"]
-
-# Expose metadata
+# Add metadata labels
 LABEL maintainer="Matheus Hoffmann <hoffmann@poli.ufrj.br>"
 LABEL description="Montaigne TTS CLI Application with CUDA Support"
 LABEL version="0.1.0"
+
+# Set environment variables for runtime
+ENV PYTHONUNBUFFERED=1
+ENV PYTHONDONTWRITEBYTECODE=1
+ENV DEBIAN_FRONTEND=noninteractive
+ENV TZ=UTC
+ENV VIRTUAL_ENV="/opt/venv"
+# Prioritize venv bin AND user local bin (where uv might be installed)
+ENV PATH="$VIRTUAL_ENV/bin:/root/.local/bin:$PATH"
+
+WORKDIR /app
+
+# Install runtime system dependencies AND UV
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    ffmpeg \
+    libsndfile1 \
+    ca-certificates \
+    curl \
+    # Install uv requires curl
+    && apt-get clean \
+    && rm -rf /var/lib/apt/lists/*
+
+# Install uv in the final stage
+# Using /usr/local/bin to avoid needing /root/.local/bin in PATH for execution if installed as root
+# Or install as root and ensure /root/.local/bin is in PATH
+SHELL ["/bin/bash", "-o", "pipefail", "-c"]
+RUN curl -LsSf https://astral.sh/uv/install.sh | sh
+SHELL ["/bin/sh", "-c"]
+
+# Copy the entire virtual environment from the builder stage
+COPY --from=builder /opt/venv /opt/venv
+# Copy pyproject.toml so uv run can find the script definition
+COPY --from=builder /app/pyproject.toml ./pyproject.toml
+
+# Optional: Copy source if using `uv run python src/main.py...` instead of script name
+# COPY --from=builder /app/src/ ./src/
+
+# Debugging: Check uv path and venv contents in final stage
+RUN which uv
+RUN echo "Contents of $VIRTUAL_ENV/bin (Final Stage):" && ls -l $VIRTUAL_ENV/bin
+
+# Use uv run to execute the script defined in pyproject.toml
+ENTRYPOINT ["uv", "run", "montaigne"]
+# Default arguments if ENTRYPOINT is just `uv run`
+# CMD ["montaigne", "--help"]

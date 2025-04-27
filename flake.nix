@@ -44,6 +44,8 @@
           scipy # Add SciPy
           soundfile # Add soundfile (links libsndfile)
           rapidfuzz # Add rapidfuzz (C++ extensions)
+          librosa # Add librosa (audio analysis, C extensions)
+          numba # Add numba (JIT compiler, C extensions)
         ];
 
         # --- Runtime Libraries ---

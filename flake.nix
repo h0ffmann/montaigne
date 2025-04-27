@@ -42,6 +42,8 @@
           numpy # Add NumPy
           pandas # Add Pandas
           scipy # Add SciPy
+          soundfile # Add soundfile (links libsndfile)
+          rapidfuzz # Add rapidfuzz (C++ extensions)
         ];
 
         # --- Runtime Libraries ---
@@ -186,9 +188,10 @@
                         # --- uv Dependency Installation ---
                         if command -v uv &> /dev/null; then
                            echo "📦 Installing/Verifying project-specific Python dependencies via uv into active venv '$VENV_DIR'..."
+                           # Removed rapidfuzz (now managed by Nix)
                            if ! uv pip install --no-cache-dir \
                                click==8.1.8 requests'>=2.31.0' TTS==0.22.0 \
-                               openai-whisper==20240930 rapidfuzz==3.13.0 pydub'>=0.25.0'; then
+                               openai-whisper==20240930 pydub'>=0.25.0'; then
                              echo "❌ Fatal: Failed to install base dependencies with uv into venv '$VENV_DIR'." && return 1
                            fi
                            echo "🏗️ Installing local Montaigne package in editable mode into venv..."

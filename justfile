@@ -84,7 +84,9 @@ test: _check_command pytest
 # === Building the Package ===
 
 # Build wheel and sdist using the `build` package (requires dev deps)
-build_package: _check_command build
+build_package:
+    @# First, check if the 'build' module is available
+    @{{PYTHON}} -m build --version > /dev/null 2>&1 || (echo "❌ Command 'build' not found in venv {{VENV_DIR}}. Run 'just install'?" && exit 1)
     @echo "📦 Building wheel and sdist..."
     @{{PYTHON}} -m build
     @echo "✅ Build artifacts are in dist/"

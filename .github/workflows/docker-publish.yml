@@ -7,7 +7,7 @@ on:
   schedule:
     - cron: '0 0 * * 0' # Run cleanup every Sunday at 00:00 UTC
   workflow_dispatch:
-    inputs: # <-- ADDED: Define inputs for manual trigger
+    inputs: # <-- Define inputs for manual trigger
       manual_tag:
         description: 'Optional: Manual tag (e.g., v1.0.0) for release. If set, this tag will be pushed.'
         required: false
@@ -78,29 +78,3 @@ jobs:
           delete-older-versions-than-days: 15 # Delete versions older than 15 days
           ignore-versions: '^(latest)$' # Regex to ignore the 'latest' tag
           token: ${{ secrets.GITHUB_TOKEN }}
-
-**2. Modify `justfile` to add `docker_push` and update `docker_build`:**
-
-We need to update `docker_build` to tag the image with the GHCR path and add a new `docker_push` recipe.
-
-justfile
-````conf
-<<<<<<< SEARCH
-# === Docker ===
-
-# Define Docker image name and tag
-DOCKER_IMAGE_NAME := PROJECT_NAME # Assign the value of PROJECT_NAME directly
-DOCKER_TAG        := "latest"
-DOCKER_TAG_GIT    := `git rev-parse --short HEAD`
-
-# Build the Docker image
-# Pass extra args like --no-cache after --, e.g., `just docker_build -- --no-cache`
-docker_build *ARGS:
-    @echo "🐳 Linting Dockerfile..."
-    @hadolint Dockerfile --ignore DL3008 
-    @echo "🐳 Building Docker image {{DOCKER_IMAGE_NAME}}:{{DOCKER_TAG}} (and :{{DOCKER_TAG_GIT}})..."
-    @docker build {{ARGS}} -t "{{DOCKER_IMAGE_NAME}}:{{DOCKER_TAG}}" -t "{{DOCKER_IMAGE_NAME}}:{{DOCKER_TAG_GIT}}" .
-    @echo "✅ Docker image built."
-
-# Run the application inside a Docker container (CPU only)
-# Mounts ./input (read-only) and ./output (read-write) directories.

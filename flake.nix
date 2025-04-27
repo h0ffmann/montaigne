@@ -124,15 +124,25 @@
                 if ! docker ps > /dev/null 2>&1; then echo "⚠️ Warning: Cannot connect to Docker daemon."; fi
             elif command -v podman &>/dev/null; then echo "ℹ️ Podman available."; else echo "⚠️ Warning: Docker/Podman not found."; fi
 
-            # Python setup instructions
-            echo "🐍 Python Environment ($(python -V)): Managed by uv."
-            VENV_DIR=".venv-py$(python -c 'import sys; print(f"{sys.version_info.major}{sys.version_info.minor}")')"
-            if [ -f "$VENV_DIR/bin/activate" ]; then
-               echo "   Python venv '$VENV_DIR' exists. Activate with: source $VENV_DIR/bin/activate"
-               echo "   Run 'just setup' or 'just install' if needed."
-            else
-               echo "   Python venv '$VENV_DIR' not found. Run 'just setup'."
+            # Create a .venv directory if it doesn't exist
+            if [ ! -d ".venv" ]; then
+              echo "Creating Python virtual environment..."
+              ${pkgs.python311}/bin/python -m venv .venv
             fi
+
+            # Activate the venv
+            source .venv/bin/activate
+
+            # Ensure pip is up to date
+            pip install --upgrade pip
+
+            # Install TTS and the local package
+            echo "Installing TTS and dependencies (this may take a while)..."
+            pip install TTS==0.22.0 --no-deps
+            pip install -e .
+
+            # Set library path for C++ libraries
+            export LD_LIBRARY_PATH=${pkgs.gcc-unwrapped.lib}/lib:${pkgs.stdenv.cc.cc.lib}/lib:$LD_LIBRARY_PATH
 
             # Node.js Instructions
             echo "🕸️ Node.js Environment ($(node -v)) ready."
@@ -164,8 +174,6 @@
             echo "✨ Montaigne AI/TTS flake environment is ready! ✨"
             echo ""
             echo "📌 Quick Start:"
-            echo "   just setup"
-            echo "   source $VENV_DIR/bin/activate"
             echo "   just run -- --help"
             echo ""
           '';

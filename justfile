@@ -166,6 +166,27 @@ docker_run_gpu *ARGS:
         -v "$(pwd)/output:/app/output:rw" \
         "{{DOCKER_IMAGE_NAME}}:{{DOCKER_TAG}}" {{ARGS}}
 
+# Run a debug synthesis inside a Docker container (CPU)
+docker_debug:
+    @echo "🐳 Running debug synthesis inside Docker container (CPU)..."
+    @mkdir -p ./input ./output # Ensure host directories exist
+    @if [ ! -f "input/speaker.wav" ]; then \
+        echo "⚠️ No speaker.wav found in input/. Creating a dummy file for the test."; \
+        ffmpeg -f lavfi -i "sine=frequency=1000:duration=5" -ac 1 -ar 16000 input/speaker.wav 2>/dev/null || \
+        (echo "❌ Could not create dummy WAV. Is ffmpeg installed on the host?"; exit 1); \
+    fi
+    @docker run --rm \
+        -v "$(pwd)/input:/app/input:ro" \
+        -v "$(pwd)/output:/app/output:rw" \
+        "{{DOCKER_IMAGE_NAME}}:{{DOCKER_TAG}}" \
+        synthesize \
+          --text "This is a debug test [p=0.5] with *emphasis*." \
+          --output-file /app/output/docker_debug_output.wav \
+          --speaker-wav /app/input/speaker.wav \
+          --language en \
+          --cpu
+    @echo "✅ Docker debug synthesis finished. Check output/docker_debug_output.wav"
+
 # Check Docker status and provide helpful messages
 docker_check:
     @echo "🔍 Checking Docker setup..."

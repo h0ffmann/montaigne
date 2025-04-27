@@ -73,8 +73,13 @@
           nodejs_22
           corepack_22
 
-          # Other tools from your existing list
-          uv  # Keep uv
+          # Docker and container tools
+          docker
+          docker-compose
+          docker-credential-helpers
+
+          # Other tools
+          uv
         ];
 
         # Nix might handle library paths better now for its own packages.
@@ -136,51 +141,6 @@
             # Set library path for C++ libraries
             export LD_LIBRARY_PATH="${pkgs.gcc-unwrapped.lib}/lib:${pkgs.stdenv.cc.cc.lib}/lib:$LD_LIBRARY_PATH"
 
-            # --- Check Nix Python/PyTorch CUDA Status (Keep this check if relevant) ---
-            # echo "🚀 Checking Nix Python/PyTorch CUDA status:"
-            # python -c "import torch; print(f'Nix PyTorch: {torch.__version__}, CUDA Available: {torch.cuda.is_available()}, Device Count: {torch.cuda.device_count()}')" || echo 'Python/Torch check failed in shellHook'
-
-            # Ensure user's local bin and npm global bin are in PATH
-            export PATH="$HOME/.local/bin:$HOME/.npm-global/bin:$PATH"
-
-            # Ensure npm global bin dir exists
-            mkdir -p "$HOME/.npm-global/bin"
-
-            set -o pipefail
-
-            # Check optional Docker/Podman status
-            if command -v docker &>/dev/null; then
-                if ! docker ps > /dev/null 2>&1; then echo "⚠️ Warning: Cannot connect to Docker daemon."; fi
-            elif command -v podman &>/dev/null; then echo "ℹ️ Podman available."; else echo "⚠️ Warning: Docker/Podman not found."; fi
-
-            # Node.js Instructions
-            echo "🕸️ Node.js Environment ($(node -v)) ready."
-            echo "   Global node packages path (in PATH): $HOME/.npm-global/bin" # Show the user the path
-            echo "   To install global tools (repomix, etc.):"
-            echo "   npm install -g repomix @anthropic-ai/claude-code @modelcontextprotocol/server-brave-search"
-
-            # .env loading
-            echo "🔑 Checking for .env file..."
-            if [ -f ".env" ]; then
-              echo "   Found .env, loading variables..."
-              loaded_vars=$(grep -vE '^\s*(#|$)' .env)
-              if [ -n "$loaded_vars" ]; then
-                 # Loop is safer for potentially complex values than `export $(...)`
-                 while IFS= read -r line || [ -n "$line" ]; do # Handle lines without newline at EOF
-                    # Basic check to ensure it looks like VAR=VAL before exporting
-                    if [[ "$line" =~ ^[a-zA-Z_][a-zA-Z0-9_]*=.* ]]; then
-                       export "$line"
-                    fi
-                 done <<< "$loaded_vars"
-                 echo "   ✅ Variables potentially loaded from .env (verify)."
-              else echo "   ℹ️ .env found, but no loadable variable lines."; fi
-            else
-              echo "   ⚠️ .env file not found."; if [ -f ".env.example" ]; then echo "   💡 Hint: Found '.env.example'. Copy/edit: cp .env.example .env"; fi
-            fi
-
-            # Final readiness message
-            echo ""
-            echo "✨ Montaigne AI/TTS flake environment is ready! ✨"
             echo ""
             echo "📌 Quick Start:"
             echo "   just run -- --help"

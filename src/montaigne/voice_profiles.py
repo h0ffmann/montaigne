@@ -48,6 +48,18 @@ VOICE_PROFILES = {
         "description": "Brazilian rapper - urban, rhythmic speech pattern",
         "url": "https://example.com/voices/bk.wav",
         "local_path": "voices/bk.wav"
+    },
+    "maria_rita": {
+        "name": "Maria Rita",
+        "description": "Brazilian singer - smooth, melodic voice",
+        "url": "https://example.com/voices/maria_rita.wav",
+        "local_path": "voices/maria_rita.wav"
+    },
+    "clarice": {
+        "name": "Clarice Lispector",
+        "description": "Brazilian writer - thoughtful, philosophical tone",
+        "url": "https://example.com/voices/clarice.wav",
+        "local_path": "voices/clarice.wav"
     }
 }
 

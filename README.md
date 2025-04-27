@@ -90,6 +90,8 @@ Prebuilt Voice Profiles:
 - `bonner`: William Bonner - clear, professional news anchor
 - `marilia`: Marília Gabriela - sophisticated, articulate
 - `bk`: BK (Rapper) - urban, rhythmic speech pattern
+- `maria_rita`: Maria Rita - smooth, melodic singing voice
+- `clarice`: Clarice Lispector - thoughtful, philosophical tone
 
 Examples:
 

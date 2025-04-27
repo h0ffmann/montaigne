@@ -28,6 +28,8 @@ ENV UV_INDEX_STRATEGY="unsafe-best-match"
 ENV UV_NATIVE_TLS="1"
 
 WORKDIR /app
+# Create the license marker file in the home directory (/root)
+RUN touch /root/.TTS_LICENSE_ACCEPTED
 
 # Set SHELL to bash with pipefail for robust installation commands
 SHELL ["/bin/bash", "-o", "pipefail", "-c"]

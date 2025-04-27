@@ -171,18 +171,17 @@ docker_run *ARGS:
           --cpu \
           {{ARGS}} # Pass any additional user arguments here
 
-# Run the application inside a Docker container with GPU support
-# Mounts ./input (read-only) and ./output (read-write) directories.
-# Usage: just docker_run_gpu -- --text "GPU test" --output-file /app/output/out_gpu.wav ...
+# Usage: just docker_run_gpu -- synthesize --text "GPU test" ...
 docker_run_gpu *ARGS:
     @echo "🐳 Running Docker container (GPU)..."
     @mkdir -p ./input ./output # Ensure host directories exist
     @docker run --rm --gpus all \
         -v "$(pwd)/input:/app/input:ro" \
         -v "$(pwd)/output:/app/output:rw" \
-        "{{DOCKER_IMAGE_NAME}}:{{DOCKER_TAG}}" {{ARGS}}
+        "{{DOCKER_IMAGE_NAME}}:{{DOCKER_TAG}}" {{ARGS}} # Requires user to pass 'synthesize' and all args
 
 # Run a debug synthesis inside a Docker container (CPU)
+# Kept separate for clarity, very similar to the new docker_run default
 docker_debug:
     @echo "🐳 Running debug synthesis inside Docker container (CPU)..."
     @mkdir -p ./input ./output # Ensure host directories exist

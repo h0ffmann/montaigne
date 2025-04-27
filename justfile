@@ -11,7 +11,8 @@ UV           := "uv" # Assumes uv is in PATH
 
 # === Default Task ===
 # Show CLI help by default
-default: run --help
+default: 
+    @just run -- --help
 
 # === Environment & Dependencies (Managed by UV) ===
 

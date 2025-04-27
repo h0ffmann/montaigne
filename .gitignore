@@ -93,3 +93,8 @@ uv.lock # uv lock file
 
 .go/
 .xdg-runtime-dir/
+.aider*
+
+
+.env
+repo-content.txt

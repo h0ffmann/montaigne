@@ -145,8 +145,8 @@ DOCKER_IMAGE_NAME := PROJECT_NAME
 # GITHUB_REPOSITORY env var is set automatically in GitHub Actions
 # Use env_or_default when available in `just`, otherwise simple `env`:
 GITHUB_OWNER_REPO := env('GITHUB_REPOSITORY', "YOUR_USERNAME/YOUR_REPO") # REPLACE FALLBACK
-# Define the full base image path for GHCR
-GHCR_IMAGE_BASE   := "ghcr.io/{{GITHUB_OWNER_REPO}}/{{DOCKER_IMAGE_NAME}}" # Use project name in path
+# Define the full base image path for GHCR using concatenation
+GHCR_IMAGE_BASE   := "ghcr.io/" + GITHUB_OWNER_REPO + "/" + DOCKER_IMAGE_NAME # Use project name in path
 # Standard GHCR tags
 GHCR_TAG_LATEST   := GHCR_IMAGE_BASE + ":" + DOCKER_TAG_LATEST
 GHCR_TAG_COMMIT   := GHCR_IMAGE_BASE + ":" + DOCKER_TAG_GIT

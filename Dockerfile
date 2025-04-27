@@ -100,8 +100,8 @@ COPY --from=builder /opt/venv /opt/venv
 # Keeping it for safety unless you verify packaging.
 COPY --from=builder /app/src /app/src
 
-# Set the default command to run the application
-ENTRYPOINT ["montaigne"]
+# Set the default command to run the application using the full path
+ENTRYPOINT ["/opt/venv/bin/montaigne"]
 
 # Expose metadata
 LABEL maintainer="Matheus Hoffmann <hoffmann@poli.ufrj.br>"

@@ -32,6 +32,9 @@ WORKDIR /app
 # Set SHELL to bash with pipefail for robust installation commands
 SHELL ["/bin/bash", "-o", "pipefail", "-c"]
 
+# CORRECT: Copy files from the builder stage *before* the RUN command that needs them
+COPY --from=file_copier /tmp/project_files /tmp/project_files
+
 # Install system dependencies, Python 3.11, uv, AND application dependencies
 RUN apt-get update && apt-get install -y --no-install-recommends \
     # Core runtime dependencies required by the application/TTS/Whisper
@@ -56,16 +59,14 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     # Install uv
     && curl -LsSf https://astral.sh/uv/install.sh | sh \
     # --- Install Python Dependencies using uv ---
-    # Copy project definition first to leverage caching (from the file_copier stage)
-    && COPY --from=file_copier /tmp/project_files /tmp/project_files \
+    # CORRECT: Use 'cp' (a shell command) to copy files *already copied* into the build context
     && cp /tmp/project_files/pyproject.toml /app/pyproject.toml \
-    # Copy source code required for installation
     && cp -r /tmp/project_files/src /app/src \
     # Now, install the project and its dependencies defined in pyproject.toml
     # This installs dependencies into the system Python environment within the container
     && uv pip install --system --no-cache /app \
     # --- Clean up ---
-    # Remove temporary build files and PPA sources
+    # Remove temporary build files
     && rm -rf /tmp/project_files \
     # Remove packages only needed for build/install phase
     && apt-get purge -y --auto-remove \

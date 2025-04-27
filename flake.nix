@@ -109,6 +109,9 @@
             LD_LIBRARY_PATH = "${requiredLibPath}";
             EXTRA_LDFLAGS = "-L/lib -L${pkgs.linuxPackages.nvidia_x11}/lib";
             EXTRA_CCFLAGS = "-I/usr/include";
+            # Docker config
+            DOCKER_BUILDKIT = "1";
+            COMPOSE_DOCKER_CLI_BUILD = "1";
           };
 
           shellHook = ''
@@ -138,8 +141,37 @@
               echo "❌ pip not found in virtualenv"
             fi
 
-            # Set library path for C++ libraries
-            export LD_LIBRARY_PATH="${pkgs.gcc-unwrapped.lib}/lib:${pkgs.stdenv.cc.cc.lib}/lib:$LD_LIBRARY_PATH"
+            # Set library path for C++ libraries and CUDA
+            export LD_LIBRARY_PATH="${pkgs.gcc-unwrapped.lib}/lib:${pkgs.stdenv.cc.cc.lib}/lib:${requiredLibPath}:$LD_LIBRARY_PATH"
+
+            # Check docker status
+            echo "🐳 Checking Docker status..."
+            if command -v docker &>/dev/null; then
+              if docker info &>/dev/null; then
+                echo "✅ Docker daemon is running"
+                # Check if nvidia-container-runtime is available
+                if docker info 2>/dev/null | grep -q "Runtimes:.*nvidia"; then
+                  echo "✅ NVIDIA Docker runtime is available"
+                else
+                  echo "⚠️ NVIDIA Docker runtime not found - GPU acceleration in containers may not work"
+                fi
+              else
+                echo "⚠️ Docker daemon is not running or you don't have permission to access it"
+                echo "   To start Docker: sudo systemctl start docker.service"
+                echo "   For permissions: sudo usermod -aG docker $USER && newgrp docker"
+                echo "   NixOS users: Check if virtualisation.docker.enable is set to true in your configuration.nix"
+              fi
+            else
+              echo "❌ Docker command not found"
+            fi
+
+            # Check CUDA
+            echo "🔍 Checking CUDA status..."
+            if command -v nvidia-smi &>/dev/null; then
+              nvidia-smi || echo "⚠️ nvidia-smi failed - GPU may not be accessible"
+            else
+              echo "⚠️ nvidia-smi not found - NVIDIA drivers may not be installed properly"
+            fi
 
             echo ""
             echo "📌 Quick Start:"

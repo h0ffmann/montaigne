@@ -18,8 +18,8 @@ Montaigne is a powerful command-line tool designed for generating high-quality T
     *   Tone Placeholders: Use `[tone=NAME]text[/tone]` (e.g., `[tone=gold]...[/tone]`). *Note: Currently recognized and logged, but does not alter the synthesized voice characteristics with XTTS.* Supported placeholders: `gold`, `velvet`, `silver`, `bronze`, `neutral`.
 *   **Audio Quality Evaluation:** Optionally transcribe the generated audio using OpenAI Whisper (STT) and compare it to the input text using fuzzy string matching (rapidfuzz) to get a similarity score.
 *   **Command-Line Interface:** Easy-to-use CLI built with Typer.
-*   **Modern Tooling:**
-    *   Python 3.12+
+*   **Modern Python & Tooling:**
+    *   Python >=3.11,<3.12
     *   Dependency & Environment Management: `uv`
     *   Task Runner: `just`
     *   Code Formatting/Linting: `ruff`
@@ -73,7 +73,7 @@ Key Arguments:
 
 --input-file PATH / -i PATH: Path to a .txt file containing the text you want to convert to speech. Use either --text or `--input-file*.
 
---language CODE / -l CODE: Language code for the TTS model (e.g., en, pt, es, fr, de, it, ru, zh-cn). Defaults to en.
+--language CODE / -l CODE: Language code for the TTS model (e.g., en, pt, es, fr, de, it, ru, zh-cn). Defaults to 'en'.
 
 --speed FLOAT: Adjust the playback speed factor (e.g., 1.0 is normal, 0.9 is slower, 1.1 is faster). Defaults to 1.0.
 
@@ -85,31 +85,27 @@ Examples:
 
 Synthesize from direct text:
 
+# Example using Portuguese ('pt')
 # Make sure referencia_voz.wav exists
-montaigne -t "Olá mundo! [p=0.5] Este é um teste *simples*." -o saida_simples.wav -s ./referencia_voz.wav -l pt
-IGNORE_WHEN_COPYING_START
-content_copy
-download
-Use code with caution.
-Bash
-IGNORE_WHEN_COPYING_END
+montaigne synthesize -t "Olá mundo! [p=0.5] Este é um teste *simples*." \
+                     -o output/saida_simples.wav \
+                     -s input/referencia_voz.wav \
+                     -l pt
 
 Synthesize from a file and evaluate the result:
 
 # Assuming entrada.txt and speaker_ref.wav exist
-montaigne -i entrada.txt -o saida_avaliada.wav -s ./speaker_ref.wav -l en --evaluate
-IGNORE_WHEN_COPYING_START
-content_copy
-download
-Use code with caution.
-Bash
-IGNORE_WHEN_COPYING_END
+montaigne synthesize -i input/entrada.txt \
+                     -o output/saida_avaliada.wav \
+                     -s input/speaker_ref.wav \
+                     -l en \
+                     --evaluate
 
 Synthesize with tone placeholders and slower speed:
 
 montaigne --text "This [tone=gold]sounds premium[/tone], maybe. [p=0.8] And *this* is slower." \
-          --output-file premium_slow.wav \
-          --speaker-wav ./speaker_premium.wav \
+          --output-file output/premium_slow.wav \
+          --speaker-wav input/speaker_premium.wav \
           --language en \
           --speed 0.85
 IGNORE_WHEN_COPYING_START
@@ -156,7 +152,7 @@ just install: Ensures the package is installed in editable mode with dev depende
 
 just run -- [ARGS...]: Runs the montaigne CLI. Pass arguments after --.
 
-Example: just run -- -t "Hello" -o out.wav -s ref.wav
+Example: `just run -- synthesize -t "Hello" -o output/out.wav -s input/ref.wav`
 
 just lint: Checks code style using Ruff.
 
@@ -164,13 +160,20 @@ just format: Formats code using Ruff.
 
 just check: Runs both lint and format.
 
+test: Runs tests using pytest (assumes tests are in a tests/ directory). *Currently requires setting up tests.*
+
+build_package: Builds the Python package (wheel and sdist) into the dist/ directory using the `build` tool.
+
 just test: Runs tests using pytest (assumes tests are in a tests/ directory).
 
-just build: Builds the Python package (wheel and sdist) into the dist/ directory.
+clean: Removes build artifacts and __pycache__.
 
+clean_venv: Removes the `.venv` directory.
 just clean: Removes build artifacts and __pycache__.
 
 just clean_all: Runs clean and also removes the .venv directory.
+
+just debug: Runs repomix to generate `repo-content.txt` and then performs a simple synthesis test run (useful for testing basic setup).
 
 just docker_build: Builds the Docker image (tags as montaigne:latest and montaigne:<git-hash>).
 
@@ -185,41 +188,26 @@ You can build and run Montaigne within a Docker container for portability.
 Build the Image:
 
 just docker_build
-# Or: docker build -t montaigne .
-IGNORE_WHEN_COPYING_START
-content_copy
-download
-Use code with caution.
-Bash
-IGNORE_WHEN_COPYING_END
+```
+# Or manually: `docker build -t montaigne:latest -t montaigne:$(git rev-parse --short HEAD) .`
 
 Prepare Input/Output Directories:
 The Docker container expects input files (like the speaker WAV) to be in a directory mapped to /app/input and writes output files to a directory mapped to /app/output.
 
 mkdir -p input output
 cp /path/to/your/speaker.wav ./input/ # Copy your reference wav here
-IGNORE_WHEN_COPYING_START
-content_copy
-download
-Use code with caution.
-Bash
-IGNORE_WHEN_COPYING_END
+```
 
 Run the Container (CPU):
 
 # Example: Synthesize text and save to ./output/docker_out_cpu.wav on the host
-just docker_run -- \
+just docker_run -- synthesize \
     --text "Hello from inside the Docker container!" \
     --output-file /app/output/docker_out_cpu.wav \
     --speaker-wav /app/input/speaker.wav \
     --language en \
     --evaluate
-IGNORE_WHEN_COPYING_START
-content_copy
-download
-Use code with caution.
-Bash
-IGNORE_WHEN_COPYING_END
+```
 
 The output file will appear in the ./output directory on your host machine.
 
@@ -227,17 +215,12 @@ Run the Container (GPU):
 Requires the NVIDIA Container Toolkit to be installed on your Docker host.
 
 # Example: Synthesize using the GPU
-just docker_run_gpu -- \
+just docker_run_gpu -- synthesize \
     --text "Running much faster with the GPU!" \
     --output-file /app/output/docker_out_gpu.wav \
     --speaker-wav /app/input/speaker.wav \
     --language en
-IGNORE_WHEN_COPYING_START
-content_copy
-download
-Use code with caution.
-Bash
-IGNORE_WHEN_COPYING_END
+```
 🧑‍💻 Development
 
 Install Dev Dependencies: Ensure you've run just setup or just install.
@@ -272,7 +255,7 @@ Coqui TTS (XTTSv2): For the powerful underlying TTS model. (Coqui TTS GitHub)
 
 OpenAI Whisper: For the state-of-the-art Speech-to-Text model used in evaluation. (OpenAI Whisper GitHub)
 
-The creators of Typer, uv, Just, Ruff, and other libraries used in this project.
+The creators of Click, uv, Just, Ruff, and other libraries used in this project.
 
 IGNORE_WHEN_COPYING_START
 content_copy

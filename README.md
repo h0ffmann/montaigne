@@ -1,4 +1,4 @@
-# Montaigne TTS 🚀
+# Montaigne TTS
 
 Montaigne is a powerful command-line tool designed for generating high-quality Text-to-Speech (TTS) audio using the advanced **Coqui XTTSv2** model. It offers features like voice cloning from short audio samples, text preprocessing for enhanced expressiveness, and optional audio quality evaluation using **OpenAI Whisper**. The project is built with Python 3.12+, managed with `uv`, provides common tasks via `just`, and includes Docker support for containerization.
 

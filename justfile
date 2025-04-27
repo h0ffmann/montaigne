@@ -28,6 +28,12 @@ install:
 # Alias for setup
 setup: install
 
+
+nix:
+    @nix flake update
+    @NIXPKGS_ALLOW_BROKEN=1 nix develop --impure
+
+
 # === Running the Application ===
 
 # Run the Montaigne CLI application using the Python from the Nix environment

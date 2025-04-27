@@ -40,8 +40,25 @@
           python311Packages.python
           # Find the correct PyTorch package with CUDA 12.1 support
           # Common names: pytorchWithCuda, pytorch-bin. Verify this attribute name.
-          python311Packages.pytorchWithCuda
-          uv # Keep uv for installing other deps into venv
+          python311Packages.pytorchWithCuda # Keep this for PyTorch+CUDA
+
+          # Dependencies from pyproject.toml (now managed by Nix)
+          python311Packages.click
+          # python311Packages.typer # Typer is often pulled in by click or other tools, or might need specific setup if extras are complex. Let's omit for now unless needed.
+          python311Packages.requests
+          python311Packages.TTS
+          python311Packages.openai-whisper
+          python311Packages.rapidfuzz
+          python311Packages.pydub
+
+          # Dev Dependencies from pyproject.toml (now managed by Nix)
+          python311Packages.ruff
+          python311Packages.pytest
+          python311Packages.build
+          python311Packages.setuptools # Likely already pulled in, but good to be explicit for build
+
+          # System tools (keep as before)
+          uv # Keep uv, might be useful for other tasks, though not for venv install
           nodejs_22
           corepack_22
           ffmpeg

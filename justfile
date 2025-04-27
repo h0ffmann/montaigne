@@ -107,29 +107,27 @@ clean_all: clean
 
 # === Debugging ===
 
-# Run a simple debug/test command that verifies basic functionality using Nix Python
 debug:
-    @echo "🐛 Running debug task..."
-    @command -v python > /dev/null 2>&1 || (echo "❌ Python not found. Are you in nix shell?" && exit 1)
-    @echo "📦 Ensuring montaigne is installed..."
-    @pip install -e . || echo "⚠️ Warning: Could not install montaigne package."
-    @echo "🐛 Running debug task: Generating fresh repo-content.txt + basic synthesis..."
-    @repomix . --output repo-content.txt
-    @echo "🐞 Running debug/test command..."
-    @mkdir -p input output
-    @if [ ! -f "input/speaker.wav" ]; then \
-        echo "⚠️ No speaker.wav found in input/. Creating a dummy file (you'll need a real WAV for actual synthesis)"; \
-        ffmpeg -f lavfi -i "sine=frequency=1000:duration=5" -ac 1 -ar 16000 "input/speaker.wav" 2>/dev/null || \
-        (echo "❌ Could not create dummy WAV. Is ffmpeg in flake.nix and are you inside 'nix develop'?"; exit 1); \
-    fi
-    @echo "✅ Created input/speaker.wav dummy file"
-    @echo "🚀 Running simple synthesis test using Nix Python..."
-    @python -m {{PROJECT_NAME}}.main synthesize \
-        --text "This is a debug test [p=0.5] with *emphasis*." \
-        --output-file "output/debug_output.wav" \
-        --speaker-wav "input/speaker.wav" \
-        --language en
-    @echo "✨ Debug command completed. Check output/debug_output.wav"
+  @echo "🐛 Running debug task..."
+  @repomix . --output repo-content.txt
+  @echo "🔍 Testing montaigne installation..."
+  @mkdir -p input output
+  @if [ ! -f "input/speaker.wav" ]; then \
+    ffmpeg -f lavfi -i "sine=frequency=1000:duration=5" -ac 1 -ar 16000 input/speaker.wav 2>/dev/null || \
+    echo "❌ Could not create test WAV file"; \
+  fi
+  @if [ -d ".venv" ]; then \
+    source .venv/bin/activate && \
+    python -c "import montaigne" && \
+    python -m montaigne.main synthesize \
+      --text "This is a debug test [p=0.5] with *emphasis*." \
+      --output-file output/debug_output.wav \
+      --speaker-wav input/speaker.wav \
+      --language en \
+      --cpu; \
+  else \
+    echo "❌ No virtualenv found. Run 'just nix' first"; \
+  fi
 
 # Run a simple debug command that verifies Torch CUDA functionality using Nix Python
 debug-gpu:

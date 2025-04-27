@@ -22,6 +22,7 @@
         cuda_toolkit = pkgs.cudaPackages_12_1.cudatoolkit;
 
         montaignePkgs = with pkgs; [
+          # Basic tools
           cachix
           bashInteractive
           coreutils
@@ -32,49 +33,34 @@
           fd
           curl
           wget
+
+          # Build essentials
           openssl
           pkg-config
           gcc
           gnumake
-          # Use Nixpkgs Python 3.11 packages set
-          python311Packages.python
-          # Find the correct PyTorch package with CUDA 12.1 support
-          # Common names: pytorchWithCuda, pytorch-bin. Verify this attribute name.
-          python311Packages.pytorchWithCuda # Keep this for PyTorch+CUDA
+          gcc-unwrapped
 
-          # Dependencies from pyproject.toml (now managed by Nix)
-          # TTS will be installed via uv in shellHook
-          python311Packages.click
-          # python311Packages.typer # Typer is often pulled in by click or other tools, or might need specific setup if extras are complex. Let's omit for now unless needed.
-          python311Packages.requests
-          # python311Packages.tts # Removed - Not available in nixpkgs this way
-          python311Packages.openai-whisper
-          python311Packages.rapidfuzz
-          python311Packages.pydub
+          # Python and package management
+          python311
+          python311Packages.pip
+          python311Packages.setuptools
+          python311Packages.wheel
+          python311Packages.venv
 
-          # Dev Dependencies from pyproject.toml (now managed by Nix)
-          python311Packages.ruff
-          python311Packages.pytest
-          python311Packages.build
-          python311Packages.setuptools # Likely already pulled in, but good to be explicit for build
-
-          # System tools (keep as before)
-          uv # Keep uv, might be useful for other tasks, though not for venv install
-          nodejs_22
-          corepack_22
+          # System libraries for audio and ML
           ffmpeg
           libsndfile
           alsa-lib
           libGL
           stdenv.cc.cc.lib
-          speedtest-cli
-          dig
-          nmap
-          lsof
-          busybox
-          # No longer explicitly needed if pytorchWithCuda pulls it in
-          # cuda_toolkit 
 
+          # Node.js tools
+          nodejs_22
+          corepack_22
+
+          # Other tools from your existing list
+          uv  # Keep uv
         ];
 
         # Nix might handle library paths better now for its own packages.

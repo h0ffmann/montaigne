@@ -91,18 +91,13 @@ clean_build:
     @echo "🧹 Removing build artifacts (build/, dist/, *.egg-info/)..."
     @rm -rf build/ dist/ *.egg-info/ htmlcov/ .coverage* .pytest_cache/
 
-# Remove the virtual environment (if it somehow still exists)
-clean_venv:
-    @echo "🧹 Removing virtual environment directory ({{VENV_DIR}})..."
-    @rm -rf {{VENV_DIR}}
-
 # Clean build artifacts and pycache
 clean: clean_pycache clean_build
     @echo "✅ Project directories cleaned (build artifacts, pycache)."
 
-# Clean everything including the virtual environment
-clean_all: clean clean_venv
-    @echo "✅ Full clean including virtualenv completed."
+# Clean everything (build artifacts, pycache)
+clean_all: clean
+    @echo "✅ Full clean completed."
 
 # === Debugging ===
 

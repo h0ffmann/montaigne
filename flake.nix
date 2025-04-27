@@ -197,102 +197,11 @@
                            echo "🏗️ Installing local Montaigne package in editable mode into venv..."
                            if ! uv pip install --no-deps -e "$_PROJECT_DIR"; then echo "⚠️ Warning: Failed to install local package '$_PROJECT_DIR' in editable mode with uv."; fi
                            echo "✅ uv dependency installation complete."
-                        else echo "❌ Fatal: uv command not found in PATH." && return 1; fi
-
-                        # --- Sanity Checks ---
-                        echo "" && echo "=== Environment Sanity Checks ==="
-                        # --- PyTorch/Torchaudio Check ---
-                        echo "🔍 Checking PyTorch & Torchaudio (managed by Nix, accessed via venv Python)..."
-                        if [ -n "$_VENV_PYTHON_PATH" ] && command -v "$_VENV_PYTHON_PATH" &> /dev/null; then
-                          python_exit_status=0; echo "DEBUG: Running python check script..."
-                          # Python check script (same as before)
-                          "$_VENV_PYTHON_PATH" <<EOF || python_exit_status=$?
-            # --- Python Check Script Start ---
-            import sys, os, torch, torchaudio, importlib.util, subprocess
-            messages = []; cuda_available = False; cudnn_available = False; device_count = 0; exit_code = 0
-            messages.append(f"---> Python Executable: {sys.executable}"); messages.append(f"---> Python Version: {sys.version.split()[0]}")
-            try:
-                torch_spec = importlib.util.find_spec("torch")
-                if not torch_spec: messages.append("❌ ERROR: PyTorch package spec not found!"); exit_code = 1
-                else:
-                    messages.append(f"---> PyTorch version: {torch.__version__}"); messages.append(f"---> PyTorch path: {torch_spec.origin}")
-                    try:
-                        cuda_available = torch.cuda.is_available(); messages.append(f"---> CUDA Available (torch.cuda.is_available()): {cuda_available}")
-                        if cuda_available:
-                            cudnn_available = torch.backends.cudnn.is_available(); messages.append(f"---> cuDNN Available (torch.backends.cudnn.is_available()): {cudnn_available}"); device_count = torch.cuda.device_count(); messages.append(f"---> CUDA Device Count: {device_count}")
-                            if device_count > 0:
-                                try: idx = torch.cuda.current_device(); messages.append(f"---> Current CUDA Device Index: {idx}"); messages.append(f"---> Current CUDA Device Name: {torch.cuda.get_device_name(idx)}")
-                                except Exception as e_dev: messages.append(f"    ⚠️ Error getting CUDA device info: {e_dev}")
-                            else: messages.append(f"---> Current CUDA Device Index: N/A (No devices detected/usable)"); messages.append(f"---> Current CUDA Device Name: N/A (No devices detected/usable)")
-                        else: messages.append(f"---> cuDNN Available: N/A"); messages.append(f"---> CUDA Device Count: N/A"); messages.append(f"---> Current CUDA Device Index: N/A"); messages.append(f"---> Current CUDA Device Name: N/A")
-                    except Exception as e_cuda: messages.append(f"    ⚠️ Error during CUDA/cuDNN check via Torch: {e_cuda}"); cuda_available=False; cudnn_available=False; device_count=0; messages.append(f"---> CUDA Available: False (Error)"); messages.append(f"---> cuDNN Available: False (Error)"); messages.append(f"---> CUDA Device Count: 0 (Error)"); exit_code = 1
-            except ImportError as e_imp: messages.append(f"❌ ERROR: Failed to import PyTorch: {e_imp}"); messages.append(f"   Check LD_LIBRARY_PATH and CUDA Toolkit/Driver compatibility."); exit_code = 1
-            except Exception as e_torch_init: messages.append(f"❌ ERROR: Unexpected error during PyTorch initialization: {e_torch_init}"); exit_code = 1
-            if exit_code == 0:
-                try:
-                    torchaudio_spec = importlib.util.find_spec("torchaudio")
-                    if torchaudio_spec: messages.append(f"---> Torchaudio version: {torchaudio.__version__}"); messages.append(f"---> Torchaudio path: {torchaudio_spec.origin}")
-                    else: messages.append("❌ ERROR: Torchaudio package spec not found!"); exit_code = 1
-                except ImportError as e_audio_imp: messages.append(f"❌ ERROR: Failed to import Torchaudio: {e_audio_imp}"); exit_code = 1
-                except Exception as e_audio_init: messages.append(f"❌ ERROR: Unexpected error during Torchaudio initialization: {e_audio_init}"); exit_code = 1
-            else: messages.append("INFO: Skipping Torchaudio check due to PyTorch import failure.")
-            if torch_spec:
-                messages.append("---> Linked libraries check (ldd on torch C library):"); ldd_path = subprocess.getoutput('command -v ldd')
-                if ldd_path:
-                    try:
-                        torch_lib_path = os.path.dirname(torch_spec.origin); c_lib_path_options = [os.path.join(torch_lib_path, "lib", lib) for lib in ["libtorch_python.so", "libtorch_cuda.so", "libtorch.so"]] + [os.path.join(torch_lib_path, "_C.so")]; c_lib_path = next((p for p in c_lib_path_options if os.path.exists(p)), None)
-                        if c_lib_path:
-                            ldd_cmd = [ldd_path, c_lib_path]; messages.append(f"     Running command: {' '.join(ldd_cmd)}")
-                            try:
-                                result = subprocess.run(ldd_cmd, capture_output=True, text=True, timeout=5, check=False); relevant_libs = [line for line in result.stdout.splitlines() if any(s in line for s in ['cuda', 'cudnn', 'nvinfer', 'nvrtc'])]
-                                if result.returncode == 0: messages.append(f"     Relevant linked libraries found:\n" + "\n".join([f"       {l.strip()}" for l in relevant_libs])) if relevant_libs else messages.append(f"     (ldd successful, but no relevant CUDA/cuDNN libs found linked)")
-                                else: messages.append(f"     (ldd command failed with exit code {result.returncode}. Stderr:\n{result.stderr.strip()})")
-                            except subprocess.TimeoutExpired: messages.append(f"     (ldd command timed out after 5 seconds)")
-                            except Exception as e_ldd: messages.append(f"     (Error running ldd command: {e_ldd})")
-                        else: messages.append(f"     Could not find a common torch C library to run ldd on (checked options).")
-                    except Exception as e: messages.append(f"    ⚠️ Error during ldd check setup: {e}")
-                elif not ldd_path: messages.append("     Skipping ldd check because 'ldd' command was not found in PATH.")
-            else: messages.append("INFO: Skipping LDD check because PyTorch spec was not found.")
-            print("\n".join(messages), flush=True); sys.exit(exit_code)
-            # --- Python Check Script End ---
-            EOF
-                          echo "DEBUG: Python check script finished. Exit Status: $python_exit_status"
-                          if [ $python_exit_status -ne 0 ]; then echo "❌ Fatal: Python check script failed (Exit Status: $python_exit_status)." && return 1
-                          else echo "✅ Python check script completed successfully."; fi
-                        else echo "❌ Fatal: Venv Python path '$_VENV_PYTHON_PATH' not found or not executable." && return 1; fi
-
-                        # --- Docker Check ---
-                        echo "🐳 Checking Docker status..."
-                        if command -v docker &> /dev/null; then
-                          if timeout 5 docker info >/dev/null 2>&1; then
-                             echo "✅ Docker daemon is running and accessible."
-                             if timeout 5 docker info 2>/dev/null | grep -qE 'Runtimes:.* nvidia( |$)'; then echo "✅ NVIDIA Docker runtime detected in docker info."
-                             elif command -v nvidia-container-runtime &>/dev/null || command -v nvidia-container-runtime-hook &>/dev/null ; then echo "ℹ️ NVIDIA container runtime binary found, but not listed in 'docker info Runtimes'."
-                             else echo "⚠️ NVIDIA Docker runtime not detected."; fi
-                          else echo "⚠️ Docker daemon not running, not responsive within 5s, or permission error."; fi
-                        else echo "❌ Docker command not found \(is 'docker' included in 'packages'?\)."; fi
-
-                        # --- Host NVIDIA Driver Check ---
-                        echo "💻 Checking Host NVIDIA driver via nvidia-smi wrapper..."
-                        if command -v nvidia-smi &> /dev/null; then
-                          nvidia_smi_output=""; nvidia_smi_status=1
-                          if nvidia_smi_output=$(timeout 5 nvidia-smi --query-gpu=driver_version --format=csv,noheader 2>&1); nvidia_smi_status=$?; then
-                             if [ $nvidia_smi_status -eq 0 ] && [ -n "$nvidia_smi_output" ]; then echo "✅ nvidia-smi query successful. Host Driver Version: $nvidia_smi_output"
-                             else
-                               echo "   ℹ️ nvidia-smi query failed (Status: $nvidia_smi_status)/empty. Trying generic 'nvidia-smi'..."
-                               if nvidia_smi_output=$(timeout 5 nvidia-smi 2>&1); nvidia_smi_status=$?; then
-                                  if [ $nvidia_smi_status -eq 0 ] && echo "$nvidia_smi_output" | grep -q "Driver Version:"; then echo "✅ nvidia-smi generic command successful. Host drivers okay."; echo "$nvidia_smi_output" | grep "Driver Version:" | sed 's/ *|//'
-                                  else echo "⚠️ nvidia-smi generic command issue (Status: $nvidia_smi_status). Output:"; echo "--- START ---"; echo "$nvidia_smi_output"; echo "--- END ---"; fi
-                               else echo "⚠️ nvidia-smi generic command failed/timed out (Status: $nvidia_smi_status). Output:"; echo "--- START ---"; echo "$nvidia_smi_output"; echo "--- END ---"; fi
-                             fi
-                          else echo "⚠️ Error running/capturing nvidia-smi status."; fi
-                        else echo "❌ nvidia-smi command (wrapper) not found in PATH."; fi
-
                         # --- Final Message ---
                         echo "================================"; echo ""
                         echo "✅ Montaigne environment ready!"
                         # Use the nixpkgsRev variable defined in the Nix 'let' block
-                        # This uses Nix interpolation. The comment is fixed now.
+                        # This uses Nix interpolation.
                         echo "   Nix manages: Python ${python.version}, PyTorch+CUDA, Torchaudio, Core libs (from Nixpkgs commit ${nixpkgsRev})"
                         echo "   uv manages other Python packages in: $VENV_DIR" # Use shell variable $VENV_DIR
                         echo ""

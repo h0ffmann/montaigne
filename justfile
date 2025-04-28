@@ -9,6 +9,8 @@ set dotenv-load := true
 # === Variables ===
 PROJECT_NAME := "montaigne" # Should match pyproject.toml
 UV           := "uv" # Keep uv command available if needed for other tasks
+# Define MODEL_PATH_VAR using env_var function for HOME
+MODEL_PATH_VAR := env_var('HOME') + "/.local/share/tts/tts_models--multilingual--multi-dataset--xtts_v2"
 
 # === Docker Settings ===
 DOCKER_TAG_LATEST := "latest"
@@ -127,26 +129,24 @@ docker_check:
     fi
     @echo "✅ Docker is ready: $$(docker --version)"
 
-# Prepare local TTS model for Docker build context
+# Prepare local TTS model for Docker build context using just variable
 prepare_local_model:
     @echo "📦 Preparing local TTS model..."
     @mkdir -p model_files
-    @# Now we use the just variable {{ MODEL_PATH_VAR }}
-    # The shell receives the already-expanded path. No $$ needed.
+    @# Use the just variable {{ MODEL_PATH_VAR }}. No $$ needed.
     if [ -d "{{ MODEL_PATH_VAR }}" ]; then \
-        echo '📦 Found local model at "{{ MODEL_PATH_VAR }}" - copying to build context'; \
-        if ! rsync -a --info=progress2 "{{ MODEL_PATH_VAR }}/" model_files/; then \
-            echo '❌ Failed to copy local model from "{{ MODEL_PATH_VAR }}"'; \
-            exit 1; \
-        fi; \
-        echo "✅ Local model copied successfully."; \
+    echo '📦 Found local model at "{{ MODEL_PATH_VAR }}" - copying to build context'; \
+    if ! rsync -a --info=progress2 "{{ MODEL_PATH_VAR }}/" model_files/; then \
+        echo '❌ Failed to copy local model from "{{ MODEL_PATH_VAR }}"'; \
+        exit 1; \
+    fi; \
+    echo "✅ Local model copied successfully."; \
     else \
-        echo '⚠️ Local model not found at "{{ MODEL_PATH_VAR }}"'; \
-        echo "   Model will be downloaded during Docker build if USE_LOCAL_MODEL=true is set."; \
+    echo '⚠️ Local model not found at "{{ MODEL_PATH_VAR }}"'; \
+    echo "   Model will be downloaded during Docker build if USE_LOCAL_MODEL=true is set."; \
     fi
 
 # Create Entrypoint and Modify Dockerfile
-# This is a dependency for docker_dev and the 'all' target's docker build step
 prepare_docker_files: prepare_local_model
     @echo "📝 Creating entrypoint script for Docker..."
     @# Create entrypoint.sh with PyTorch security fix
@@ -235,36 +235,36 @@ docker_push: docker_check
 # Ensures dummy speaker file exists for the default run
 docker_run *ARGS: prepare_dirs docker_check
     @echo "🐳 Running default synthesis in Docker container..."
-    # Ensure speaker.wav exists for the default command
     @if [ ! -f "input/speaker.wav" ]; then \
         echo "⚠️ Creating dummy speaker.wav for Docker run..."; \
         ffmpeg -f lavfi -i "sine=frequency=1000:duration=5" -ac 1 -ar 16000 input/speaker.wav 2>/dev/null || \
         (echo "❌ Failed to create dummy speaker.wav." && exit 1); \
     fi
-    @CURRENT_DIR=$(pwd); \
-    docker run --rm \
-        -v "${CURRENT_DIR}/input:/app/input:ro" \
-        -v "${CURRENT_DIR}/output:/app/output:rw" \
-        "{{DOCKER_IMAGE_NAME}}:{{DOCKER_TAG_LATEST}}" \
-        python3 -m montaigne.main synthesize \ # Use python module execution
-          --text "This is a Docker container test." \
-          --output-file /app/output/docker_output.wav \
-          --speaker-wav /app/input/speaker.wav \
-          --language en \
-        {{ARGS}} || (echo "❌ Docker run failed" && exit 1)
+    @# Single '@' starts the multi-line shell command. Subsequent lines MUST start at column 0.
+    CURRENT_DIR=$(pwd); \
+docker run --rm \
+-v "${CURRENT_DIR}/input:/app/input:ro" \
+-v "${CURRENT_DIR}/output:/app/output:rw" \
+"{{DOCKER_IMAGE_NAME}}:{{DOCKER_TAG_LATEST}}" \
+python3 -m montaigne.main synthesize \
+--text "This is a Docker container test." \
+--output-file /app/output/docker_output.wav \
+--speaker-wav /app/input/speaker.wav \
+--language en \
+{{ARGS}} || (echo "❌ Docker run failed" && exit 1)
     @echo "✅ Docker synthesis complete. Check output/docker_output.wav"
 
 # GPU version with fixed volume paths
-# Expects full command in ARGS, e.g., just docker_run_gpu -- synthesize ...
 docker_run_gpu *ARGS: prepare_dirs docker_check
     @echo "🐳 Running Docker container with GPU..."
-    @CURRENT_DIR=$(pwd); \
-    docker run --rm --gpus all \
-        -v "${CURRENT_DIR}/input:/app/input:ro" \
-        -v "${CURRENT_DIR}/output:/app/output:rw" \
-        "{{DOCKER_IMAGE_NAME}}:{{DOCKER_TAG_LATEST}}" \
-        python3 -m montaigne.main \ # Use python module execution
-        {{ARGS}} || (echo "❌ Docker GPU run failed" && exit 1)
+    @# Single '@' starts the multi-line shell command. Subsequent lines MUST start at column 0.
+    CURRENT_DIR=$(pwd); \
+docker run --rm --gpus all \
+-v "${CURRENT_DIR}/input:/app/input:ro" \
+-v "${CURRENT_DIR}/output:/app/output:rw" \
+"{{DOCKER_IMAGE_NAME}}:{{DOCKER_TAG_LATEST}}" \
+python3 -m montaigne.main \
+{{ARGS}} || (echo "❌ Docker GPU run failed" && exit 1)
 
 # === Main Pipeline ===
 # Run TTS tasks inside Nix shell for reliable environment

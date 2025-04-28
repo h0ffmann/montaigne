@@ -52,7 +52,7 @@ ENV PYTHONUNBUFFERED=1
 ENV PYTHONDONTWRITEBYTECODE=1
 ENV DEBIAN_FRONTEND=noninteractive
 ENV TZ=UTC
-ENV UV_EXTRA_INDEX_URL="https://download.pytorch.org/whl/cu121"
+# ENV UV_EXTRA_INDEX_URL="https://download.pytorch.org/whl/cu121" # REMOVIDO para usar a versão especificada abaixo
 ENV UV_INDEX_STRATEGY="unsafe-best-match"
 ENV UV_NATIVE_TLS="1"
 ENV COQUI_TOS_AGREED=1
@@ -136,10 +136,18 @@ RUN if [ "$USE_LOCAL_MODEL" = "true" ] && [ -f "/tmp/model_files/model.pth" ]; t
     rm -rf /tmp/model_files
 
 # Install application (Simplified cleanup logic)
-RUN cp /tmp/project_files/pyproject.toml /app/pyproject.toml \
+# Instala PyTorch e Torchaudio correspondentes ao CUDA 12.1 primeiro
+RUN TORCH_URL="https://download.pytorch.org/whl/cu121" \
+    && echo "Installing specific PyTorch version (2.5.1+cu121)..." \
+    && uv pip install --system --no-cache --python /usr/bin/python3.11 \
+       --find-links ${TORCH_URL} \
+       "torch==2.5.1+cu121" \
+       "torchaudio==2.5.1+cu121" \
+    # Agora instala a aplicação local, uv deve detectar torch/torchaudio já instalados
+    && cp /tmp/project_files/pyproject.toml /app/pyproject.toml \
     && cp -r /tmp/project_files/src /app/src \
     && echo "Installing application using uv..." && uv pip install --system --no-cache --python /usr/bin/python3.11 /app \
-    # Clean up temporary build files and unnecessary build-time packages
+    # Limpa arquivos temporários de build e pacotes desnecessários
     && echo "Cleaning up build environment..." && rm -rf /tmp/project_files \
     && apt-get purge -y --auto-remove \
     git curl software-properties-common gpg-agent \

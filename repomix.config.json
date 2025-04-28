@@ -4,7 +4,8 @@
         "useDefaultPatterns": true,
         "customPatterns": [
             "**/.*",
-            "gemini_*"
+            "gemini_*",
+            "model_files/*"
         ]
     }
 }

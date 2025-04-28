@@ -73,6 +73,7 @@
           git
           jq
           just
+          repomix # Added repomix
           ripgrep
           fd
           curl
@@ -88,6 +89,7 @@
           docker
           docker-compose
           docker-credential-helpers
+          hadolint # Added hadolint
           # nvidia-smi wrapper
           (pkgs.runCommand "nvidia-smi-wrapper" { } ''
             mkdir -p $out/bin ; _host_nvidia_smi=""

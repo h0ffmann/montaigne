@@ -8,312 +8,319 @@ set dotenv-load := true
 
 # === Variables ===
 PROJECT_NAME := "montaigne" # Should match pyproject.toml
-# VENV_DIR and PYTHON are no longer needed as Nix manages the environment
 UV           := "uv" # Keep uv command available if needed for other tasks
+# Define MODEL_PATH_VAR using env_var function for HOME
+MODEL_PATH_VAR := env_var('HOME') + "/.local/share/tts/tts_models--multilingual--multi-dataset--xtts_v2"
+
+# === Docker Settings ===
+DOCKER_TAG_LATEST := "latest"
+DOCKER_TAG_GIT    := `git rev-parse --short HEAD`
+DOCKER_IMAGE_NAME := PROJECT_NAME
+# Use env_var_or_default; GITHUB_REPOSITORY is set in GH Actions. REPLACE FALLBACK FOR LOCAL USE.
+GITHUB_OWNER_REPO := env_var_or_default('GITHUB_REPOSITORY', "hoffmann/montaigne") # Adjusted fallback
+GHCR_IMAGE_BASE   := "ghcr.io/" + GITHUB_OWNER_REPO + "/" + DOCKER_IMAGE_NAME
+GHCR_TAG_LATEST   := GHCR_IMAGE_BASE + ":" + DOCKER_TAG_LATEST
+GHCR_TAG_COMMIT   := GHCR_IMAGE_BASE + ":" + DOCKER_TAG_GIT
+MANUAL_TAG        := env_var_or_default('MANUAL_TAG', '')
 
 # === Default Task ===
-# List available recipes by default
 default:
     @just --list
 
 # === Environment & Dependencies (Managed by Nix Flake) ===
-
-# Setup/Install - Dependencies are now managed by the Nix flake
 install:
     @echo "🐍 Python dependencies are managed by the Nix flake."
     @echo "✅ Environment should be ready when inside 'nix develop'."
 
-# Alias for setup
 setup: install
-
 
 nix:
     @nix flake update
     @NIXPKGS_ALLOW_BROKEN=1 nix develop --impure
 
-
-# === Linting & Formatting (using Ruff from Nix env) ===
-
-# Run Ruff linter
+# === Linting & Formatting ===
 lint:
-    @# Check if ruff is available in the Nix shell
-    @command -v ruff > /dev/null 2>&1 || (echo "❌ 'ruff' command not found. Is it included in flake.nix and are you inside 'nix develop'?" && exit 1)
+    @command -v ruff > /dev/null 2>&1 || (echo "❌ 'ruff' not found. Are you inside 'nix develop'?" && exit 1)
     @echo "✨ Running Ruff linter..."
     @ruff check .
 
-# Run Ruff formatter
 format:
-    @# Check if ruff is available in the Nix shell
-    @command -v ruff > /dev/null 2>&1 || (echo "❌ 'ruff' command not found. Is it included in flake.nix and are you inside 'nix develop'?" && exit 1)
+    @command -v ruff > /dev/null 2>&1 || (echo "❌ 'ruff' not found. Are you inside 'nix develop'?" && exit 1)
     @echo "🎨 Running Ruff formatter..."
     @ruff format .
 
-# Run both linter and formatter
 check: lint format
     @echo "✅ Lint and format checks passed."
 
-# === Testing (using Pytest from Nix env) ===
-
-# Run tests using pytest (assumes tests are in tests/)
+# === Testing ===
 test:
-    @# Check if pytest is available in the Nix shell
-    @command -v pytest > /dev/null 2>&1 || (echo "❌ 'pytest' command not found. Is it included in flake.nix and are you inside 'nix develop'?" && exit 1)
+    @command -v pytest > /dev/null 2>&1 || (echo "❌ 'pytest' not found. Are you inside 'nix develop'?" && exit 1)
     @echo "🧪 Running tests with pytest..."
     @pytest tests/
 
-# === Building the Package ===
-
-# Build wheel and sdist using the `build` package (requires dev deps from Nix)
-build_package:
-    @# Check if python and build are available
-    @command -v python > /dev/null 2>&1 || (echo "❌ 'python' command not found. Are you inside 'nix develop'?" && exit 1)
-    @python -m build --version > /dev/null 2>&1 || (echo "❌ 'build' module not found. Is python311Packages.build in flake.nix?" && exit 1)
-    @echo "📦 Building wheel and sdist..."
-    @python -m build
-    @echo "✅ Build artifacts are in dist/"
-
 # === Cleaning ===
-
-# Remove Python cache files
 clean_pycache:
     @echo "🧹 Removing __pycache__ directories and .pyc files..."
     @find . -type d -name "__pycache__" -exec rm -r {} +
     @find . -type f -name "*.py[co]" -delete
 
-# Remove build artifacts
 clean_build:
-    @echo "🧹 Removing build artifacts (build/, dist/, *.egg-info/)..."
-    @rm -rf build/ dist/ *.egg-info/ htmlcov/ .coverage* .pytest_cache/
+    @echo "🧹 Removing build artifacts..."
+    @rm -rf build/ dist/ *.egg-info/ htmlcov/ .coverage* .pytest_cache/ model_files/ entrypoint.sh Dockerfile.bak
 
-# Clean build artifacts and pycache
 clean: clean_pycache clean_build
-    @echo "✅ Project directories cleaned (build artifacts, pycache)."
+    @echo "✅ Project directories cleaned."
 
-# Clean everything (build artifacts, pycache)
 clean_all: clean
     @echo "✅ Full clean completed."
 
-# === Debugging ===
+# === TTS Tasks ===
+# Create input/output dirs and sample audio if needed
+prepare_dirs:
+    @echo "📁 Preparing directories and sample audio..."
+    @mkdir -p input output
+    @if [ ! -f "input/speaker.wav" ]; then \
+        echo "⚠️ Creating sample speaker.wav file..."; \
+        ffmpeg -f lavfi -i "sine=frequency=1000:duration=5" -ac 1 -ar 16000 input/speaker.wav 2>/dev/null || \
+        (echo "❌ Failed to create speaker.wav. Is ffmpeg installed?" && exit 1); \
+    fi
 
-debug:
-  @echo "🐍 Provide edits in DIFF format, please."
-  @echo "🐛 Running debug task..."
-  @repomix . --output repo-content.txt
-  @echo "🔍 Testing montaigne installation..."
-  @mkdir -p input output
-  @if [ ! -f "input/speaker.wav" ]; then \
-    ffmpeg -f lavfi -i "sine=frequency=1000:duration=5" -ac 1 -ar 16000 input/speaker.wav 2>/dev/null || \
-    echo "❌ Could not create test WAV file"; \
-  fi
-  @if [ -d ".venv" ]; then \
-    source .venv/bin/activate && \
-    python -c "import montaigne" && \
-    python -m montaigne.main synthesize \
-      --output-file output/debug_output.wav \
-      --speaker-wav input/speaker.wav \
-      --language en; \
-  else \
-    echo "❌ No virtualenv found. Run 'just nix' first"; \
-  fi
+# Run XTTS synthesis (Must be run inside `nix develop`)
+xtts: prepare_dirs
+    @echo "✨ Running XTTS synthesis..."
+    @python -m montaigne.main synthesize \
+        --output-file output/xtts_output.wav \
+        --speaker-wav input/speaker.wav \
+        --language en \
+        --text "This is a test with XTTS. It supports [p=0.5] pauses and *emphasis*."
 
-bark:
+# Run Bark synthesis (Must be run inside `nix develop`)
+bark: prepare_dirs
     @echo "🐾 Running Bark synthesis..."
-    @python -m montaigne.main synthesize --engine bark -t "Hello from the Bark engine. It sounds different!" -l en -o output/bark_en_default.wav
+    @python -m montaigne.main synthesize \
+        --engine bark \
+        --text "Hello from the Bark engine. It sounds different!" \
+        --language en \
+        --output-file output/bark_en_default.wav
 
-bark_pt:
-    @echo "🐾 Running Bark synthesis (Portuguese)..."
-    @python -m montaigne.main synthesize --engine bark -t "Olá meu amigo, tudo bem meu amigo? Abraços." -l pt -o output/bark_pt_default.wav
+# Run YouTube speaker synthesis (Must be run inside `nix develop`)
+yt: prepare_dirs
+    @echo "▶️ Running XTTS with YouTube speaker..."
+    @python -m montaigne.main synthesize \
+        --engine xtts \
+        --speaker-youtube-id "dQw4w9WgXcQ" \
+        --text "Testing YouTube download." \
+        --language en \
+        --output-file output/yt_test.wav
 
-yt:
-    @echo "▶️ Running XTTS synthesis with YouTube speaker..."
-    # Ensure quotes are correctly passed if running directly
-    @python -m montaigne.main synthesize --engine xtts --speaker-youtube-id "dQw4w9WgXcQ" -t "Testing YouTube download." -l en -o output/yt_test.wav
+# === Docker Tasks ===
+# Check if Docker is available and working
+docker_check:
+    @echo "🔍 Checking Docker setup..."
+    @if ! command -v docker >/dev/null 2>&1; then \
+        echo "❌ Docker not installed or not in PATH"; \
+        exit 1; \
+    fi
+    @if ! docker info >/dev/null 2>&1; then \
+        echo "❌ Docker daemon is not running or permission issue"; \
+        echo "Try: sudo systemctl start docker"; \
+        echo "     sudo usermod -aG docker $$USER && newgrp docker"; \
+        exit 1; \
+    fi
+    @echo "✅ Docker is ready: $$(docker --version)"
+
+# Prepare local TTS model for Docker build context using just variable
+prepare_local_model:
+    @echo "📦 Preparing local TTS model..."
+    @mkdir -p model_files
+    @# Use the just variable {{ MODEL_PATH_VAR }}. No $$ needed.
+    if [ -d "{{ MODEL_PATH_VAR }}" ]; then \
+    echo '📦 Found local model at "{{ MODEL_PATH_VAR }}" - copying to build context'; \
+    if ! rsync -a --info=progress2 "{{ MODEL_PATH_VAR }}/" model_files/; then \
+        echo '❌ Failed to copy local model from "{{ MODEL_PATH_VAR }}"'; \
+        exit 1; \
+    fi; \
+    echo "✅ Local model copied successfully."; \
+    else \
+    echo '⚠️ Local model not found at "{{ MODEL_PATH_VAR }}"'; \
+    echo "   Model will be downloaded during Docker build if USE_LOCAL_MODEL=true is set."; \
+    fi
+
+# Create Entrypoint and Modify Dockerfile
+prepare_docker_files: prepare_local_model
+    @echo "📝 Creating entrypoint script for Docker..."
+    @# Revert to line-by-line echo commands for creating entrypoint.sh
+    @# This avoids the heredoc parsing issue in just.
+    echo '#!/bin/bash' > entrypoint.sh
+    echo 'set -e' >> entrypoint.sh
+    echo '' >> entrypoint.sh
+    echo '# Optional: Just print PyTorch version for confirmation' >> entrypoint.sh
+    echo '/usr/bin/python3.11 -c "import torch; print(f\"---> PyTorch version: {torch.__version__}\", flush=True)" || echo "⚠️ Could not print PyTorch version."' >> entrypoint.sh
+    echo '' >> entrypoint.sh
+    echo '# Execute the original command' >> entrypoint.sh
+    echo 'echo "🚀 Executing Docker CMD/args: $@" ' >> entrypoint.sh
+    echo 'exec "$@"' >> entrypoint.sh
+    @chmod +x entrypoint.sh
+    @echo "✅ Entrypoint script created."
+
+    @echo "📝 Modifying Dockerfile to add entrypoint..."
+    @# Backup Dockerfile if not already backed up
+    if [ ! -f "Dockerfile.bak" ]; then cp Dockerfile Dockerfile.bak; fi
+
+    @# Create temporary Dockerfile.new with entrypoint logic
+    # Check if entrypoint is already added to avoid duplication
+    if grep -q "COPY entrypoint.sh /app/entrypoint.sh" Dockerfile; then \
+        echo "ℹ️ Entrypoint already seems to be in Dockerfile. Skipping modification."; \
+        cp Dockerfile Dockerfile.new; \
+    else \
+        echo "   Adding ENTRYPOINT logic to Dockerfile..."; \
+        cat Dockerfile > Dockerfile.new; \
+        echo "" >> Dockerfile.new; \
+        echo "# Add entrypoint script for PyTorch security fixes" >> Dockerfile.new; \
+        echo "COPY entrypoint.sh /app/entrypoint.sh" >> Dockerfile.new; \
+        echo "RUN chmod +x /app/entrypoint.sh" >> Dockerfile.new; \
+        echo "ENTRYPOINT [\"/app/entrypoint.sh\"]" >> Dockerfile.new; \
+        echo "✅ Entrypoint added to temporary Dockerfile.new"; \
+    fi
+
+    @# Replace Dockerfile with new version
+    mv Dockerfile.new Dockerfile
+    @echo "✅ Dockerfile preparation complete."
 
 
-# Run a simple debug command that verifies Torch CUDA functionality using Nix Python
-debug_gpu:
-    python -c 'import torch; print(f"PyTorch: {torch.__version__}"); print(f"CUDA Available: {torch.cuda.is_available()}"); print(f"Device Count: {torch.cuda.device_count()}")'
-
-all:
-    @echo "Running 'nix develop' to set up environment and execute tasks..."
-    @# Execute subsequent just commands *inside* the Nix shell
-    @# Use direct python calls inside nix develop to avoid nested just/quoting issues
-    @nix develop --impure --command bash -c ' \
-        echo "=== Inside Nix Shell ===";\
-        echo "Running: debug synthesis (python -m montaigne.main ...)";\
-        mkdir -p input output;\
-        if [ ! -f "input/speaker.wav" ]; then ffmpeg -f lavfi -i "sine=frequency=1000:duration=5" -ac 1 -ar 16000 input/speaker.wav 2>/dev/null; fi;\
-        python -m montaigne.main synthesize --cpu --output-file output/debug_output.wav --speaker-wav input/speaker.wav --language en -t "This is a debug test [p=0.5] with *emphasis*." && \
-        echo "Running: bark synthesis (python -m montaigne.main ...)"; \
-        python -m montaigne.main synthesize --engine bark -t "Hello from the Bark engine. It sounds different!" -l en -o output/bark_en_default.wav && \
-        echo "Running: YouTube speaker synthesis (python -m montaigne.main ...)";\
-        python -m montaigne.main synthesize --engine xtts --speaker-youtube-id "dQw4w9WgXcQ" -t "Testing YouTube download." -l en -o output/yt_test.wav && \
-        echo "=== Nix Shell Tasks Complete ===";\
-        exit 0;\
-    '
-    @# Run Docker tasks OUTSIDE the Nix shell if they don't rely on Nix env specifics
-    @echo "=== Running Docker Tasks (Outside Nix Shell) ==="
-    @just docker_build
-    @just docker_run
-
-# === Docker ===
-
-# Define core Docker details
-# PROJECT_NAME is defined at the top level
-DOCKER_TAG_LATEST := "latest"
-DOCKER_TAG_GIT    := `git rev-parse --short HEAD`
-# Define local image name (without registry)
-DOCKER_IMAGE_NAME := PROJECT_NAME
-
-# --- GHCR Specific Variables ---
-# Get OWNER/REPO, fallback for local runs (replace if needed)
-# GITHUB_REPOSITORY env var is set automatically in GitHub Actions
-# Use env_or_default when available in `just`, otherwise simple `env`:
-GITHUB_OWNER_REPO := env('GITHUB_REPOSITORY', "YOUR_USERNAME/YOUR_REPO") # REPLACE FALLBACK
-# Define the full base image path for GHCR using concatenation
-GHCR_IMAGE_BASE   := "ghcr.io/" + GITHUB_OWNER_REPO + "/" + DOCKER_IMAGE_NAME # Use project name in path
-# Standard GHCR tags
-GHCR_TAG_LATEST   := GHCR_IMAGE_BASE + ":" + DOCKER_TAG_LATEST
-GHCR_TAG_COMMIT   := GHCR_IMAGE_BASE + ":" + DOCKER_TAG_GIT
-
-# --- Manual Tag Handling ---
-MANUAL_TAG        := env('MANUAL_TAG', '') # Read manual tag from env, default to empty
-# Define full GHCR manual tag only if MANUAL_TAG is not empty
-# We'll construct this within the recipe conditionally
-
-# Build the Docker image, including tags for local use and GHCR
-# If MANUAL_TAG is set via env, also tag with that for GHCR
-docker_build *ARGS:
-    @echo "🐳 Linting Dockerfile..."
-    @command -v hadolint > /dev/null && hadolint Dockerfile --ignore DL3008 || echo "ℹ️ Hadolint not found, skipping lint."
-
+# Build Docker image with better error handling
+docker_build *ARGS: docker_check
     @echo "🐳 Building Docker image..."
-    @echo "   Standard Tags:"
-    @echo "     Local:  {{DOCKER_IMAGE_NAME}}:{{DOCKER_TAG_LATEST}}, {{DOCKER_IMAGE_NAME}}:{{DOCKER_TAG_GIT}}"
-    @echo "     GHCR:   {{GHCR_TAG_LATEST}}, {{GHCR_TAG_COMMIT}}"
+    @echo "   Local Tags:  {{DOCKER_IMAGE_NAME}}:{{DOCKER_TAG_LATEST}}, {{DOCKER_IMAGE_NAME}}:{{DOCKER_TAG_GIT}}"
+    @echo "   GHCR Tags:   {{GHCR_TAG_LATEST}}, {{GHCR_TAG_COMMIT}}"
 
-    @# Warn if using fallback repository
-    @test {{GITHUB_OWNER_REPO}} != "YOUR_USERNAME/YOUR_REPO" || echo "⚠️ Using fallback GITHUB_REPOSITORY. Set env var or run from Actions for correct GHCR tagging."
-
-    @# Construct and perform the main build command directly
-    @echo "Executing Docker Build Command..."
-    @docker build {{ARGS}} \
+    @docker build \
         -t "{{DOCKER_IMAGE_NAME}}:{{DOCKER_TAG_LATEST}}" \
         -t "{{DOCKER_IMAGE_NAME}}:{{DOCKER_TAG_GIT}}" \
         -t "{{GHCR_TAG_LATEST}}" \
         -t "{{GHCR_TAG_COMMIT}}" \
-        .
+        {{ARGS}} \
+        . || (echo "❌ Docker build failed" && exit 1)
 
-    @# Conditionally add the manual tag *after* the build succeeds
-    @if [ -n "{{MANUAL_TAG}}" ]; then \
-        _GHCR_TAG_MANUAL="{{GHCR_IMAGE_BASE}}:{{MANUAL_TAG}}"; \
-        echo "   Manual Tag (GHCR): $${_GHCR_TAG_MANUAL}"; \
-        echo "   Applying manual tag..."; \
-        docker tag "{{DOCKER_IMAGE_NAME}}:{{DOCKER_TAG_LATEST}}" "$${_GHCR_TAG_MANUAL}"; \
-    else \
-        echo "   No manual tag provided."; \
+    @# Add manual tag if provided
+    if [ -n "{{MANUAL_TAG}}" ]; then \
+        echo "   Adding manual tag: {{GHCR_IMAGE_BASE}}:{{MANUAL_TAG}}"; \
+        docker tag "{{DOCKER_IMAGE_NAME}}:{{DOCKER_TAG_LATEST}}" "{{GHCR_IMAGE_BASE}}:{{MANUAL_TAG}}"; \
     fi
-    @echo "✅ Docker image built."
+    @echo "✅ Docker image built successfully."
 
+# Build with local model and entrypoint fix applied
+docker_dev: prepare_docker_files
+    @echo "🐳 Building Docker DEV image (local model + entrypoint)..."
+    @just docker_build --build-arg USE_LOCAL_MODEL=true
+    # Clean up copied model files, keep entrypoint.sh for potential manual runs
+    @rm -rf ./model_files
+    @echo "✅ Docker DEV build complete."
 
-# Push the GHCR-tagged images (latest, commit, and manual if set)
-docker_push:
+# Push GHCR tags
+docker_push: docker_check
     @echo "⏫ Pushing GHCR images..."
-    @# Check if GITHUB_REPOSITORY fallback is being used and fail if so
     @test {{GITHUB_OWNER_REPO}} != "YOUR_USERNAME/YOUR_REPO" || (echo "❌ Cannot push using fallback GITHUB_REPOSITORY. Run from GitHub Actions or set env var GITHUB_REPOSITORY=owner/repo." && exit 1)
-
-    @# Push standard tags
     @echo "   Pushing GHCR Tag: {{GHCR_TAG_LATEST}}"
     @docker push "{{GHCR_TAG_LATEST}}"
     @echo "   Pushing GHCR Tag: {{GHCR_TAG_COMMIT}}"
     @docker push "{{GHCR_TAG_COMMIT}}"
-
-    @# Conditionally push the manual tag
     @if [ -n "{{MANUAL_TAG}}" ]; then \
         _GHCR_TAG_MANUAL="{{GHCR_IMAGE_BASE}}:{{MANUAL_TAG}}"; \
         echo "   Pushing GHCR Manual Tag: $${_GHCR_TAG_MANUAL}"; \
         docker push "$${_GHCR_TAG_MANUAL}"; \
-    else \
-        echo "   No manual tag to push."; \
     fi
     @echo "✅ Images pushed to GHCR."
 
-# Run a simple synthesis task inside a Docker container (CPU only) by default
-# Uses the locally tagged image.
-# Pass other Montaigne args after --, e.g., `just docker_run -- --language pt ...`
-docker_run *ARGS:
-    @echo "🐳 Running default synthesis task in Docker container (CPU)..."
-    @mkdir -p ./input ./output # Ensure host directories exist
-    # Ensure a dummy speaker wav exists for the default run
-    @if [ ! -f "input/speaker.wav" ]; then \
-        echo "⚠️ No speaker.wav found in input/. Creating a dummy file for the test run."; \
-        ffmpeg -f lavfi -i "sine=frequency=1000:duration=5" -ac 1 -ar 16000 input/speaker.wav > /dev/null 2>&1 || \
-        (echo "❌ Could not create dummy WAV. Is ffmpeg installed on the host?"; exit 1); \
-    fi
-    @docker run --rm \
-        -v "$(pwd)/input:/app/input:ro" \
-        -v "$(pwd)/output:/app/output:rw" \
-        "{{DOCKER_IMAGE_NAME}}:{{DOCKER_TAG_LATEST}}" \
-        synthesize \
-          --text "This is a default test run [p=0.5] inside Docker." \
-          --output-file /app/output/docker_default_run_output.wav \
-          --speaker-wav /app/input/speaker.wav \
-          --language en \
-          --cpu \
-          {{ARGS}} # Pass any additional user arguments here
 
-# Run the application inside a Docker container with GPU support
-# Uses the locally tagged image.
-# Usage: just docker_run_gpu -- synthesize --text "GPU test" ...
-docker_run_gpu *ARGS:
-    @echo "🐳 Running Docker container (GPU)..."
-    @mkdir -p ./input ./output # Ensure host directories exist
-    @docker run --rm --gpus all \
-        -v "$(pwd)/input:/app/input:ro" \
-        -v "$(pwd)/output:/app/output:rw" \
-        "{{DOCKER_IMAGE_NAME}}:{{DOCKER_TAG_LATEST}}" {{ARGS}} # Requires user to pass 'synthesize' and all args
-
-# Run a debug synthesis inside a Docker container (CPU)
-# Uses the locally tagged image.
-docker_debug:
-    @echo "🐳 Running explicit debug synthesis inside Docker container (CPU)..."
-    @mkdir -p ./input ./output # Ensure host directories exist
+# Run container with proper volume mounts using absolute paths
+# Ensures dummy speaker file exists for the default run
+docker_run *ARGS: prepare_dirs docker_check
+    @echo "🐳 Running default synthesis in Docker container..."
     @if [ ! -f "input/speaker.wav" ]; then \
-        echo "⚠️ No speaker.wav found in input/. Creating a dummy file for the test."; \
+        echo "⚠️ Creating dummy speaker.wav for Docker run..."; \
         ffmpeg -f lavfi -i "sine=frequency=1000:duration=5" -ac 1 -ar 16000 input/speaker.wav 2>/dev/null || \
-        (echo "❌ Could not create dummy WAV. Is ffmpeg installed on the host?"; exit 1); \
+        (echo "❌ Failed to create dummy speaker.wav." && exit 1); \
     fi
-    @docker run --rm \
-        -v "$(pwd)/input:/app/input:ro" \
-        -v "$(pwd)/output:/app/output:rw" \
+    @# This single '@' covers the CURRENT_DIR assignment AND the docker run command.
+    # All subsequent lines starting at column 0 are part of this shell script.
+    CURRENT_DIR=$(pwd); \
+    echo "   Running docker command from: $${CURRENT_DIR}"; \
+    docker run --rm \
+        -v "${CURRENT_DIR}/input:/app/input:ro" \
+        -v "${CURRENT_DIR}/output:/app/output:rw" \
         "{{DOCKER_IMAGE_NAME}}:{{DOCKER_TAG_LATEST}}" \
-        synthesize \
-          --text "This is an explicit docker debug test [p=0.5] with *emphasis*." \
-          --output-file /app/output/docker_debug_output.wav \
-          --speaker-wav /app/input/speaker.wav \
-          --language en \
-          --cpu
-    @echo "✅ Docker debug synthesis finished. Check output/docker_debug_output.wav"
+        montaigne synthesize \
+        --text "This is a Docker container test." \
+        --output-file /app/output/docker_output.wav \
+        --speaker-wav /app/input/speaker.wav \
+        --language en \
+        {{ARGS}} || (echo "❌ Docker run failed" && exit 1)
+    @echo "✅ Docker synthesis complete. Check output/docker_output.wav"
 
-# Check Docker status and provide helpful messages
-docker_check:
-    @echo "🔍 Checking Docker setup..."
-    @if command -v docker >/dev/null 2>&1; then \
-        if docker info >/dev/null 2>&1; then \
-            echo "✅ Docker is working correctly!"; \
-            echo "Docker version: $$(docker --version)"; \
-            echo "Docker compose: $$(docker-compose --version || echo 'not found')"; \
-            if docker info 2>/dev/null | grep -qE "Runtimes:.*nvidia"; then \
-                echo "✅ NVIDIA runtime available for GPU support"; \
-            else \
-                echo "⚠️ NVIDIA runtime not found - needed for GPU in containers"; \
-            fi; \
-        else \
-            echo "❌ Docker daemon is not running or permission issue"; \
-            echo "Try:"; \
-            echo "  sudo systemctl start docker"; \
-            echo "  sudo usermod -aG docker $$USER && newgrp docker"; \
-        fi; \
-    else \
-        echo "❌ Docker not installed or not in PATH"; \
-    fi
+# GPU version with fixed volume paths
+docker_run_gpu *ARGS: prepare_dirs docker_check
+    @echo "🐳 Running Docker container with GPU..."
+    @# This single '@' covers the CURRENT_DIR assignment AND the docker run command.
+    CURRENT_DIR=$(pwd); \
+    echo "   Running docker command from: $${CURRENT_DIR}"; \
+    docker run --rm --gpus all \
+        -v "${CURRENT_DIR}/input:/app/input:ro" \
+        -v "${CURRENT_DIR}/output:/app/output:rw" \
+        "{{DOCKER_IMAGE_NAME}}:{{DOCKER_TAG_LATEST}}" \
+        montaigne \
+        {{ARGS}} || (echo "❌ Docker GPU run failed" && exit 1)
+
+# === Main Pipeline ===
+# Run TTS tasks inside Nix shell for reliable environment
+run_tts_tasks:
+    @echo "🚀 Running TTS tasks inside Nix shell..."
+    @echo "🐍 Provide edits in DIFF format, please." # Request for Gemini
+    @nix develop --impure --command bash -c '\
+        set -e; \
+        echo "=== Refresh repo-content.txt ==="; \
+        repomix . --output repo-content.txt; \
+        echo "=== Inside Nix Shell ==="; \
+        just prepare_dirs; \
+        echo "✨ Running XTTS synthesis..."; \
+        python -m montaigne.main synthesize \
+            --output-file output/debug_output.wav \
+            --speaker-wav input/speaker.wav \
+            --language en \
+            --text "This is a debug test [p=0.5] with *emphasis*."; \
+        echo "🐾 Running Bark synthesis..."; \
+        python -m montaigne.main synthesize \
+            --engine bark \
+            --text "Hello from the Bark engine. It sounds different!" \
+            --language en \
+            --output-file output/bark_en_default.wav; \
+        echo "▶️ Running YouTube speaker synthesis..."; \
+        python -m montaigne.main synthesize \
+            --engine xtts \
+            --speaker-youtube-id "dQw4w9WgXcQ" \
+            --text "Testing YouTube download." \
+            --language en \
+            --output-file output/yt_test.wav; \
+        echo "=== Nix Shell Tasks Complete ==="; \
+    ' || (echo "❌ TTS tasks failed" && exit 1)
+
+# Improved main pipeline with better error handling
+all:
+    @echo "🚀 Starting Montaigne TTS pipeline..."
+
+    @just run_tts_tasks || (echo "❌ TTS tasks failed, aborting pipeline." && exit 1)
+
+    @echo "=== Running Docker Tasks ==="
+    @just prepare_docker_files || (echo "❌ Docker file preparation failed." && exit 1)
+    @echo "Attempting Docker build with local model (using --no-cache)..."
+    @just docker_build --no-cache --build-arg USE_LOCAL_MODEL=true || \
+      (echo "❌ Docker build failed with local model, trying without local model (using --no-cache)..." && \
+       just docker_build --no-cache) || \
+      (echo "❌ All Docker build attempts failed." && exit 1) # Exit if all builds fail
+
+    # Step 3: Run Docker test with --cpu flag
+    @echo "🐳 Running Docker test command..."
+    @just docker_run --cpu || \
+      (echo "❌ Docker test run failed." && exit 1) # Exit on test failure
+
+    @echo "✅ All tasks completed successfully!"

@@ -166,7 +166,11 @@ def analyze_commits(commits):
     # Pattern to detect aider in author name
     aider_author_pattern = re.compile(r'\(aider\)', re.IGNORECASE)
     # Pattern to extract the commit type prefix (simple start check)
-    type_pattern = re.compile(r"^([a-zA-Z]+)(?:\(.*\))?:", re.IGNORECASE) # Matches 'type:' or 'type(scope):'
+    # Ensure it matches conventional commit format with proper word boundaries
+    type_pattern = re.compile(r"^([a-zA-Z]+)(?:\(.*?\))?:", re.IGNORECASE) # Matches 'type:' or 'type(scope):'
+    
+    # Add a simpler fallback pattern for direct prefix checking
+    simple_prefix_pattern = re.compile(r"^(feat|fix|refactor|chore|docs|style|test|perf|ci|build):", re.IGNORECASE)
     # Common conventional commit prefixes that indicate Aider commits
     aider_prefixes = ['feat', 'fix', 'chore', 'docs', 'refactor', 'style', 'test', 'perf', 'ci', 'build']
 
@@ -182,6 +186,14 @@ def analyze_commits(commits):
         # --- Step 1: Determine Commit Type (Independent of Author) ---
         commit_type_found = False
         match = type_pattern.match(subject)
+        
+        # Debug output to verify regex matching
+        if subject.startswith(("feat:", "fix:", "refactor:", "chore:", "docs:")):
+            logger.debug(f"Subject starts with conventional prefix: '{subject[:20]}...'")
+            logger.debug(f"Regex match result: {match is not None}")
+            if match:
+                logger.debug(f"Matched groups: {match.groups()}")
+        
         if match:
             type_key = match.group(1).lower()
             if type_key in COMMIT_TYPES:
@@ -204,14 +216,26 @@ def analyze_commits(commits):
             prefix = match.group(1).lower()
             if prefix in aider_prefixes:
                 is_aider_commit = True
+                logger.debug(f"Detected Aider commit with prefix '{prefix}': {subject[:50]}")
+        # Fallback: Try simpler pattern match
+        elif simple_prefix_match := simple_prefix_pattern.match(subject):
+            prefix = simple_prefix_match.group(1).lower()
+            is_aider_commit = True
+            logger.debug(f"Detected Aider commit with simple pattern '{prefix}': {subject[:50]}")
+        # Extra fallback: Direct string check
+        elif any(subject.lower().startswith(f"{prefix}:") for prefix in aider_prefixes):
+            is_aider_commit = True
+            logger.debug(f"Detected Aider commit with direct string check: {subject[:50]}")
         
         # Fallback: Check author name for "(aider)"
         elif aider_author_pattern.search(author):
             is_aider_commit = True
+            logger.debug(f"Detected Aider commit by author pattern: {author}")
         
         # Fallback: Check email for aider indicators
         elif "aider" in email or "ai-commit" in email or "bot" in email:
             is_aider_commit = True
+            logger.debug(f"Detected Aider commit by email: {email}")
 
         # Increment Aider count if identified
         if is_aider_commit:
@@ -381,7 +405,24 @@ def main():
         action="store_true",
         help="Skip generating plot images."
     )
+    parser.add_argument(
+        "--verbose", "-v",
+        action="store_true",
+        help="Enable verbose debug output."
+    )
     args = parser.parse_args()
+    
+    # Set up logging level based on verbose flag
+    if args.verbose:
+        logging.basicConfig(level=logging.DEBUG, 
+                           format='%(asctime)s [%(levelname)s] %(message)s')
+        logger = logging.getLogger(__name__)
+        logger.setLevel(logging.DEBUG)
+        logger.debug("Verbose mode enabled")
+    else:
+        logging.basicConfig(level=logging.INFO,
+                           format='%(asctime)s [%(levelname)s] %(message)s')
+        logger = logging.getLogger(__name__)
 
     raw_log = get_commits(args.n_commits)
     parsed_commits = parse_log_data(raw_log)

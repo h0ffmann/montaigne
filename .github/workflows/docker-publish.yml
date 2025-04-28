@@ -47,6 +47,13 @@ jobs:
           username: ${{ github.repository_owner }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
+      - name: Prepare Docker files # Added step
+        run: just prepare_docker_files
+        env:
+          GITHUB_REPOSITORY: ${{ github.repository }}
+          # Pass the manual tag input to just, default to empty if not a dispatch event
+          MANUAL_TAG: ${{ github.event.inputs.manual_tag || '' }}
+
       - name: Build Docker image using Just
         # Pass GITHUB_REPOSITORY to just so it knows how to tag for GHCR
         run: just docker_build

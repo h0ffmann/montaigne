@@ -1,7 +1,7 @@
 # -*- mode: conf -*-
 
 # Load environment variables from .env file if it exists
-load-dotenv := true
+set dotenv-load := true
 
 # Justfile for the Montaigne TTS project
 # Uses Nix Flake for environment and dependency management.
@@ -135,12 +135,21 @@ bark:
 bark_pt:
     montaigne synthesize --engine bark -t "Olá meu amigo, tudo bem meu amigo? Abraços." -l pt -o output/bark_pt_default.wav
 
+yt:
+    montaigne -- synthesize --engine xtts --speaker-youtube-id "dQw4w9WgXcQ" -t "Testing YouTube download." -l en -o output/yt_test.wav
+
 
 # Run a simple debug command that verifies Torch CUDA functionality using Nix Python
 debug_gpu:
     python -c 'import torch; print(f"PyTorch: {torch.__version__}"); print(f"CUDA Available: {torch.cuda.is_available()}"); print(f"Device Count: {torch.cuda.device_count()}")'
 
-
+all:
+    @just nix
+    @just debug
+    @just bark
+    @just yt
+    @just docker_build
+    @just docker_run
 
 # === Docker ===
 

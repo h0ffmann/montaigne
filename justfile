@@ -109,8 +109,6 @@ debug:
     source .venv/bin/activate && \
     python -c "import montaigne" && \
     python -m montaigne.main synthesize \
-      # Explicitly provide --cpu for debug consistency with original intent
-      --cpu \
       --output-file output/debug_output.wav \
       --speaker-wav input/speaker.wav \
       --language en; \
@@ -141,18 +139,17 @@ all:
     @# Execute subsequent just commands *inside* the Nix shell
     @# Use direct python calls inside nix develop to avoid nested just/quoting issues
     @nix develop --impure --command bash -c ' \
-        echo "=== Inside Nix Shell ==="; \
-        echo "Running: debug synthesis (python -m montaigne.main ...)"; \
-        # Replicate the core commands from the individual targets
-        mkdir -p input output; \
-        if [ ! -f "input/speaker.wav" ]; then ffmpeg -f lavfi -i "sine=frequency=1000:duration=5" -ac 1 -ar 16000 input/speaker.wav 2>/dev/null; fi; \
+        echo "=== Inside Nix Shell ===";\
+        echo "Running: debug synthesis (python -m montaigne.main ...)";\
+        mkdir -p input output;\
+        if [ ! -f "input/speaker.wav" ]; then ffmpeg -f lavfi -i "sine=frequency=1000:duration=5" -ac 1 -ar 16000 input/speaker.wav 2>/dev/null; fi;\
         python -m montaigne.main synthesize --cpu --output-file output/debug_output.wav --speaker-wav input/speaker.wav --language en -t "This is a debug test [p=0.5] with *emphasis*." && \
         echo "Running: bark synthesis (python -m montaigne.main ...)"; \
         python -m montaigne.main synthesize --engine bark -t "Hello from the Bark engine. It sounds different!" -l en -o output/bark_en_default.wav && \
-        echo "Running: YouTube speaker synthesis (python -m montaigne.main ...)"; \
+        echo "Running: YouTube speaker synthesis (python -m montaigne.main ...)";\
         python -m montaigne.main synthesize --engine xtts --speaker-youtube-id "dQw4w9WgXcQ" -t "Testing YouTube download." -l en -o output/yt_test.wav && \
-        echo "=== Nix Shell Tasks Complete ==="; \
-        exit 0; \
+        echo "=== Nix Shell Tasks Complete ===";\
+        exit 0;\
     '
     @# Run Docker tasks OUTSIDE the Nix shell if they don't rely on Nix env specifics
     @echo "=== Running Docker Tasks (Outside Nix Shell) ==="

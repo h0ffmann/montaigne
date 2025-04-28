@@ -110,13 +110,11 @@ class XTTSv2Engine(BaseTTSEngine):
     def _load_model(self):
         logger.info(f"Loading TTS model '{XTTS_MODEL_NAME}' onto device: {self.device}")
         try:
-            # --- Add safe global for PyTorch >= 2.6 compatibility ---
-            logger.info("Applying torch.serialization.add_safe_globals for TTS.tts.configs.xtts_config.XttsConfig")
-            from torch.serialization import add_safe_globals
-            add_safe_globals(["TTS.tts.configs.xtts_config.XttsConfig"])
-            # ------------------------------------------------------
+            # --- Alternative: Use weights_only context manager ---
+            logger.info("Attempting to load model within torch.serialization.weights_only(False) context.")
+            from torch.serialization import weights_only
             start_time = time.time()
-            with warnings.catch_warnings():
+            with warnings.catch_warnings(), weights_only(False): # Wrap TTS init
                 warnings.simplefilter("ignore", UserWarning)
                 # TTS checks for CUDA itself, but passing the device is good practice
                 model = TTS(model_name=XTTS_MODEL_NAME, progress_bar=True).to(self.device)

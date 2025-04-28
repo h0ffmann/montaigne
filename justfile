@@ -148,20 +148,23 @@ prepare_local_model:
 # Create Entrypoint and Modify Dockerfile
 prepare_docker_files: prepare_local_model
     @echo "📝 Creating entrypoint script for Docker..."
-# Create entrypoint.sh with PyTorch security fix
-    @echo '#!/bin/bash' > entrypoint.sh
-    @echo 'set -e' >> entrypoint.sh # Exit on error
-    @echo '' >> entrypoint.sh
-    @echo '# Apply PyTorch security settings before any model loading' >> entrypoint.sh
-# Use explicit python path, add error handling & flush
-    @echo '/usr/bin/python3.11 -c "import torch; print(f\"---> PyTorch version: {torch.__version__}\", flush=True); from torch.serialization import add_safe_globals; add_safe_globals([\"TTS.tts.configs.xtts_config.XttsConfig\"]); torch._C._set_default_weights_only_false_for_speed(); print(\"✅ PyTorch security configuration applied\", flush=True)" || { echo \"❌ Failed to apply PyTorch security config in entrypoint.\"; exit 1; }' >> entrypoint.sh
-    @echo '' >> entrypoint.sh
-    @echo '# Execute the original command' >> entrypoint.sh
-    @echo 'echo "🚀 Executing Docker CMD/args: $@" ' >> entrypoint.sh # Log command
-    @echo 'exec "$@"' >> entrypoint.sh
+    @# Use cat << EOF to create the entrypoint script in a single shell execution
+    @cat << 'EOF' > entrypoint.sh
+#!/bin/bash
+set -e
+
+# Apply PyTorch security settings before any model loading
+/usr/bin/python3.11 -c "import torch; print(f'---> PyTorch version: {torch.__version__}', flush=True); from torch.serialization import add_safe_globals; add_safe_globals(['TTS.tts.configs.xtts_config.XttsConfig']); torch._C._set_default_weights_only_false_for_speed(); print('✅ PyTorch security configuration applied', flush=True)" || { echo "❌ Failed to apply PyTorch security config in entrypoint."; exit 1; }
+
+# Execute the original command
+echo "🚀 Executing Docker CMD/args: $@"
+exec "$@"
+EOF
     @chmod +x entrypoint.sh
+    @echo "✅ Entrypoint script created."
 
     @echo "📝 Modifying Dockerfile to add entrypoint..."
+    @# Backup Dockerfile if not already backed up
     @if [ ! -f "Dockerfile.bak" ]; then cp Dockerfile Dockerfile.bak; fi
 
 # Create temporary Dockerfile.new with entrypoint logic

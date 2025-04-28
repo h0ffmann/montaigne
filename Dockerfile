@@ -1,13 +1,44 @@
 # Temporary copy stage to make files available during RUN install step
-# This avoids invalidating the RUN layer cache if only source code changes
 FROM ubuntu:22.04 as file_copier
 WORKDIR /tmp/project_files
 COPY pyproject.toml ./
 COPY src/ ./src/
 
-# --- Final Image ---
-# Installs dependencies during build for efficiency.
-# Start from the NVIDIA CUDA runtime image
+# Add build arg to control model source
+ARG USE_LOCAL_MODEL=false
+
+# Model download stage - only used if local model isn't available
+FROM nvidia/cuda:12.1.1-cudnn8-runtime-ubuntu22.04 as model_downloader
+WORKDIR /model_download
+
+# Install minimal Python environment to download the model
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    python3-pip \
+    python3-setuptools \
+    && apt-get clean \
+    && rm -rf /var/lib/apt/lists/*
+
+# Set license agreement and install only TTS
+ENV COQUI_TOS_AGREED=1
+RUN pip3 install --no-cache-dir TTS
+
+# Create a Python script to pre-download the model
+RUN echo 'import os\n\
+    import torch\n\
+    from TTS.utils.manage import ModelManager\n\
+    # Set script to use the old insecure loading for compatibility\n\
+    torch._C._set_default_weights_only_false_for_speed()\n\
+    # Ensure license agreement is set\n\
+    os.environ["COQUI_TOS_AGREED"] = "1"\n\
+    # Pre-download model\n\
+    manager = ModelManager()\n\
+    model_path, config_path, model_item = manager.download_model("tts_models/multilingual/multi-dataset/xtts_v2")\n\
+    print(f"Downloaded model to {os.path.dirname(model_path)}")' > download_model.py
+
+# Run the script to download the model
+RUN python3 download_model.py
+
+# Final Image
 FROM nvidia/cuda:12.1.1-cudnn8-runtime-ubuntu22.04
 
 # Add metadata labels
@@ -16,86 +47,129 @@ LABEL description="Montaigne TTS CLI Application with CUDA Support"
 LABEL version="0.1.0"
 
 # Set environment variables for runtime
-# Add /root/.local/bin for uv installation location
 ENV PATH="/root/.local/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin"
 ENV PYTHONUNBUFFERED=1
 ENV PYTHONDONTWRITEBYTECODE=1
 ENV DEBIAN_FRONTEND=noninteractive
 ENV TZ=UTC
-# Configure uv for PyTorch CUDA and network access (still needed for build stage)
 ENV UV_EXTRA_INDEX_URL="https://download.pytorch.org/whl/cu121"
 ENV UV_INDEX_STRATEGY="unsafe-best-match"
 ENV UV_NATIVE_TLS="1"
-# Set this environment variable to bypass the interactive Coqui TTS license prompt
 ENV COQUI_TOS_AGREED=1
 
 WORKDIR /app
-# --- REMOVED: RUN touch /root/.TTS_LICENSE_ACCEPTED ---
 
-# Set SHELL to bash with pipefail for robust installation commands
+# Set SHELL to bash with pipefail
 SHELL ["/bin/bash", "-o", "pipefail", "-c"]
 
-# CORRECT: Copy files from the builder stage *before* the RUN command that needs them
+# Copy files from the builder stage
 COPY --from=file_copier /tmp/project_files /tmp/project_files
 
-# Install system dependencies, Python 3.11, uv, AND application dependencies
+# Install system dependencies & Python
 RUN apt-get update && apt-get install -y --no-install-recommends \
-    # Core runtime dependencies required by the application/TTS/Whisper
+    # Essential runtime libs
     ffmpeg \
     libsndfile1 \
     ca-certificates \
-    # Needed temporarily for build/install phase
+    # Needed for adding PPA
     software-properties-common \
     gpg-agent \
+    # Utilities needed during build
     curl \
     git \
-    # Add Python 3.11 PPA
+    build-essential \
+    pkg-config \
+    # Clean apt lists immediately after installs
+    && rm -rf /var/lib/apt/lists/* \
+    # Add PPA for modern Python
     && add-apt-repository ppa:deadsnakes/ppa -y \
     && apt-get update \
+    # Install Python 3.11 from PPA
     && apt-get install -y --no-install-recommends \
-    # Install Python itself
     python3.11 \
     python3.11-dev \
     python3.11-venv \
-    # Needed for potential C extensions during pip install
-    build-essential \
-    pkg-config \
-    # Install uv
-    && curl -LsSf https://astral.sh/uv/install.sh | sh \
-    # --- Create TTS License Marker ---
-    # Coqui TTS checks both locations. Creating the file *might* bypass the prompt.
-    && mkdir -p /root/.local/share/tts \
-    && touch /root/.local/share/tts/.TTS_LICENSE_ACCEPTED \
-    && touch /root/.TTS_LICENSE_ACCEPTED \
-    # --- Install Python Dependencies using uv ---
-    # CORRECT: Use 'cp' (a shell command) to copy files *already copied* into the build context
-    && cp /tmp/project_files/pyproject.toml /app/pyproject.toml \
+    # Clean apt lists again after PPA installs
+    && rm -rf /var/lib/apt/lists/*
+
+# --- Install uv directly ---
+ARG UV_VERSION=0.6.17 # Define uv version
+ARG TARGETARCH # Docker provides this, e.g., amd64, arm64
+# Map Docker's TARGETARCH to uv's target triple format
+RUN ARCH=$TARGETARCH && \
+    if [ "$ARCH" = "amd64" ]; then UV_TARGET="x86_64-unknown-linux-gnu"; \
+    elif [ "$ARCH" = "arm64" ]; then UV_TARGET="aarch64-unknown-linux-gnu"; \
+    else echo "Unsupported architecture: $ARCH for uv" && exit 1; fi && \
+    echo "Downloading uv ${UV_VERSION} for ${UV_TARGET}..." && \
+    curl -LsSf -o /tmp/uv.tar.gz "https://github.com/astral-sh/uv/releases/download/${UV_VERSION}/uv-${UV_TARGET}.tar.gz" && \
+    tar -xzf /tmp/uv.tar.gz -C /tmp && \
+    mv /tmp/uv-${UV_TARGET}/uv /usr/local/bin/uv && \
+    chmod +x /usr/local/bin/uv && \
+    # Verify uv installation
+    uv --version && \
+    # Clean up download
+    rm -rf /tmp/uv.tar.gz /tmp/uv-${UV_TARGET}
+
+# --- Continue with your Dockerfile ---
+
+# Create directory for the model
+RUN mkdir -p /root/.local/share/tts/tts_models--multilingual--multi-dataset--xtts_v2/
+
+# Copy local model files if they exist, otherwise use downloaded model
+ARG USE_LOCAL_MODEL
+COPY model_files/ /tmp/model_files/
+RUN if [ "$USE_LOCAL_MODEL" = "true" ] && [ -f "/tmp/model_files/model.pth" ]; then \
+    echo "Using local model files" && \
+    cp -r /tmp/model_files/* /root/.local/share/tts/tts_models--multilingual--multi-dataset--xtts_v2/; \
+    else \
+    echo "Using downloaded model" && \
+    # Ensure target directory exists even if model_downloader stage failed or was skipped
+    mkdir -p /root/.local/share/tts/tts_models--multilingual--multi-dataset--xtts_v2/ && \
+    # Use cp --from only if source exists, otherwise log warning
+    if [ -d /model_download/root/.local/share/tts ]; then \
+    echo "Copying from model_downloader stage..." && \
+    cp -r --from=model_downloader /root/.local/share/tts/tts_models--multilingual--multi-dataset--xtts_v2/* /root/.local/share/tts/tts_models--multilingual--multi-dataset--xtts_v2/; \
+    else \
+    echo "Warning: Model downloader stage artifacts not found. Model will download at runtime."; \
+    fi; \
+    fi && \
+    rm -rf /tmp/model_files
+
+# Create PyTorch compatibility patch (same as before)
+RUN echo 'import torch\n\
+    # Patch torch to use the old loading behavior for compatibility\n\
+    torch._C._set_default_weights_only_false_for_speed()\n\
+    # Also add safe globals\n\
+    from torch.serialization import add_safe_globals\n\
+    add_safe_globals(["TTS.tts.configs.xtts_config.XttsConfig"])\n\
+    print("PyTorch model loading patched for compatibility")' > /app/patch_torch.py
+
+# Set Python to run our patch on startup
+ENV PYTHONSTARTUP=/app/patch_torch.py
+
+# Install application (Simplified cleanup logic)
+RUN cp /tmp/project_files/pyproject.toml /app/pyproject.toml \
     && cp -r /tmp/project_files/src /app/src \
-    # Now, install the project and its dependencies defined in pyproject.toml
-    # This installs dependencies into the system Python environment within the container
-    && uv pip install --system --no-cache --python /usr/bin/python3.11 /app \
-    # --- Clean up ---
-    # Remove temporary build files
-    && rm -rf /tmp/project_files \
-    # Remove packages only needed for build/install phase
-    && apt-get purge -y --auto-remove git \
-        software-properties-common gpg-agent curl build-essential pkg-config \
-        python3.11-dev \
-    # Clean up apt caches and lists
+    && echo "Installing application using uv..." && uv pip install --system --no-cache --python /usr/bin/python3.11 /app \
+    # Clean up temporary build files and unnecessary build-time packages
+    && echo "Cleaning up build environment..." && rm -rf /tmp/project_files \
+    && apt-get purge -y --auto-remove \
+    git curl software-properties-common gpg-agent \
+    build-essential pkg-config python3.11-dev \
     && apt-get clean \
-    && rm -rf /var/lib/apt/lists/* /etc/apt/sources.list.d/deadsnakes*
+    && rm -rf /var/lib/apt/lists/* /etc/apt/sources.list.d/deadsnakes* \
+    && echo "Cleanup complete."
 
-# Copy the rest of the project files AFTER installing dependencies
-# This assumes they might be needed at runtime but not for installation itself.
-# If they are needed for install, adjust the RUN sequence above.
-# COPY . /app # You might not need to copy everything if install worked
-
-# Reset shell to default (good practice)
+# Reset shell to default
 SHELL ["/bin/sh", "-c"]
 
-# Set the default entrypoint to run the installed script
-ENTRYPOINT ["montaigne"]
+# Add entrypoint script for PyTorch security fixes
+COPY entrypoint.sh /app/entrypoint.sh
+# Ensure entrypoint is executable - add RUN chmod +x after COPY in your prepare_docker_files just task or here
+RUN chmod +x /app/entrypoint.sh
+ENTRYPOINT ["/app/entrypoint.sh"]
 
-# Default command arguments (now passed to 'montaigne' entrypoint)
-# Providing '--help' is still a reasonable default if no args are given
-CMD ["--help"]
+# Add CMD here if you want a default command, e.g.,
+# CMD ["montaigne", "--help"]
+
+

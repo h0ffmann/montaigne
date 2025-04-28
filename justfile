@@ -133,6 +133,7 @@ docker_check:
 prepare_local_model:
     @echo "📦 Preparing local TTS model..."
     @mkdir -p model_files
+    @# Use the just variable {{ MODEL_PATH_VAR }}. No $$ needed.
     if [ -d "{{ MODEL_PATH_VAR }}" ]; then \
     echo '📦 Found local model at "{{ MODEL_PATH_VAR }}" - copying to build context'; \
     if ! rsync -a --info=progress2 "{{ MODEL_PATH_VAR }}/" model_files/; then \
@@ -148,28 +149,27 @@ prepare_local_model:
 # Create Entrypoint and Modify Dockerfile
 prepare_docker_files: prepare_local_model
     @echo "📝 Creating entrypoint script for Docker..."
-    @# Use cat << EOF to create the entrypoint script in a single shell execution
-    @cat << 'EOF' > entrypoint.sh
-#!/bin/bash
-set -e
-
-# Apply PyTorch security settings before any model loading
-/usr/bin/python3.11 -c "import torch; print(f'---> PyTorch version: {torch.__version__}', flush=True); from torch.serialization import add_safe_globals; add_safe_globals(['TTS.tts.configs.xtts_config.XttsConfig']); torch._C._set_default_weights_only_false_for_speed(); print('✅ PyTorch security configuration applied', flush=True)" || { echo "❌ Failed to apply PyTorch security config in entrypoint."; exit 1; }
-
-# Execute the original command
-echo "🚀 Executing Docker CMD/args: $@"
-exec "$@"
-EOF
+    @# Revert to line-by-line echo commands for creating entrypoint.sh
+    @# This avoids the heredoc parsing issue in just.
+    echo '#!/bin/bash' > entrypoint.sh
+    echo 'set -e' >> entrypoint.sh
+    echo '' >> entrypoint.sh
+    echo '# Apply PyTorch security settings before any model loading' >> entrypoint.sh
+    echo '/usr/bin/python3.11 -c "import torch; print(f\"---> PyTorch version: {torch.__version__}\", flush=True); from torch.serialization import add_safe_globals; add_safe_globals([\"TTS.tts.configs.xtts_config.XttsConfig\"]); torch._C._set_default_weights_only_false_for_speed(); print(\"✅ PyTorch security configuration applied\", flush=True)" || { echo \"❌ Failed to apply PyTorch security config in entrypoint.\"; exit 1; }' >> entrypoint.sh
+    echo '' >> entrypoint.sh
+    echo '# Execute the original command' >> entrypoint.sh
+    echo 'echo "🚀 Executing Docker CMD/args: $@" ' >> entrypoint.sh
+    echo 'exec "$@"' >> entrypoint.sh
     @chmod +x entrypoint.sh
     @echo "✅ Entrypoint script created."
 
     @echo "📝 Modifying Dockerfile to add entrypoint..."
     @# Backup Dockerfile if not already backed up
-    @if [ ! -f "Dockerfile.bak" ]; then cp Dockerfile Dockerfile.bak; fi
+    if [ ! -f "Dockerfile.bak" ]; then cp Dockerfile Dockerfile.bak; fi
 
-# Create temporary Dockerfile.new with entrypoint logic
-# Check if entrypoint is already added to avoid duplication
-    @if grep -q "COPY entrypoint.sh /app/entrypoint.sh" Dockerfile; then \
+    @# Create temporary Dockerfile.new with entrypoint logic
+    # Check if entrypoint is already added to avoid duplication
+    if grep -q "COPY entrypoint.sh /app/entrypoint.sh" Dockerfile; then \
         echo "ℹ️ Entrypoint already seems to be in Dockerfile. Skipping modification."; \
         cp Dockerfile Dockerfile.new; \
     else \
@@ -183,8 +183,8 @@ EOF
         echo "✅ Entrypoint added to temporary Dockerfile.new"; \
     fi
 
-# Replace Dockerfile with new version
-    @mv Dockerfile.new Dockerfile
+    @# Replace Dockerfile with new version
+    mv Dockerfile.new Dockerfile
     @echo "✅ Dockerfile preparation complete."
 
 
@@ -202,8 +202,8 @@ docker_build *ARGS: docker_check
         {{ARGS}} \
         . || (echo "❌ Docker build failed" && exit 1)
 
-# Add manual tag if provided
-    @if [ -n "{{MANUAL_TAG}}" ]; then \
+    @# Add manual tag if provided
+    if [ -n "{{MANUAL_TAG}}" ]; then \
         echo "   Adding manual tag: {{GHCR_IMAGE_BASE}}:{{MANUAL_TAG}}"; \
         docker tag "{{DOCKER_IMAGE_NAME}}:{{DOCKER_TAG_LATEST}}" "{{GHCR_IMAGE_BASE}}:{{MANUAL_TAG}}"; \
     fi
@@ -242,7 +242,7 @@ docker_run *ARGS: prepare_dirs docker_check
         ffmpeg -f lavfi -i "sine=frequency=1000:duration=5" -ac 1 -ar 16000 input/speaker.wav 2>/dev/null || \
         (echo "❌ Failed to create dummy speaker.wav." && exit 1); \
     fi
-# This single '@' covers the CURRENT_DIR assignment AND the docker run command.
+    @# This single '@' covers the CURRENT_DIR assignment AND the docker run command.
     # All subsequent lines starting at column 0 are part of this shell script.
     CURRENT_DIR=$(pwd); \
     echo "   Running docker command from: $${CURRENT_DIR}"; \
@@ -261,7 +261,7 @@ docker_run *ARGS: prepare_dirs docker_check
 # GPU version with fixed volume paths
 docker_run_gpu *ARGS: prepare_dirs docker_check
     @echo "🐳 Running Docker container with GPU..."
-# This single '@' covers the CURRENT_DIR assignment AND the docker run command.
+    @# This single '@' covers the CURRENT_DIR assignment AND the docker run command.
     CURRENT_DIR=$(pwd); \
     echo "   Running docker command from: $${CURRENT_DIR}"; \
     docker run --rm --gpus all \
@@ -318,7 +318,7 @@ all:
        just docker_build --no-cache) || \
       (echo "❌ All Docker build attempts failed." && exit 1) # Exit if all builds fail
 
-# Step 3: Run Docker test with --cpu flag
+    # Step 3: Run Docker test with --cpu flag
     @echo "🐳 Running Docker test command..."
     @just docker_run --cpu || \
       (echo "❌ Docker test run failed." && exit 1) # Exit on test failure

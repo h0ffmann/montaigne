@@ -144,10 +144,21 @@ debug_gpu:
     python -c 'import torch; print(f"PyTorch: {torch.__version__}"); print(f"CUDA Available: {torch.cuda.is_available()}"); print(f"Device Count: {torch.cuda.device_count()}")'
 
 all:
-    @just nix
-    @just debug
-    @just bark
-    @just yt
+    @echo "Running 'nix develop' to set up environment and execute tasks..."
+    @# Execute subsequent just commands *inside* the Nix shell
+    @nix develop --impure --command bash -c '\
+        echo "=== Inside Nix Shell ==="; \
+        echo "Running: just debug"; \
+        just debug && \
+        echo "Running: just bark"; \
+        just bark && \
+        echo "Running: just yt"; \
+        just yt && \
+        echo "=== Nix Shell Tasks Complete ==="; \
+        exit 0 \
+    '
+    @# Docker tasks can run outside the Nix shell if they don't depend on Nix env specifics
+    @echo "=== Running Docker Tasks (Outside Nix Shell) ==="
     @just docker_build
     @just docker_run
 

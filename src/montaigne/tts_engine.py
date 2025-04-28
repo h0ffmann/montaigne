@@ -238,7 +238,8 @@ class BarkEngine(BaseTTSEngine):
         # We can attempt to use a generic language prompt if available.
         # Bark official docs list: en, zh, fr, de, hi, it, ja, ko, pl, pt, ru, es, tr
         simple_lang_code = language.split('-')[0].lower()
-        bark_lang_supported = any(lang.startswith(simple_lang_code) for lang in BARK_SUPPORTED_LANGS)
+        # BARK_SUPPORTED_LANGS is a list of tuples like ('English', 'en')
+        bark_lang_supported = any(lang_tuple[1].startswith(simple_lang_code) for lang_tuple in BARK_SUPPORTED_LANGS if isinstance(lang_tuple, (tuple, list)) and len(lang_tuple) > 1)
 
         history_prompt = speaker_prompt # Use user provided first
         if not history_prompt:

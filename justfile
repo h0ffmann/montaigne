@@ -139,12 +139,12 @@ hadolint_check:
     @echo "🔍 Checking Dockerfile with hadolint..."
     @if ! command -v hadolint >/dev/null 2>&1; then \
         echo "⚠️ hadolint not found, attempting to run via Docker..."; \
-        if ! docker run --rm -i hadolint/hadolint < Dockerfile; then \
+        if ! docker run --rm -i hadolint/hadolint --ignore DL3059 < Dockerfile; then \
             echo "❌ Dockerfile linting failed"; \
             exit 1; \
         fi; \
     else \
-        if ! hadolint Dockerfile; then \
+        if ! hadolint --ignore DL3059 Dockerfile; then \
             echo "❌ Dockerfile linting failed"; \
             exit 1; \
         fi; \

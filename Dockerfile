@@ -22,7 +22,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 ENV COQUI_TOS_AGREED=1
 RUN pip3 install --no-cache-dir TTS==0.22.0
 
-# Create a Python script to pre-download the model
+# Create a Python script to pre-download the model and run it
 RUN printf 'import os\n\
     import torch\n\
     from TTS.utils.manage import ModelManager\n\
@@ -33,10 +33,8 @@ RUN printf 'import os\n\
     print("Attempting to download model with ModelManager...")\n\
     manager = ModelManager()\n\
     model_path, config_path, model_item = manager.download_model("tts_models/multilingual/multi-dataset/xtts_v2")\n\
-    print(f"Downloaded model to {os.path.dirname(model_path)}")' > download_model.py
-
-# Run the script to download the model
-RUN python3 download_model.py
+    print(f"Downloaded model to {os.path.dirname(model_path)}")' > download_model.py && \
+    python3 download_model.py
 
 # Final Image
 FROM nvidia/cuda:12.1.1-cudnn8-runtime-ubuntu22.04
@@ -112,26 +110,23 @@ RUN ARCH="${TARGETARCH}" && \
 
 # --- Continue with your Dockerfile ---
 
-# Create directory for the model and handle model files in a single RUN
-RUN mkdir -p /root/.local/share/tts/tts_models--multilingual--multi-dataset--xtts_v2/
-
+# Create directory for the model and handle model files
 # Copy local model files if they exist, otherwise use downloaded model
 ARG USE_LOCAL_MODEL
 COPY model_files/ /tmp/model_files/
-RUN if [ "${USE_LOCAL_MODEL}" = "true" ] && [ -f "/tmp/model_files/model.pth" ]; then \
-    echo "Using local model files" && \
-    cp -r /tmp/model_files/* /root/.local/share/tts/tts_models--multilingual--multi-dataset--xtts_v2/; \
+RUN mkdir -p /root/.local/share/tts/tts_models--multilingual--multi-dataset--xtts_v2/ && \
+    if [ "${USE_LOCAL_MODEL}" = "true" ] && [ -f "/tmp/model_files/model.pth" ]; then \
+        echo "Using local model files" && \
+        cp -r /tmp/model_files/* /root/.local/share/tts/tts_models--multilingual--multi-dataset--xtts_v2/; \
     else \
-    echo "Using downloaded model" && \
-    # Ensure target directory exists even if model_downloader stage failed or was skipped
-    mkdir -p /root/.local/share/tts/tts_models--multilingual--multi-dataset--xtts_v2/ && \
-    # Use cp --from only if source exists, otherwise log warning
-    if [ -d /model_download/root/.local/share/tts ]; then \
-    echo "Copying from model_downloader stage..." && \
-    cp -r --from=model_downloader /root/.local/share/tts/tts_models--multilingual--multi-dataset--xtts_v2/* /root/.local/share/tts/tts_models--multilingual--multi-dataset--xtts_v2/; \
-    else \
-    echo "Warning: Model downloader stage artifacts not found. Model will download at runtime."; \
-    fi; \
+        echo "Using downloaded model" && \
+        # Use cp --from only if source exists, otherwise log warning
+        if [ -d /model_download/root/.local/share/tts ]; then \
+            echo "Copying from model_downloader stage..." && \
+            cp -r --from=model_downloader /root/.local/share/tts/tts_models--multilingual--multi-dataset--xtts_v2/* /root/.local/share/tts/tts_models--multilingual--multi-dataset--xtts_v2/; \
+        else \
+            echo "Warning: Model downloader stage artifacts not found. Model will download at runtime."; \
+        fi; \
     fi && \
     rm -rf /tmp/model_files
 

@@ -197,7 +197,7 @@ docker_build *ARGS:
 
     @# Construct and perform the main build command directly
     @echo "Executing Docker Build Command..."
-    @docker build {{ARGS}} \
+    @DOCKER_BUILDKIT=0 docker build {{ARGS}} \
         -t "{{DOCKER_IMAGE_NAME}}:{{DOCKER_TAG_LATEST}}" \
         -t "{{DOCKER_IMAGE_NAME}}:{{DOCKER_TAG_GIT}}" \
         -t "{{GHCR_TAG_LATEST}}" \

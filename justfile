@@ -1,5 +1,8 @@
 # -*- mode: conf -*-
 
+# Load environment variables from .env file if it exists
+load-dotenv := true
+
 # Justfile for the Montaigne TTS project
 # Uses Nix Flake for environment and dependency management.
 

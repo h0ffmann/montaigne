@@ -334,7 +334,7 @@ run_tts_tasks:
 all:
     @echo "🚀 Starting Montaigne TTS pipeline..."
     @echo "📦 Current Python environment packages:"
-    @uv pip freeze
+    @nix develop --impure --command bash -c 'uv pip freeze'
 
     @just run_tts_tasks || (echo "❌ TTS tasks failed, aborting pipeline." && exit 1)
 

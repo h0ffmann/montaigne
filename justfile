@@ -235,7 +235,7 @@ run_tts_tasks:
     @nix develop --impure --command bash -c '\
         set -e; \
         echo "=== Refresh repo-content.txt ==="; \
-        @repomix . --output repo-content.txt; \
+        repomix . --output repo-content.txt; \
         echo "=== Inside Nix Shell ==="; \
         just prepare_dirs; \
         echo "✨ Running XTTS synthesis..."; \

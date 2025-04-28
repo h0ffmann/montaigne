@@ -124,6 +124,12 @@ debug:
     echo "❌ No virtualenv found. Run 'just nix' first"; \
   fi
 
+bark:
+    @montaigne synthesize --engine bark -t "Hello from the Bark engine. It sounds different!" -l en -o output/bark_en_default.wav
+
+bark_pt:
+    montaigne synthesize --engine bark -t "Olá meu amigo, tudo bem meu amigo? Abraços." -l pt -o output/bark_pt_default.wav
+
 
 # Run a simple debug command that verifies Torch CUDA functionality using Nix Python
 debug_gpu:

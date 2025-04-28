@@ -42,10 +42,11 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     ffmpeg \
     libsndfile1 \
     ca-certificates \
-    # Needed temporarily for Python PPA and uv install
+    # Needed temporarily for build/install phase
     software-properties-common \
     gpg-agent \
     curl \
+    git \
     # Add Python 3.11 PPA
     && add-apt-repository ppa:deadsnakes/ppa -y \
     && apt-get update \
@@ -75,7 +76,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     # Remove temporary build files
     && rm -rf /tmp/project_files \
     # Remove packages only needed for build/install phase
-    && apt-get purge -y --auto-remove \
+    && apt-get purge -y --auto-remove git \
         software-properties-common gpg-agent curl build-essential pkg-config \
         python3.11-dev \
     # Clean up apt caches and lists

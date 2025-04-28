@@ -82,6 +82,7 @@ logs/
 output.*
 output/
 results/
+output-youtube/ # Ignore downloaded YouTube speaker WAVs
 *.pt
 *.onnx
 input/

@@ -21,7 +21,7 @@ try:
     # Import engine classes with checks
     from .tts_engine import BaseTTSEngine, XTTSv2Engine, BarkEngine, XTTS_MODEL_NAME
     from .evaluation import AudioEvaluator
-    from .voice_profiles import list_voice_profiles, get_voice_profile
+    from .voice_profiles import list_voice_profiles, get_voice_profile # Keep profile import
     from .audio_utils import concatenate_audio_files, cleanup_files
 except ImportError as e:
     logger.critical(f"CRITICAL: Import error ({e}). Environment setup incomplete? (Run 'just nix' or check installations).", exc_info=True)
@@ -70,6 +70,7 @@ def cli():
 @click.option('--engine', type=click.Choice([e.value for e in EngineChoice]), default=EngineChoice.XTTS.value, show_default=True, help="Select the TTS engine.")
 @click.option('--voice-profile', type=click.Choice(list_voice_profiles()), help="Use a prebuilt voice profile (XTTS only).")
 @click.option('--speaker-wav', '-s', type=click.Path(exists=True, file_okay=True, dir_okay=False, readable=True, path_type=Path), help="Path to a reference WAV file for voice cloning (XTTS only).")
+@click.option('--speaker-youtube-id', help="YouTube Video ID for voice cloning (XTTS only, downloads audio). Mutually exclusive with --speaker-wav and --voice-profile.")
 @click.option('--speaker-prompt', help="Voice prompt for Bark engine (e.g., 'en_speaker_6').")
 @click.option('--text', '-t', help="Text to synthesize directly. Mutually exclusive with --text-file.")
 @click.option('--text-file', '-f', type=click.Path(exists=True, file_okay=True, dir_okay=False, readable=True, resolve_path=True, path_type=Path), help="Path to a text file containing the synthesis text.")
@@ -82,6 +83,7 @@ def synthesize(
     engine: str,
     voice_profile: str | None,
     speaker_wav: Path | None,
+    speaker_youtube_id: str | None,
     speaker_prompt: str | None,
     text: str | None,
     text_file: Path | None,
@@ -96,12 +98,16 @@ def synthesize(
 
     # --- Validation ---
     if selected_engine_type == EngineChoice.XTTS:
-        if not (voice_profile or speaker_wav):
-             raise click.UsageError("XTTS engine requires either --voice-profile or --speaker-wav.")
-        if voice_profile and speaker_wav:
-             raise click.UsageError("--voice-profile and --speaker-wav are mutually exclusive.")
+        # XTTS Speaker Input Validation
+        speaker_inputs = sum(p is not None for p in [voice_profile, speaker_wav, speaker_youtube_id])
+        if speaker_inputs == 0:
+             raise click.UsageError("XTTS engine requires one of: --voice-profile, --speaker-wav, or --speaker-youtube-id.")
+        if speaker_inputs > 1:
+             raise click.UsageError("Options --voice-profile, --speaker-wav, and --speaker-youtube-id are mutually exclusive.")
+        # Ensure speaker_prompt is not used with XTTS
         if speaker_prompt:
             logger.warning("--speaker-prompt is ignored when using the XTTS engine.")
+
     elif selected_engine_type == EngineChoice.BARK:
         if voice_profile:
              raise click.UsageError("--voice-profile is not compatible with the Bark engine. Use --speaker-prompt instead.")
@@ -109,6 +115,8 @@ def synthesize(
              raise click.UsageError("--speaker-wav is not compatible with the Bark engine. Use --speaker-prompt instead.")
         if speed != 1.0:
              logger.warning("--speed parameter is ignored when using the Bark engine.")
+        if speaker_youtube_id:
+             raise click.UsageError("--speaker-youtube-id is not compatible with the Bark engine. Use --speaker-prompt instead.")
     # Common validation
     if not (text or text_file):
         raise click.UsageError("Either --text or --text-file must be provided.")
@@ -119,11 +127,26 @@ def synthesize(
     engine_params = {}
     engine_display_name = selected_engine_type.value.upper()
     speaker_display_name = "Default"
+    # Moved this import here as it's now needed for the youtube download function call
+    from .audio_utils import download_audio_from_youtube
 
     if selected_engine_type == EngineChoice.XTTS:
-        # Determine the speaker WAV path
+        # Determine the actual speaker WAV path based on provided mutually exclusive options
         actual_speaker_wav: Path
-        if voice_profile:
+
+        if speaker_youtube_id:
+            logger.info(f"YouTube ID provided: {speaker_youtube_id}. Attempting to download/cache audio...")
+            # Call the download function from audio_utils
+            downloaded_path = download_audio_from_youtube(speaker_youtube_id)
+            if downloaded_path and downloaded_path.exists():
+                actual_speaker_wav = downloaded_path
+                speaker_display_name = f"YouTube: {speaker_youtube_id} ({actual_speaker_wav.name})"
+                logger.info(f"Using speaker audio from YouTube ID '{speaker_youtube_id}' -> {actual_speaker_wav.name}")
+            else:
+                # Error message already logged by download_audio_from_youtube
+                click.echo(f"❌ Failed to get speaker audio for YouTube ID: {speaker_youtube_id}", err=True)
+                sys.exit(1)
+        elif voice_profile:
             profile_path = get_voice_profile(voice_profile)
             if not profile_path: sys.exit(1) # get_voice_profile logs errors
             actual_speaker_wav = profile_path
@@ -131,9 +154,11 @@ def synthesize(
             logger.info(f"Using voice profile '{voice_profile}' ({actual_speaker_wav.name})")
         else:
             # speaker_wav must be set if voice_profile is not (validated above)
-            actual_speaker_wav = speaker_wav # type: ignore
-            speaker_display_name = f"File: {actual_speaker_wav.name}"
+            actual_speaker_wav = speaker_wav # type: ignore [assignment] - Click ensures it exists
+            speaker_display_name = f"File: {actual_speaker_wav.name if actual_speaker_wav else 'N/A'}" # Check added for type safety
             logger.info(f"Using speaker WAV file: {actual_speaker_wav.name}")
+
+        # Common setup for XTTS once actual_speaker_wav is determined
         engine_params["speaker_wav"] = str(actual_speaker_wav)
         engine_params["speed"] = speed
     elif selected_engine_type == EngineChoice.BARK:

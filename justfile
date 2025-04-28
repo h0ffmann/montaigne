@@ -1,5 +1,8 @@
 # -*- mode: conf -*-
 
+# Load environment variables from .env file if it exists
+set dotenv-load := true
+
 # Justfile for the Montaigne TTS project
 # Uses Nix Flake for environment and dependency management.
 
@@ -28,16 +31,6 @@ nix:
     @nix flake update
     @NIXPKGS_ALLOW_BROKEN=1 nix develop --impure
 
-
-# === Running the Application ===
-
-# Run the Montaigne CLI application using the Python from the Nix environment
-# Pass arguments after `--`, e.g., `just run -- --text "Hello" ...`
-run *ARGS:
-    @# Check if python is available in the Nix shell
-    @command -v python > /dev/null 2>&1 || (echo "❌ 'python' command not found. Are you inside 'nix develop'?" && exit 1)
-    @echo "🚀 Running Montaigne CLI using Nix Python..."
-    @python -m {{PROJECT_NAME}}.main {{ARGS}}
 
 # === Linting & Formatting (using Ruff from Nix env) ===
 
@@ -116,7 +109,6 @@ debug:
     source .venv/bin/activate && \
     python -c "import montaigne" && \
     python -m montaigne.main synthesize \
-      --text "This is a debug test [p=0.5] with *emphasis*." \
       --output-file output/debug_output.wav \
       --speaker-wav input/speaker.wav \
       --language en; \
@@ -125,17 +117,44 @@ debug:
   fi
 
 bark:
-    @montaigne synthesize --engine bark -t "Hello from the Bark engine. It sounds different!" -l en -o output/bark_en_default.wav
+    @echo "🐾 Running Bark synthesis..."
+    @python -m montaigne.main synthesize --engine bark -t "Hello from the Bark engine. It sounds different!" -l en -o output/bark_en_default.wav
 
 bark_pt:
-    montaigne synthesize --engine bark -t "Olá meu amigo, tudo bem meu amigo? Abraços." -l pt -o output/bark_pt_default.wav
+    @echo "🐾 Running Bark synthesis (Portuguese)..."
+    @python -m montaigne.main synthesize --engine bark -t "Olá meu amigo, tudo bem meu amigo? Abraços." -l pt -o output/bark_pt_default.wav
+
+yt:
+    @echo "▶️ Running XTTS synthesis with YouTube speaker..."
+    # Ensure quotes are correctly passed if running directly
+    @python -m montaigne.main synthesize --engine xtts --speaker-youtube-id "dQw4w9WgXcQ" -t "Testing YouTube download." -l en -o output/yt_test.wav
 
 
 # Run a simple debug command that verifies Torch CUDA functionality using Nix Python
 debug_gpu:
     python -c 'import torch; print(f"PyTorch: {torch.__version__}"); print(f"CUDA Available: {torch.cuda.is_available()}"); print(f"Device Count: {torch.cuda.device_count()}")'
 
-
+all:
+    @echo "Running 'nix develop' to set up environment and execute tasks..."
+    @# Execute subsequent just commands *inside* the Nix shell
+    @# Use direct python calls inside nix develop to avoid nested just/quoting issues
+    @nix develop --impure --command bash -c ' \
+        echo "=== Inside Nix Shell ===";\
+        echo "Running: debug synthesis (python -m montaigne.main ...)";\
+        mkdir -p input output;\
+        if [ ! -f "input/speaker.wav" ]; then ffmpeg -f lavfi -i "sine=frequency=1000:duration=5" -ac 1 -ar 16000 input/speaker.wav 2>/dev/null; fi;\
+        python -m montaigne.main synthesize --cpu --output-file output/debug_output.wav --speaker-wav input/speaker.wav --language en -t "This is a debug test [p=0.5] with *emphasis*." && \
+        echo "Running: bark synthesis (python -m montaigne.main ...)"; \
+        python -m montaigne.main synthesize --engine bark -t "Hello from the Bark engine. It sounds different!" -l en -o output/bark_en_default.wav && \
+        echo "Running: YouTube speaker synthesis (python -m montaigne.main ...)";\
+        python -m montaigne.main synthesize --engine xtts --speaker-youtube-id "dQw4w9WgXcQ" -t "Testing YouTube download." -l en -o output/yt_test.wav && \
+        echo "=== Nix Shell Tasks Complete ===";\
+        exit 0;\
+    '
+    @# Run Docker tasks OUTSIDE the Nix shell if they don't rely on Nix env specifics
+    @echo "=== Running Docker Tasks (Outside Nix Shell) ==="
+    @just docker_build
+    @just docker_run
 
 # === Docker ===
 

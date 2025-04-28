@@ -14,6 +14,7 @@ dependencies = [
     # --- Utilities ---
     "rapidfuzz==3.13.0",
     "pydub>=0.25.0",
+    "yt-dlp>=2023.0.0", # For downloading YouTube audio
     "soundfile>=0.12.1", # Needed for saving Bark output
     # --- Potentially required by Bark/Whisper/TTS, ensure presence ---
     # Nix should ideally provide torch, torchaudio, numpy, pandas, scipy

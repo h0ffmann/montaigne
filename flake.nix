@@ -202,6 +202,7 @@
                                openai-whisper==20240930 \
                                pydub'>=0.25.0' \
                                'suno-bark @ git+https://github.com/suno-ai/bark.git' \
+                               yt-dlp'>=2023.0.0' \
                                ; then
                              echo "❌ Fatal: Failed to install base dependencies with uv into venv '$VENV_DIR'." && return 1
                            fi

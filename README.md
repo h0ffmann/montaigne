@@ -14,6 +14,7 @@ Montaigne is a powerful command-line tool designed for generating high-quality T
         *   **Important:** First-time use requires accepting the Coqui TTS license terms when prompted during model download.
     *   **Suno AI Bark:** Generative model with support for various languages and voice characteristics via prompts (MIT License).
 *   **Voice Cloning (Zero-Shot - XTTS Only):** Clone voices using just a short (~10-30 seconds) WAV file sample of the target voice with the XTTS engine.
+*   **YouTube Speaker Input (XTTS Only):** Provide a YouTube video ID to automatically download its audio and use it as the speaker reference.
 *   **Text Preprocessing:** Enhance expressiveness with simple markup in your input text (works with both engines):
     *   Pauses: `[p=SECONDS]` or `[pause=SECONDS]` (e.g., `[p=0.5]`) for controlling rhythm.
     *   Emphasis: Surround words or phrases with `*asterisks*` or `**double asterisks**` for subtle emphasis.
@@ -22,6 +23,7 @@ Montaigne is a powerful command-line tool designed for generating high-quality T
 *   **Command-Line Interface:** Easy-to-use CLI built with Typer.
 *   **Modern Python & Tooling:**
     *   Python >=3.11,<3.12
+    *   Requires `ffmpeg` to be in the system's PATH for audio conversion (especially for YouTube download and `pydub`).
     *   Dependency & Environment Management: `uv` + Nix Flakes
     *   Task Runner: `just`
     *   Code Formatting/Linting: `ruff`
@@ -38,6 +40,7 @@ Before you begin, ensure you have the following installed on your system:
 5.  **(Highly Recommended for Performance)** **NVIDIA GPU & CUDA:** TTS (especially XTTS) and Whisper run *significantly* faster on a CUDA-enabled NVIDIA GPU.
     *   Ensure you have the appropriate NVIDIA drivers installed on your host.
     *   For Docker GPU support, you'll also need the **NVIDIA Container Toolkit**. ([Installation Guide](https://docs.nvidia.com/datacenter/cloud-native/container-toolkit/latest/install-guide.html)).
+    *   **FFmpeg:** Must be installed and accessible in your system's PATH. Used by `yt-dlp` for audio conversion and `pydub` for processing. The Nix environment provides it automatically. For Docker, it's included in the image. For manual setups, install it via your system's package manager (e.g., `sudo apt install ffmpeg`, `brew install ffmpeg`).
 
 ## 💾 Installation & Environment Setup
 
@@ -53,7 +56,7 @@ This project uses **Nix Flakes** to manage the development environment, ensuring
     Use `just nix` (or `nix develop --impure`) to enter the Nix shell. This command will:
     *   Download and build all Nix-managed dependencies (Python, PyTorch+CUDA, core libraries, etc.) based on `flake.nix`.
     *   Automatically create/activate a Python virtual environment (`.venv/`) using `uv`.
-    *   Install remaining Python dependencies (like `TTS`, `bark`, `openai-whisper`) into the venv using `uv`.
+    *   Install remaining Python dependencies (like `TTS`, `bark`, `openai-whisper`, `yt-dlp`) into the venv using `uv`.
     *   Install the `montaigne` package itself in editable mode.
     ```bash
     just nix
@@ -80,13 +83,17 @@ montaigne synthesize --engine [xtts|bark] [ENGINE-SPECIFIC ARGS] --output-file O
 *   `--language CODE` / `-l CODE`: Language code (e.g., `en`, `pt`). Defaults to `en`. (Used by XTTS directly, used by Bark for generic voice prompt if `--speaker-prompt` isn't set).
 *   `--evaluate` / `-e`: Flag to enable audio quality evaluation using Whisper STT.
 *   `--cpu`: Flag to force CPU use for both TTS and evaluation.
+*   `--force-speaker-download`: *Currently not implemented.* Future flag to force re-downloading YouTube audio even if cached.
 
 **Engine-Specific Arguments:**
 
 *   **XTTS (`--engine xtts`):**
-    *   `--speaker-wav PATH` / `-s PATH`: Path to a reference WAV file for voice cloning. (Required if `--voice-profile` is not used).
-    *   `--voice-profile NAME`: Use a prebuilt voice profile (e.g., 'lula', 'trump'). See list below. (Required if `--speaker-wav` is not used).
+    *   Requires exactly one of the following:
+        *   `--speaker-wav PATH` / `-s PATH`: Path to a local reference WAV file for voice cloning.
+        *   `--voice-profile NAME`: Use a prebuilt voice profile (e.g., 'lula', 'trump'). See list below.
+        *   `--speaker-youtube-id ID`: YouTube video ID. The tool will download the audio, convert it to WAV, save it to `output-youtube/speaker-<ID>.wav`, and use it for cloning. Downloads are cached; subsequent calls with the same ID reuse the file. Requires `yt-dlp` and `ffmpeg`.
     *   `--speed FLOAT`: Adjust playback speed. Defaults to 1.0.
+
 *   **Bark (`--engine bark`):**
     *   `--speaker-prompt PROMPT`: Optional. Provide a Bark speaker prompt (e.g., `en_speaker_1`, `fr_speaker_0`, or a custom voice history prompt). If not provided, a generic language prompt (like `en_speaker`) might be used if available for the specified `--language`, otherwise Bark defaults.
     *   *Note:* Bark does not use `--speaker-wav`, `--voice-profile`, or `--speed`.
@@ -135,6 +142,11 @@ montaigne synthesize --engine [xtts|bark] [ENGINE-SPECIFIC ARGS] --output-file O
 4.  **Synthesize using Bark with a specific French speaker prompt:**
     ```bash
     montaigne synthesize --engine bark --speaker-prompt fr_speaker_5 -t "Bonjour, ceci est un test avec Bark." -l fr -o output/bark_fr_speaker5.wav
+    ```
+
+5.  **Synthesize using XTTS with a YouTube video as speaker:**
+    ```bash
+    montaigne synthesize --engine xtts --speaker-youtube-id "dQw4w9WgXcQ" -t "Never gonna give you up." -l en -o output/xtts_youtube_rick.wav
     ```
 
 ### Text Preprocessing Markup
@@ -248,6 +260,8 @@ Map your host directories to `/app/input` (read-only) and `/app/output` (read-wr
 *   **Performance:** TTS and Whisper evaluation are computationally intensive. Use a CUDA GPU for significant speedup.
 *   **Evaluation Accuracy:** Whisper STT is accurate but not perfect. Scores indicate similarity but may not capture all nuances.
 *   **Dependencies:** The Nix flake aims for reproducibility, but complex ML dependencies can still have subtle issues.
+*   **YouTube Download:** Dependent on `yt-dlp` functionality, which can sometimes be affected by changes on YouTube's side. Requires `ffmpeg` for WAV conversion. Audio quality is limited by the source video. Downloaded audio is saved in `output-youtube/` (ignored by git).
+
 
 ## 📄 License
 
@@ -258,6 +272,7 @@ This project itself is licensed under the **MIT License**.
 *   **Coqui TTS (XTTSv2 Model):** Licensed under **MPL 2.0**. Requires accepting terms on first use. Review MPL 2.0 for commercial/distribution details.
 *   **Suno AI Bark:** Licensed under the **MIT License**.
 *   **OpenAI Whisper:** Licensed under the **MIT License**.
+*   **yt-dlp:** Licensed under the **Unlicense**.
 *   Other dependencies have their own licenses (check `uv.lock`).
 
 🙏 Acknowledgements

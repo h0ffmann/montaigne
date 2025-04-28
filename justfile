@@ -55,13 +55,13 @@ check: lint format
 # === Analysis ===
 analytics:
     @echo "📊 Running commit analysis..."
-    @SCRIPT_PATH="aider_analytics.py"
-    @if [ ! -f "$SCRIPT_PATH" ]; then echo "❌ Analysis script '$SCRIPT_PATH' not found." && exit 1; fi
-    @# Ensure matplotlib is available in the venv
-    @echo "🐍 Ensuring matplotlib dependency is met via uv..."
-    @uv pip install --quiet matplotlib
-    @# Execute the script using the Python interpreter from the activated venv
-    @python "$SCRIPT_PATH"
+    SCRIPT_PATH="aider_analytics.py"
+    if [ ! -f "$SCRIPT_PATH" ]; then echo "❌ Analysis script '$SCRIPT_PATH' not found." && exit 1; fi
+    # Ensure matplotlib is available in the venv
+    echo "🐍 Ensuring matplotlib dependency is met via uv..."
+    uv pip install --quiet matplotlib
+    # Execute the script using the Python interpreter from the activated venv
+    python "$SCRIPT_PATH"
 
 # === Testing ===
 test:

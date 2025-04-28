@@ -113,6 +113,7 @@ class XTTSv2Engine(BaseTTSEngine):
             # A configuração de compatibilidade weights_only=False é aplicada globalmente via entrypoint.sh no Docker
             # ou implicitamente no ambiente Nix (se necessário).
             start_time = time.time()
+            torch.serialization.safe_globals([TTS.tts.configs.xtts_config.XttsConfig])
             with warnings.catch_warnings(): # Removido o contexto weights_only
                 warnings.simplefilter("ignore", UserWarning)
                 # TTS checks for CUDA itself, but passing the device is good practice

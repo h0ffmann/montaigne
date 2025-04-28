@@ -162,45 +162,55 @@ def analyze_commits(commits):
     # Pattern to detect aider in author name
     aider_author_pattern = re.compile(r'\(aider\)', re.IGNORECASE)
     
-    # Simple pattern to identify conventional commit messages (which are from Aider)
-    conventional_commit_pattern = re.compile(r'^(feat|fix|refactor|chore|docs|style|test|perf|ci|build)(\(.*?\))?:', re.IGNORECASE)
+    # Regex to identify conventional commit messages more robustly
+    conventional_commit_pattern = re.compile(
+        r'^(feat|fix|refactor|chore|docs|style|test|perf|ci|build)(\(.*?\))?:\s*',
+        re.IGNORECASE
+    )
 
     print(f"📊 Analyzing {len(commits)} commits...")
 
     for commit in commits:
-        # 1. Commit Type Analysis
-        subject_lower = commit['subject'].lower()
+        subject = commit['subject'].strip()  # Use the original case subject for later use
+        subject_lower = subject.lower()      # Lowercase for matching
+
+        # 1. Commit Type Analysis (using regex)
         commit_type_found = False
-        for prefix, desc in COMMIT_TYPES.items():
-            if subject_lower.startswith(prefix + ":") or subject_lower.startswith(prefix + "("):
-                commit_counts[desc] += 1
+        conv_commit_match = conventional_commit_pattern.match(subject)
+        if conv_commit_match:
+            commit_type = conv_commit_match.group(1).lower()  # Get the matched type (feat, fix, etc.)
+            if commit_type in COMMIT_TYPES:
+                commit_counts[COMMIT_TYPES[commit_type]] += 1  # Use descriptive name
                 commit_type_found = True
-                break
+            else:
+                # Matched pattern but wasn't in known COMMIT_TYPES keys
+                commit_counts["Other Conventional"] += 1
+                commit_type_found = True
+        
         if not commit_type_found:
+            # This commit did not match the conventional commit pattern
             commit_counts["Other"] += 1
 
-        # 2. Aider Commit Analysis - Simplified to just check for conventional commit format
+        # 2. Aider Commit Analysis (checking Author OR Conventional Format)
         is_aider_commit = False
         
         # Check for aider in author name
         if aider_author_pattern.search(commit['author']):
             is_aider_commit = True
-        
-        # Check for conventional commit format (feat:, fix:, etc.)
-        elif conventional_commit_pattern.search(commit['subject']):
+        # Check for conventional commit format
+        elif conv_commit_match:
             is_aider_commit = True
-            
         # Simple check for colon in subject (likely a conventional commit)
-        elif ':' in commit['subject']:
+        elif ':' in subject and not subject.startswith('Merge'):
             is_aider_commit = True
         
         if is_aider_commit:
             aider_commits += 1
 
         # 3. Term Frequency Analysis
-        full_text = (commit['subject'] + ' ' + commit['body']).lower()
+        full_text = (subject + ' ' + commit['body']).lower()
         # Basic tokenization, filter stop words and short words
-        words = re.findall(r'\b\w+\b', full_text) # Find word boundaries
+        words = re.findall(r'\b\w+\b', full_text)  # Find word boundaries
         for word in words:
             if word not in STOP_WORDS and len(word) >= MIN_TERM_LENGTH:
                 term_counts[word] += 1

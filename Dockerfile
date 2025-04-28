@@ -26,6 +26,8 @@ ENV TZ=UTC
 ENV UV_EXTRA_INDEX_URL="https://download.pytorch.org/whl/cu121"
 ENV UV_INDEX_STRATEGY="unsafe-best-match"
 ENV UV_NATIVE_TLS="1"
+# Set this environment variable to bypass the interactive Coqui TTS license prompt
+ENV COQUI_TOS_AGREED=1
 
 WORKDIR /app
 # --- REMOVED: RUN touch /root/.TTS_LICENSE_ACCEPTED ---

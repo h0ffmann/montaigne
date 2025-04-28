@@ -10,9 +10,12 @@ import numpy as np
 # Attempt to import necessary libraries, provide clear errors if missing
 try:
     from TTS.api import TTS
+    # Import XttsConfig directly for safe_globals
+    from TTS.tts.configs.xtts_config import XttsConfig
     TTS_AVAILABLE = True
 except ImportError:
     TTS = None # type: ignore
+    XttsConfig = None # type: ignore
     TTS_AVAILABLE = False
 
 try:
@@ -113,7 +116,9 @@ class XTTSv2Engine(BaseTTSEngine):
             # A configuração de compatibilidade weights_only=False é aplicada globalmente via entrypoint.sh no Docker
             # ou implicitamente no ambiente Nix (se necessário).
             start_time = time.time()
-            torch.serialization.safe_globals([TTS.tts.configs.xtts_config.XttsConfig])
+            # Use the directly imported XttsConfig
+            if XttsConfig is not None:
+                torch.serialization.safe_globals([XttsConfig])
             with warnings.catch_warnings(): # Removido o contexto weights_only
                 warnings.simplefilter("ignore", UserWarning)
                 # TTS checks for CUDA itself, but passing the device is good practice

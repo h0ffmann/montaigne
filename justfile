@@ -37,7 +37,9 @@ run *ARGS:
     @# Check if python is available in the Nix shell
     @command -v python > /dev/null 2>&1 || (echo "❌ 'python' command not found. Are you inside 'nix develop'?" && exit 1)
     @echo "🚀 Running Montaigne CLI using Nix Python..."
-    @python -m {{PROJECT_NAME}}.main {{ARGS}}
+    @# Use "$@" equivalent for shell arguments if possible, or quote ARGS carefully.
+    @# Trying with quotes around ARGS - this might work for simple cases.
+    @python -m {{PROJECT_NAME}}.main "{{ARGS}}"
 
 # === Linting & Formatting (using Ruff from Nix env) ===
 

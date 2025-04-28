@@ -333,6 +333,8 @@ run_tts_tasks:
 # Improved main pipeline with better error handling
 all:
     @echo "🚀 Starting Montaigne TTS pipeline..."
+    @echo "📦 Current Python environment packages:"
+    @uv pip freeze
 
     @just run_tts_tasks || (echo "❌ TTS tasks failed, aborting pipeline." && exit 1)
 

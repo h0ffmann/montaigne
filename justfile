@@ -259,8 +259,7 @@ docker_run *ARGS:
           --output-file /app/output/docker_default_run_output.wav \
           --speaker-wav /app/input/speaker.wav \
           --language en \
-          # Defaulting to GPU, remove --cpu
-        {{ARGS}} # Pass any additional user arguments here
+    {{ARGS}} # Pass any additional user arguments here
 
 # Run the application inside a Docker container with GPU support
 # Uses the locally tagged image.

@@ -13,17 +13,17 @@ WORKDIR /model_download
 
 # Install minimal Python environment to download the model
 RUN apt-get update && apt-get install -y --no-install-recommends \
-    python3-pip \
-    python3-setuptools \
+    python3-pip=22.0.2+dfsg-1ubuntu0.4 \
+    python3-setuptools=59.6.0-1.2ubuntu0.22.04.1 \
     && apt-get clean \
     && rm -rf /var/lib/apt/lists/*
 
 # Set license agreement and install only TTS
 ENV COQUI_TOS_AGREED=1
-RUN pip3 install --no-cache-dir TTS
+RUN pip3 install --no-cache-dir TTS==0.22.0
 
 # Create a Python script to pre-download the model
-RUN echo 'import os\n\
+RUN printf 'import os\n\
     import torch\n\
     from TTS.utils.manage import ModelManager\n\
     # Removed torch._C._set_default_weights_only_false_for_speed()\n\
@@ -68,17 +68,17 @@ COPY --from=file_copier /tmp/project_files /tmp/project_files
 # Install system dependencies & Python
 RUN apt-get update && apt-get install -y --no-install-recommends \
     # Essential runtime libs
-    ffmpeg \
-    libsndfile1 \
-    ca-certificates \
+    ffmpeg=7:4.4.2-0ubuntu0.22.04.1 \
+    libsndfile1=1.0.31-2build1 \
+    ca-certificates=20230311ubuntu0.22.04.1 \
     # Needed for adding PPA
-    software-properties-common \
-    gpg-agent \
+    software-properties-common=0.99.22.7 \
+    gpg-agent=2.2.27-3ubuntu2.1 \
     # Utilities needed during build
-    curl \
-    git \
-    build-essential \
-    pkg-config \
+    curl=7.81.0-1ubuntu1.15 \
+    git=1:2.34.1-1ubuntu1.10 \
+    build-essential=12.9ubuntu3 \
+    pkg-config=0.29.2-1ubuntu3 \
     # Clean apt lists immediately after installs
     && rm -rf /var/lib/apt/lists/* \
     # Add PPA for modern Python
@@ -86,9 +86,9 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     && apt-get update \
     # Install Python 3.11 from PPA
     && apt-get install -y --no-install-recommends \
-    python3.11 \
-    python3.11-dev \
-    python3.11-venv \
+    python3.11=3.11.8-1+jammy1 \
+    python3.11-dev=3.11.8-1+jammy1 \
+    python3.11-venv=3.11.8-1+jammy1 \
     # Clean apt lists again after PPA installs
     && rm -rf /var/lib/apt/lists/*
 
@@ -96,29 +96,29 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 ARG UV_VERSION=0.6.17 # Define uv version
 ARG TARGETARCH # Docker provides this, e.g., amd64, arm64
 # Map Docker's TARGETARCH to uv's target triple format
-RUN ARCH=$TARGETARCH && \
-    if [ "$ARCH" = "amd64" ]; then UV_TARGET="x86_64-unknown-linux-gnu"; \
-    elif [ "$ARCH" = "arm64" ]; then UV_TARGET="aarch64-unknown-linux-gnu"; \
-    else echo "Unsupported architecture: $ARCH for uv" && exit 1; fi && \
+RUN ARCH="${TARGETARCH}" && \
+    if [ "${ARCH}" = "amd64" ]; then UV_TARGET="x86_64-unknown-linux-gnu"; \
+    elif [ "${ARCH}" = "arm64" ]; then UV_TARGET="aarch64-unknown-linux-gnu"; \
+    else echo "Unsupported architecture: ${ARCH} for uv" && exit 1; fi && \
     echo "Downloading uv ${UV_VERSION} for ${UV_TARGET}..." && \
     curl -LsSf -o /tmp/uv.tar.gz "https://github.com/astral-sh/uv/releases/download/${UV_VERSION}/uv-${UV_TARGET}.tar.gz" && \
     tar -xzf /tmp/uv.tar.gz -C /tmp && \
-    mv /tmp/uv-${UV_TARGET}/uv /usr/local/bin/uv && \
+    mv "/tmp/uv-${UV_TARGET}/uv" /usr/local/bin/uv && \
     chmod +x /usr/local/bin/uv && \
     # Verify uv installation
     uv --version && \
     # Clean up download
-    rm -rf /tmp/uv.tar.gz /tmp/uv-${UV_TARGET}
+    rm -rf /tmp/uv.tar.gz "/tmp/uv-${UV_TARGET}"
 
 # --- Continue with your Dockerfile ---
 
-# Create directory for the model
+# Create directory for the model and handle model files in a single RUN
 RUN mkdir -p /root/.local/share/tts/tts_models--multilingual--multi-dataset--xtts_v2/
 
 # Copy local model files if they exist, otherwise use downloaded model
 ARG USE_LOCAL_MODEL
 COPY model_files/ /tmp/model_files/
-RUN if [ "$USE_LOCAL_MODEL" = "true" ] && [ -f "/tmp/model_files/model.pth" ]; then \
+RUN if [ "${USE_LOCAL_MODEL}" = "true" ] && [ -f "/tmp/model_files/model.pth" ]; then \
     echo "Using local model files" && \
     cp -r /tmp/model_files/* /root/.local/share/tts/tts_models--multilingual--multi-dataset--xtts_v2/; \
     else \
@@ -145,7 +145,7 @@ RUN echo "Setting up PyTorch index URL..." \
         --system \
         --no-cache \
         --python /usr/bin/python3.11 \
-        --find-links ${TORCH_URL} \
+        --find-links "${TORCH_URL}" \
         "torch==2.5.1+cu121" \
         "torchaudio==2.5.1+cu121" \
     # Install the application itself using the project files copied earlier

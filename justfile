@@ -251,7 +251,7 @@ docker_run *ARGS: prepare_dirs docker_check
         -v "${CURRENT_DIR}/input:/app/input:ro" \
         -v "${CURRENT_DIR}/output:/app/output:rw" \
         "{{DOCKER_IMAGE_NAME}}:{{DOCKER_TAG_LATEST}}" \
-        python3 -m montaigne.main synthesize \
+        montaigne synthesize \
         --text "This is a Docker container test." \
         --output-file /app/output/docker_output.wav \
         --speaker-wav /app/input/speaker.wav \
@@ -269,7 +269,7 @@ docker_run_gpu *ARGS: prepare_dirs docker_check
         -v "${CURRENT_DIR}/input:/app/input:ro" \
         -v "${CURRENT_DIR}/output:/app/output:rw" \
         "{{DOCKER_IMAGE_NAME}}:{{DOCKER_TAG_LATEST}}" \
-        python3 -m montaigne.main \
+        montaigne \
         {{ARGS}} || (echo "❌ Docker GPU run failed" && exit 1)
 
 # === Main Pipeline ===

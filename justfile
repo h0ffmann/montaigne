@@ -231,8 +231,11 @@ docker_run_gpu *ARGS: prepare_dirs docker_check
 # Run TTS tasks inside Nix shell for reliable environment
 run_tts_tasks:
     @echo "🚀 Running TTS tasks inside Nix shell..."
+    @echo "🐍 Provide edits in DIFF format, please."
     @nix develop --impure --command bash -c '\
         set -e; \
+        echo "=== Refresh repo-content.txt ==="; \
+        @repomix . --output repo-content.txt; \
         echo "=== Inside Nix Shell ==="; \
         just prepare_dirs; \
         echo "✨ Running XTTS synthesis..."; \

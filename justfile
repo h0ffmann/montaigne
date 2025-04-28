@@ -53,25 +53,15 @@ check: lint format
     @echo "✅ Lint and format checks passed."
 
 # === Analysis ===
-analytics N='':
+analytics:
     @echo "📊 Running commit analysis..."
     @SCRIPT_PATH="aider_analytics.py"
     @if [ ! -f "$SCRIPT_PATH" ]; then echo "❌ Analysis script '$SCRIPT_PATH' not found." && exit 1; fi
-    @N_ARG=""
-    @if [ -n "{{N}}" ]; then \
-        if ! [[ "{{N}}" =~ ^[0-9]+$ ]]; then \
-            echo "❌ Error: N_LAST_COMMITS must be a positive integer. Got '{{N}}'." && exit 1; \
-        fi; \
-        N_ARG="--n-commits {{N}}"; \
-        echo "📊 Analyzing last {{N}} commits..."; \
-    else \
-        echo "📊 Analyzing all commits..."; \
-    fi
     @# Ensure matplotlib is available in the venv
     @echo "🐍 Ensuring matplotlib dependency is met via uv..."
     @uv pip install --quiet matplotlib
     @# Execute the script using the Python interpreter from the activated venv
-    @python "$SCRIPT_PATH" $N_ARG
+    @python "$SCRIPT_PATH"
 
 # === Testing ===
 test:

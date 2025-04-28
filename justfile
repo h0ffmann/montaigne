@@ -133,19 +133,19 @@ prepare_local_model:
     @mkdir -p model_files
     @# Define the variable and perform the check in the same shell context
     @MODEL_PATH="${HOME}/.local/share/tts/tts_models--multilingual--multi-dataset--xtts_v2"; \
-if [ -d "$${MODEL_PATH}" ]; then \
-    # Use single quotes for the echo string to prevent premature expansion
-    echo '📦 Found local model at '"$${MODEL_PATH}"' - copying to build context'; \
-    if ! rsync -a --info=progress2 "$${MODEL_PATH}/" model_files/; then \
-        echo '❌ Failed to copy local model from '"$${MODEL_PATH}"; \
-        exit 1; \
-    fi; \
-    echo "✅ Local model copied successfully."; \
-else \
-    # Use single quotes here too for consistency
-    echo '⚠️ Local model not found at '"$${MODEL_PATH}"; \
-    echo "   Model will be downloaded during Docker build if USE_LOCAL_MODEL=true is set."; \
-fi
+    if [ -d "$${MODEL_PATH}" ]; then \
+        # Use single quotes for the echo string to prevent premature expansion
+        echo '📦 Found local model at '"$${MODEL_PATH}"' - copying to build context'; \
+        if ! rsync -a --info=progress2 "$${MODEL_PATH}/" model_files/; then \
+            echo '❌ Failed to copy local model from '"$${MODEL_PATH}"; \
+            exit 1; \
+        fi; \
+        echo "✅ Local model copied successfully."; \
+    else \
+        # Use single quotes here too for consistency
+        echo '⚠️ Local model not found at '"$${MODEL_PATH}"; \
+        echo "   Model will be downloaded during Docker build if USE_LOCAL_MODEL=true is set."; \
+    fi
 
 # Create Entrypoint and Modify Dockerfile
 # This is a dependency for docker_dev and the 'all' target's docker build step

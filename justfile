@@ -39,6 +39,12 @@ run *ARGS:
     @echo "🚀 Running Montaigne CLI using Nix Python..."
     @python -m {{PROJECT_NAME}}.main {{ARGS}}
 
+bark:
+    @montaigne synthesize --engine bark -t "Hello from the Bark engine. It sounds different!" -l en -o output/bark_en_default.wav
+
+bark_pt:
+    montaigne synthesize --engine bark -t "Olá meu amigo, tudo bem meu amigo? Abraços." -l pt -o output/bark_pt_default.wav
+
 # === Linting & Formatting (using Ruff from Nix env) ===
 
 # Run Ruff linter

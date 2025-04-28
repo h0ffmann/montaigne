@@ -39,12 +39,6 @@ run *ARGS:
     @echo "🚀 Running Montaigne CLI using Nix Python..."
     @python -m {{PROJECT_NAME}}.main {{ARGS}}
 
-bark:
-    @montaigne synthesize --engine bark -t "Hello from the Bark engine. It sounds different!" -l en -o output/bark_en_default.wav
-
-bark_pt:
-    montaigne synthesize --engine bark -t "Olá meu amigo, tudo bem meu amigo? Abraços." -l pt -o output/bark_pt_default.wav
-
 # === Linting & Formatting (using Ruff from Nix env) ===
 
 # Run Ruff linter
@@ -125,11 +119,17 @@ debug:
       --text "This is a debug test [p=0.5] with *emphasis*." \
       --output-file output/debug_output.wav \
       --speaker-wav input/speaker.wav \
-      --language en \
-      --cpu; \
+      --language en; \
   else \
     echo "❌ No virtualenv found. Run 'just nix' first"; \
   fi
+
+bark:
+    @montaigne synthesize --engine bark -t "Hello from the Bark engine. It sounds different!" -l en -o output/bark_en_default.wav
+
+bark_pt:
+    montaigne synthesize --engine bark -t "Olá meu amigo, tudo bem meu amigo? Abraços." -l pt -o output/bark_pt_default.wav
+
 
 # Run a simple debug command that verifies Torch CUDA functionality using Nix Python
 debug_gpu:

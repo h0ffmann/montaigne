@@ -113,11 +113,14 @@ class XTTSv2Engine(BaseTTSEngine):
     def _load_model(self):
         logger.info(f"Loading TTS model '{XTTS_MODEL_NAME}' onto device: {self.device}")
         try:
+            import os
+            os.environ["TORCH_WEIGHTS_ONLY"] = "0"
             # A configuração de compatibilidade weights_only=False é aplicada globalmente via entrypoint.sh no Docker
             # ou implicitamente no ambiente Nix (se necessário).
             start_time = time.time()
             # Use the directly imported XttsConfig
             if XttsConfig is not None:
+                import torch.serialization
                 torch.serialization.safe_globals([XttsConfig])
             with warnings.catch_warnings(): # Removido o contexto weights_only
                 warnings.simplefilter("ignore", UserWarning)

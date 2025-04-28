@@ -22,8 +22,8 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 ENV COQUI_TOS_AGREED=1
 RUN pip3 install --no-cache-dir TTS
 
-# Create a Python script to pre-download the model
-RUN echo 'import os\n\
+# Create a Python script to pre-download the model and run it
+RUN printf 'import os\n\
     import torch\n\
     from TTS.utils.manage import ModelManager\n\
     # Removed torch._C._set_default_weights_only_false_for_speed()\n\
@@ -33,10 +33,8 @@ RUN echo 'import os\n\
     print("Attempting to download model with ModelManager...")\n\
     manager = ModelManager()\n\
     model_path, config_path, model_item = manager.download_model("tts_models/multilingual/multi-dataset/xtts_v2")\n\
-    print(f"Downloaded model to {os.path.dirname(model_path)}")' > download_model.py
-
-# Run the script to download the model
-RUN python3 download_model.py
+    print(f"Downloaded model to {os.path.dirname(model_path)}")' > download_model.py && \
+    python3 download_model.py
 
 # Final Image
 FROM nvidia/cuda:12.1.1-cudnn8-runtime-ubuntu22.04
@@ -96,42 +94,39 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 ARG UV_VERSION=0.6.17 # Define uv version
 ARG TARGETARCH # Docker provides this, e.g., amd64, arm64
 # Map Docker's TARGETARCH to uv's target triple format
-RUN ARCH=$TARGETARCH && \
-    if [ "$ARCH" = "amd64" ]; then UV_TARGET="x86_64-unknown-linux-gnu"; \
-    elif [ "$ARCH" = "arm64" ]; then UV_TARGET="aarch64-unknown-linux-gnu"; \
-    else echo "Unsupported architecture: $ARCH for uv" && exit 1; fi && \
+RUN ARCH="${TARGETARCH}" && \
+    if [ "${ARCH}" = "amd64" ]; then UV_TARGET="x86_64-unknown-linux-gnu"; \
+    elif [ "${ARCH}" = "arm64" ]; then UV_TARGET="aarch64-unknown-linux-gnu"; \
+    else echo "Unsupported architecture: ${ARCH} for uv" && exit 1; fi && \
     echo "Downloading uv ${UV_VERSION} for ${UV_TARGET}..." && \
     curl -LsSf -o /tmp/uv.tar.gz "https://github.com/astral-sh/uv/releases/download/${UV_VERSION}/uv-${UV_TARGET}.tar.gz" && \
     tar -xzf /tmp/uv.tar.gz -C /tmp && \
-    mv /tmp/uv-${UV_TARGET}/uv /usr/local/bin/uv && \
+    mv "/tmp/uv-${UV_TARGET}/uv" /usr/local/bin/uv && \
     chmod +x /usr/local/bin/uv && \
     # Verify uv installation
     uv --version && \
     # Clean up download
-    rm -rf /tmp/uv.tar.gz /tmp/uv-${UV_TARGET}
+    rm -rf /tmp/uv.tar.gz "/tmp/uv-${UV_TARGET}"
 
 # --- Continue with your Dockerfile ---
 
-# Create directory for the model
-RUN mkdir -p /root/.local/share/tts/tts_models--multilingual--multi-dataset--xtts_v2/
-
+# Create directory for the model and handle model files
 # Copy local model files if they exist, otherwise use downloaded model
 ARG USE_LOCAL_MODEL
 COPY model_files/ /tmp/model_files/
-RUN if [ "$USE_LOCAL_MODEL" = "true" ] && [ -f "/tmp/model_files/model.pth" ]; then \
-    echo "Using local model files" && \
-    cp -r /tmp/model_files/* /root/.local/share/tts/tts_models--multilingual--multi-dataset--xtts_v2/; \
+RUN mkdir -p /root/.local/share/tts/tts_models--multilingual--multi-dataset--xtts_v2/ && \
+    if [ "${USE_LOCAL_MODEL}" = "true" ] && [ -f "/tmp/model_files/model.pth" ]; then \
+        echo "Using local model files" && \
+        cp -r /tmp/model_files/* /root/.local/share/tts/tts_models--multilingual--multi-dataset--xtts_v2/; \
     else \
-    echo "Using downloaded model" && \
-    # Ensure target directory exists even if model_downloader stage failed or was skipped
-    mkdir -p /root/.local/share/tts/tts_models--multilingual--multi-dataset--xtts_v2/ && \
-    # Use cp --from only if source exists, otherwise log warning
-    if [ -d /model_download/root/.local/share/tts ]; then \
-    echo "Copying from model_downloader stage..." && \
-    cp -r --from=model_downloader /root/.local/share/tts/tts_models--multilingual--multi-dataset--xtts_v2/* /root/.local/share/tts/tts_models--multilingual--multi-dataset--xtts_v2/; \
-    else \
-    echo "Warning: Model downloader stage artifacts not found. Model will download at runtime."; \
-    fi; \
+        echo "Using downloaded model" && \
+        # Use cp --from only if source exists, otherwise log warning
+        if [ -d /model_download/root/.local/share/tts ]; then \
+            echo "Copying from model_downloader stage..." && \
+            cp -r --from=model_downloader /root/.local/share/tts/tts_models--multilingual--multi-dataset--xtts_v2/* /root/.local/share/tts/tts_models--multilingual--multi-dataset--xtts_v2/; \
+        else \
+            echo "Warning: Model downloader stage artifacts not found. Model will download at runtime."; \
+        fi; \
     fi && \
     rm -rf /tmp/model_files
 
@@ -140,14 +135,14 @@ RUN if [ "$USE_LOCAL_MODEL" = "true" ] && [ -f "/tmp/model_files/model.pth" ]; t
 RUN echo "Setting up PyTorch index URL..." \
     && TORCH_URL="https://download.pytorch.org/whl/cu121" \
     # Install PyTorch and Torchaudio separately first
-    && echo "Installing specific PyTorch and Torchaudio versions (2.5.1+cu121)..." \
+    && echo "Installing PyTorch and Torchaudio for CUDA 12.1..." \
     && uv pip install \
         --system \
         --no-cache \
         --python /usr/bin/python3.11 \
-        --find-links ${TORCH_URL} \
-        "torch==2.5.1+cu121" \
-        "torchaudio==2.5.1+cu121" \
+        --find-links "${TORCH_URL}" \
+        "torch" \
+        "torchaudio" \
     # Install the application itself using the project files copied earlier
     && echo "Copying project files for installation..." \
     && cp /tmp/project_files/pyproject.toml /app/pyproject.toml \

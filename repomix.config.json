@@ -5,7 +5,8 @@
         "customPatterns": [
             "**/.*",
             "gemini_*",
-            "model_files/*"
+            "model_files/*",
+            "analysis_plots/"
         ]
     }
 }

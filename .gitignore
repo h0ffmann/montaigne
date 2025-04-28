@@ -101,3 +101,4 @@ uv.lock # uv lock file
 repo-content.txt
 template_text_input.txt
 model_files/
+analysis_plots/

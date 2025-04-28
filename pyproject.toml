@@ -16,6 +16,7 @@ dependencies = [
     "pydub>=0.25.0",
     "yt-dlp>=2023.0.0", # For downloading YouTube audio
     "soundfile>=0.12.1", # Needed for saving Bark output
+    "matplotlib>=3.5.0", # Added for plotting
     # --- Potentially required by Bark/Whisper/TTS, ensure presence ---
     # Nix should ideally provide torch, torchaudio, numpy, pandas, scipy
     # Ensure HF libraries are present if not pulled by TTS/Bark
@@ -32,6 +33,7 @@ dev = [
 
 [project.scripts]
 montaigne = "montaigne.main:cli"
+# aider-analytics = "aider_analytics:main" # Removed as per self-correction
 
 [build-system]
 requires = ["setuptools>=61.0"]

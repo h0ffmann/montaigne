@@ -13,14 +13,14 @@ WORKDIR /model_download
 
 # Install minimal Python environment to download the model
 RUN apt-get update && apt-get install -y --no-install-recommends \
-    python3-pip=22.0.2+dfsg-1ubuntu0.4 \
-    python3-setuptools=59.6.0-1.2ubuntu0.22.04.1 \
+    python3-pip \
+    python3-setuptools \
     && apt-get clean \
     && rm -rf /var/lib/apt/lists/*
 
 # Set license agreement and install only TTS
 ENV COQUI_TOS_AGREED=1
-RUN pip3 install --no-cache-dir TTS==0.22.0
+RUN pip3 install --no-cache-dir TTS
 
 # Create a Python script to pre-download the model and run it
 RUN printf 'import os\n\
@@ -66,17 +66,17 @@ COPY --from=file_copier /tmp/project_files /tmp/project_files
 # Install system dependencies & Python
 RUN apt-get update && apt-get install -y --no-install-recommends \
     # Essential runtime libs
-    ffmpeg=7:4.4.2-0ubuntu0.22.04.1 \
-    libsndfile1=1.0.31-2build1 \
-    ca-certificates=20230311ubuntu0.22.04.1 \
+    ffmpeg \
+    libsndfile1 \
+    ca-certificates \
     # Needed for adding PPA
-    software-properties-common=0.99.22.7 \
-    gpg-agent=2.2.27-3ubuntu2.1 \
+    software-properties-common \
+    gpg-agent \
     # Utilities needed during build
-    curl=7.81.0-1ubuntu1.15 \
-    git=1:2.34.1-1ubuntu1.10 \
-    build-essential=12.9ubuntu3 \
-    pkg-config=0.29.2-1ubuntu3 \
+    curl \
+    git \
+    build-essential \
+    pkg-config \
     # Clean apt lists immediately after installs
     && rm -rf /var/lib/apt/lists/* \
     # Add PPA for modern Python
@@ -84,9 +84,9 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     && apt-get update \
     # Install Python 3.11 from PPA
     && apt-get install -y --no-install-recommends \
-    python3.11=3.11.8-1+jammy1 \
-    python3.11-dev=3.11.8-1+jammy1 \
-    python3.11-venv=3.11.8-1+jammy1 \
+    python3.11 \
+    python3.11-dev \
+    python3.11-venv \
     # Clean apt lists again after PPA installs
     && rm -rf /var/lib/apt/lists/*
 
@@ -135,14 +135,14 @@ RUN mkdir -p /root/.local/share/tts/tts_models--multilingual--multi-dataset--xtt
 RUN echo "Setting up PyTorch index URL..." \
     && TORCH_URL="https://download.pytorch.org/whl/cu121" \
     # Install PyTorch and Torchaudio separately first
-    && echo "Installing specific PyTorch and Torchaudio versions (2.5.1+cu121)..." \
+    && echo "Installing PyTorch and Torchaudio for CUDA 12.1..." \
     && uv pip install \
         --system \
         --no-cache \
         --python /usr/bin/python3.11 \
         --find-links "${TORCH_URL}" \
-        "torch==2.5.1+cu121" \
-        "torchaudio==2.5.1+cu121" \
+        "torch" \
+        "torchaudio" \
     # Install the application itself using the project files copied earlier
     && echo "Copying project files for installation..." \
     && cp /tmp/project_files/pyproject.toml /app/pyproject.toml \

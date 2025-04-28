@@ -244,8 +244,9 @@ class BarkEngine(BaseTTSEngine):
         history_prompt = speaker_prompt # Use user provided first
         if not history_prompt:
             if bark_lang_supported:
-                # Construct a generic history prompt for the language if supported
-                history_prompt = f"{simple_lang_code}_speaker"
+                # Construct a *valid* generic history prompt (e.g., "en_speaker_0")
+                # Assuming index 0 is a reasonable default.
+                history_prompt = f"{simple_lang_code}_speaker_0"
                 logger.info(f"Using generic Bark history prompt: {history_prompt}")
             else:
                  logger.warning(f"Language '{language}' ({simple_lang_code}) not directly listed in Bark presets. Bark may default to English or perform poorly.")

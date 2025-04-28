@@ -157,14 +157,17 @@ docker_check:
 prepare_local_model:
     @echo "📦 Preparing local TTS model..."
     @mkdir -p model_files
-    @MODEL_PATH="${HOME}/.local/share/tts/tts_models--multilingual--multi-dataset--xtts_v2"
-    @if [ -d "${MODEL_PATH}" ]; then \
-        echo "📦 Found local model at ${MODEL_PATH} - copying to build context"; \
-        rsync -a "${MODEL_PATH}/" model_files/ || \
-        (echo "❌ Failed to copy local model" && exit 1); \
+    @MODEL_PATH="${HOME}/.local/share/tts/tts_models--multilingual--multi-dataset--xtts_v2"; \
+    if [ -d "$${MODEL_PATH}" ]; then \
+        echo "📦 Found local model at $${MODEL_PATH} - copying to build context"; \
+        if ! rsync -a --info=progress2 "$${MODEL_PATH}/" model_files/; then \
+            echo "❌ Failed to copy local model from $${MODEL_PATH}"; \
+            exit 1; \
+        fi; \
+        echo "✅ Local model copied successfully."; \
     else \
-        echo "⚠️ Local model not found at ${MODEL_PATH}"; \
-        echo "   Model will be downloaded during Docker build"; \
+        echo "⚠️ Local model not found at $${MODEL_PATH}"; \
+        echo "   Model will be downloaded during Docker build if USE_LOCAL_MODEL=true is set."; \
     fi
 
 # Build Docker image with better error handling

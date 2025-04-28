@@ -240,31 +240,34 @@ docker_run *ARGS: prepare_dirs docker_check
         ffmpeg -f lavfi -i "sine=frequency=1000:duration=5" -ac 1 -ar 16000 input/speaker.wav 2>/dev/null || \
         (echo "❌ Failed to create dummy speaker.wav." && exit 1); \
     fi
-    @# Single '@' starts the multi-line shell command. Subsequent lines MUST start at column 0.
+    @# This single '@' covers the CURRENT_DIR assignment AND the docker run command.
+    # All subsequent lines starting at column 0 are part of this shell script.
     CURRENT_DIR=$(pwd); \
-docker run --rm \
--v "${CURRENT_DIR}/input:/app/input:ro" \
--v "${CURRENT_DIR}/output:/app/output:rw" \
-"{{DOCKER_IMAGE_NAME}}:{{DOCKER_TAG_LATEST}}" \
-python3 -m montaigne.main synthesize \
---text "This is a Docker container test." \
---output-file /app/output/docker_output.wav \
---speaker-wav /app/input/speaker.wav \
---language en \
-{{ARGS}} || (echo "❌ Docker run failed" && exit 1)
+    echo "   Running docker command from: $${CURRENT_DIR}"; \
+    docker run --rm \
+        -v "${CURRENT_DIR}/input:/app/input:ro" \
+        -v "${CURRENT_DIR}/output:/app/output:rw" \
+        "{{DOCKER_IMAGE_NAME}}:{{DOCKER_TAG_LATEST}}" \
+        python3 -m montaigne.main synthesize \
+        --text "This is a Docker container test." \
+        --output-file /app/output/docker_output.wav \
+        --speaker-wav /app/input/speaker.wav \
+        --language en \
+        {{ARGS}} || (echo "❌ Docker run failed" && exit 1)
     @echo "✅ Docker synthesis complete. Check output/docker_output.wav"
 
 # GPU version with fixed volume paths
 docker_run_gpu *ARGS: prepare_dirs docker_check
     @echo "🐳 Running Docker container with GPU..."
-    @# Single '@' starts the multi-line shell command. Subsequent lines MUST start at column 0.
+    @# This single '@' covers the CURRENT_DIR assignment AND the docker run command.
     CURRENT_DIR=$(pwd); \
-docker run --rm --gpus all \
--v "${CURRENT_DIR}/input:/app/input:ro" \
--v "${CURRENT_DIR}/output:/app/output:rw" \
-"{{DOCKER_IMAGE_NAME}}:{{DOCKER_TAG_LATEST}}" \
-python3 -m montaigne.main \
-{{ARGS}} || (echo "❌ Docker GPU run failed" && exit 1)
+    echo "   Running docker command from: $${CURRENT_DIR}"; \
+    docker run --rm --gpus all \
+        -v "${CURRENT_DIR}/input:/app/input:ro" \
+        -v "${CURRENT_DIR}/output:/app/output:rw" \
+        "{{DOCKER_IMAGE_NAME}}:{{DOCKER_TAG_LATEST}}" \
+        python3 -m montaigne.main \
+        {{ARGS}} || (echo "❌ Docker GPU run failed" && exit 1)
 
 # === Main Pipeline ===
 # Run TTS tasks inside Nix shell for reliable environment

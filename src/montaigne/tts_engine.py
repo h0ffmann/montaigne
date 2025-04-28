@@ -110,6 +110,11 @@ class XTTSv2Engine(BaseTTSEngine):
     def _load_model(self):
         logger.info(f"Loading TTS model '{XTTS_MODEL_NAME}' onto device: {self.device}")
         try:
+            # --- Add safe global for PyTorch >= 2.6 compatibility ---
+            logger.info("Applying torch.serialization.add_safe_globals for TTS.tts.configs.xtts_config.XttsConfig")
+            from torch.serialization import add_safe_globals
+            add_safe_globals(["TTS.tts.configs.xtts_config.XttsConfig"])
+            # ------------------------------------------------------
             start_time = time.time()
             with warnings.catch_warnings():
                 warnings.simplefilter("ignore", UserWarning)

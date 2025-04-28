@@ -154,9 +154,9 @@ prepare_docker_files: prepare_local_model
     echo '#!/bin/bash' > entrypoint.sh
     echo 'set -e' >> entrypoint.sh
     echo '' >> entrypoint.sh
-    echo '# Apply PyTorch security settings before any model loading' >> entrypoint.sh
-    # Removed torch._C._set_default_weights_only_false_for_speed()
-    echo '/usr/bin/python3.11 -c "import torch; print(f\"---> PyTorch version: {torch.__version__}\", flush=True); from torch.serialization import add_safe_globals; add_safe_globals([\"TTS.tts.configs.xtts_config.XttsConfig\"]); print(\"✅ PyTorch security configuration applied (safe globals only)\", flush=True)" || { echo \"❌ Failed to apply PyTorch security config in entrypoint.\"; exit 1; }' >> entrypoint.sh
+    echo '# Apply PyTorch compatibility setting before any model loading' >> entrypoint.sh
+    # Keep the weights_only=False setting for potential broader compatibility, but safe_globals handled in Python code now.
+    echo '/usr/bin/python3.11 -c "import torch; print(f\"---> PyTorch version: {torch.__version__}\", flush=True); torch._C._set_default_weights_only_false_for_speed(); print(\"✅ PyTorch weights_only=False compatibility setting applied.\", flush=True)" || { echo \"❌ Failed to apply PyTorch compatibility setting in entrypoint.\"; exit 1; }' >> entrypoint.sh
     echo '' >> entrypoint.sh
     echo '# Execute the original command' >> entrypoint.sh
     echo 'echo "🚀 Executing Docker CMD/args: $@" ' >> entrypoint.sh

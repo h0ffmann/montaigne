@@ -135,18 +135,6 @@ RUN if [ "$USE_LOCAL_MODEL" = "true" ] && [ -f "/tmp/model_files/model.pth" ]; t
     fi && \
     rm -rf /tmp/model_files
 
-# Create PyTorch compatibility patch (same as before)
-RUN echo 'import torch\n\
-    # Patch torch to use the old loading behavior for compatibility\n\
-    torch._C._set_default_weights_only_false_for_speed()\n\
-    # Also add safe globals\n\
-    from torch.serialization import add_safe_globals\n\
-    add_safe_globals(["TTS.tts.configs.xtts_config.XttsConfig"])\n\
-    print("PyTorch model loading patched for compatibility")' > /app/patch_torch.py
-
-# Set Python to run our patch on startup
-ENV PYTHONSTARTUP=/app/patch_torch.py
-
 # Install application (Simplified cleanup logic)
 RUN cp /tmp/project_files/pyproject.toml /app/pyproject.toml \
     && cp -r /tmp/project_files/src /app/src \

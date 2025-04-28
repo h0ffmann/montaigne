@@ -124,6 +124,7 @@ debug:
     echo "❌ No virtualenv found. Run 'just nix' first"; \
   fi
 
+
 # Run a simple debug command that verifies Torch CUDA functionality using Nix Python
 debug_gpu:
     python -c 'import torch; print(f"PyTorch: {torch.__version__}"); print(f"CUDA Available: {torch.cuda.is_available()}"); print(f"Device Count: {torch.cuda.device_count()}")'

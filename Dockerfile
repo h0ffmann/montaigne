@@ -137,21 +137,33 @@ RUN if [ "$USE_LOCAL_MODEL" = "true" ] && [ -f "/tmp/model_files/model.pth" ]; t
 
 # Install application (Simplified cleanup logic)
 # Instala PyTorch e Torchaudio correspondentes ao CUDA 12.1 primeiro
-RUN TORCH_URL="https://download.pytorch.org/whl/cu121" \
-    && echo "Installing specific PyTorch version (2.5.1+cu121)..." \
-    && uv pip install --system --no-cache --python /usr/bin/python3.11 \
-       --find-links ${TORCH_URL} \
-       "torch==2.5.1+cu121" \
-       "torchaudio==2.5.1+cu121" \
-    # Agora instala a aplicação local, uv deve detectar torch/torchaudio já instalados
+RUN echo "Setting up PyTorch index URL..." \
+    && TORCH_URL="https://download.pytorch.org/whl/cu121" \
+    # Install PyTorch and Torchaudio separately first
+    && echo "Installing specific PyTorch and Torchaudio versions (2.5.1+cu121)..." \
+    && uv pip install \
+        --system \
+        --no-cache \
+        --python /usr/bin/python3.11 \
+        --find-links ${TORCH_URL} \
+        "torch==2.5.1+cu121" \
+        "torchaudio==2.5.1+cu121" \
+    # Install the application itself using the project files copied earlier
+    && echo "Copying project files for installation..." \
     && cp /tmp/project_files/pyproject.toml /app/pyproject.toml \
     && cp -r /tmp/project_files/src /app/src \
-    && echo "Installing application using uv..." && uv pip install --system --no-cache --python /usr/bin/python3.11 /app \
-    # Limpa arquivos temporários de build e pacotes desnecessários
+    && echo "Installing application '/app' using uv..." \
+    && uv pip install \
+        --system \
+        --no-cache \
+        --python /usr/bin/python3.11 \
+        # Explicitly specify the app path; it should pick up already installed torch/torchaudio
+        /app \
+    # Clean up temporary project files and build dependencies
     && echo "Cleaning up build environment..." && rm -rf /tmp/project_files \
     && apt-get purge -y --auto-remove \
-    git curl software-properties-common gpg-agent \
-    build-essential pkg-config python3.11-dev \
+       git curl software-properties-common gpg-agent \
+       build-essential pkg-config python3.11-dev \
     && apt-get clean \
     && rm -rf /var/lib/apt/lists/* /etc/apt/sources.list.d/deadsnakes* \
     && echo "Cleanup complete."

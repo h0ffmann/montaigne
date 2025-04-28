@@ -26,11 +26,11 @@ RUN pip3 install --no-cache-dir TTS
 RUN echo 'import os\n\
     import torch\n\
     from TTS.utils.manage import ModelManager\n\
-    # Set script to use the old insecure loading for compatibility\n\
-    torch._C._set_default_weights_only_false_for_speed()\n\
+    # Removed torch._C._set_default_weights_only_false_for_speed()\n\
     # Ensure license agreement is set\n\
     os.environ["COQUI_TOS_AGREED"] = "1"\n\
     # Pre-download model\n\
+    print("Attempting to download model with ModelManager...")\n\
     manager = ModelManager()\n\
     model_path, config_path, model_item = manager.download_model("tts_models/multilingual/multi-dataset/xtts_v2")\n\
     print(f"Downloaded model to {os.path.dirname(model_path)}")' > download_model.py

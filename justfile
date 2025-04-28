@@ -153,7 +153,7 @@ all:
     '
     @# Run Docker tasks OUTSIDE the Nix shell if they don't rely on Nix env specifics
     @echo "=== Running Docker Tasks (Outside Nix Shell) ==="
-    @just docker_build
+    @just docker_dev
     @just docker_run
 
 # === Docker ===
@@ -317,3 +317,8 @@ docker_check:
     else \
         echo "❌ Docker not installed or not in PATH"; \
     fi
+
+docker_dev:
+    @sh build-with-local-model.sh
+    @just docker_build --build-arg USE_LOCAL_MODEL=true
+    @rm -rf ./model_files

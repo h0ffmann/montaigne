@@ -9,6 +9,8 @@ set dotenv-load := true
 # === Variables ===
 PROJECT_NAME := "montaigne" # Should match pyproject.toml
 UV           := "uv" # Keep uv command available if needed for other tasks
+# Use env_var to get HOME reliably, then append the rest of the path
+MODEL_PATH_VAR := env_var('HOME') + "/.local/share/tts/tts_models--multilingual--multi-dataset--xtts_v2"
 
 # === Docker Settings ===
 DOCKER_TAG_LATEST := "latest"

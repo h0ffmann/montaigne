@@ -54,23 +54,24 @@ check: lint format
 
 # === Analysis ===
 analytics N='':
-    @_SCRIPT_PATH="aider_analytics.py"
-    @if [ ! -f "$_SCRIPT_PATH" ]; then echo "❌ Analysis script '$_SCRIPT_PATH' not found." && exit 1; fi
-    @_N_ARG=""
+    @echo "📊 Running commit analysis..."
+    @SCRIPT_PATH="aider_analytics.py"
+    @if [ ! -f "$SCRIPT_PATH" ]; then echo "❌ Analysis script '$SCRIPT_PATH' not found." && exit 1; fi
+    @N_ARG=""
     @if [ -n "{{N}}" ]; then \
         if ! [[ "{{N}}" =~ ^[0-9]+$ ]]; then \
             echo "❌ Error: N_LAST_COMMITS must be a positive integer. Got '{{N}}'." && exit 1; \
         fi; \
-        _N_ARG="--n-commits {{N}}"; \
-        echo "📊 Running commit analysis for last {{N}} commits..."; \
+        N_ARG="--n-commits {{N}}"; \
+        echo "📊 Analyzing last {{N}} commits..."; \
     else \
-        echo "📊 Running commit analysis for all commits..."; \
+        echo "📊 Analyzing all commits..."; \
     fi
     @# Ensure matplotlib is available in the venv
     @echo "🐍 Ensuring matplotlib dependency is met via uv..."
     @uv pip install --quiet matplotlib
     @# Execute the script using the Python interpreter from the activated venv
-    @python "$_SCRIPT_PATH" $_N_ARG
+    @python "$SCRIPT_PATH" $N_ARG
 
 # === Testing ===
 test:

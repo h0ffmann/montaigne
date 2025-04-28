@@ -143,7 +143,7 @@ all:
         echo "Running: debug synthesis (python -m montaigne.main ...)";\
         mkdir -p input output;\
         if [ ! -f "input/speaker.wav" ]; then ffmpeg -f lavfi -i "sine=frequency=1000:duration=5" -ac 1 -ar 16000 input/speaker.wav 2>/dev/null; fi;\
-        python -m montaigne.main synthesize --cpu --output-file output/debug_output.wav --speaker-wav input/speaker.wav --language en -t "This is a debug test [p=0.5] with *emphasis*." && \
+        python -m montaigne.main synthesize --output-file output/debug_output.wav --speaker-wav input/speaker.wav --language en -t "This is a debug test [p=0.5] with *emphasis*." && \
         echo "Running: bark synthesis (python -m montaigne.main ...)"; \
         python -m montaigne.main synthesize --engine bark -t "Hello from the Bark engine. It sounds different!" -l en -o output/bark_en_default.wav && \
         echo "Running: YouTube speaker synthesis (python -m montaigne.main ...)";\
@@ -259,7 +259,7 @@ docker_run *ARGS:
           --output-file /app/output/docker_default_run_output.wav \
           --speaker-wav /app/input/speaker.wav \
           --language en \
-          --cpu \
+          # Defaulting to GPU, remove --cpu
           {{ARGS}} # Pass any additional user arguments here
 
 # Run the application inside a Docker container with GPU support

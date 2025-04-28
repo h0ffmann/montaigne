@@ -9,8 +9,6 @@ set dotenv-load := true
 # === Variables ===
 PROJECT_NAME := "montaigne" # Should match pyproject.toml
 UV           := "uv" # Keep uv command available if needed for other tasks
-# Use env_var to get HOME reliably, then append the rest of the path
-MODEL_PATH_VAR := env_var('HOME') + "/.local/share/tts/tts_models--multilingual--multi-dataset--xtts_v2"
 
 # === Docker Settings ===
 DOCKER_TAG_LATEST := "latest"
@@ -133,21 +131,19 @@ docker_check:
 prepare_local_model:
     @echo "📦 Preparing local TTS model..."
     @mkdir -p model_files
-    @# Define the variable and perform the check in the same shell context
-    @MODEL_PATH="${HOME}/.local/share/tts/tts_models--multilingual--multi-dataset--xtts_v2"; \
-if [ -d "$${MODEL_PATH}" ]; then \
-# Use single quotes for the echo string to prevent premature expansion
-echo '📦 Found local model at '"$${MODEL_PATH}"' - copying to build context'; \
-if ! rsync -a --info=progress2 "$${MODEL_PATH}/" model_files/; then \
-echo '❌ Failed to copy local model from '"$${MODEL_PATH}"; \
-exit 1; \
-fi; \
-echo "✅ Local model copied successfully."; \
-else \
-# Use single quotes here too for consistency
-echo '⚠️ Local model not found at '"$${MODEL_PATH}"; \
-echo "   Model will be downloaded during Docker build if USE_LOCAL_MODEL=true is set."; \
-fi
+    @# Now we use the just variable {{ MODEL_PATH_VAR }}
+    # The shell receives the already-expanded path. No $$ needed.
+    if [ -d "{{ MODEL_PATH_VAR }}" ]; then \
+        echo '📦 Found local model at "{{ MODEL_PATH_VAR }}" - copying to build context'; \
+        if ! rsync -a --info=progress2 "{{ MODEL_PATH_VAR }}/" model_files/; then \
+            echo '❌ Failed to copy local model from "{{ MODEL_PATH_VAR }}"'; \
+            exit 1; \
+        fi; \
+        echo "✅ Local model copied successfully."; \
+    else \
+        echo '⚠️ Local model not found at "{{ MODEL_PATH_VAR }}"'; \
+        echo "   Model will be downloaded during Docker build if USE_LOCAL_MODEL=true is set."; \
+    fi
 
 # Create Entrypoint and Modify Dockerfile
 # This is a dependency for docker_dev and the 'all' target's docker build step

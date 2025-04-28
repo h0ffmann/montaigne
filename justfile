@@ -134,6 +134,23 @@ docker_check:
     fi
     @echo "✅ Docker is ready: $$(docker --version)"
 
+# Check Dockerfile with hadolint
+hadolint_check:
+    @echo "🔍 Checking Dockerfile with hadolint..."
+    @if ! command -v hadolint >/dev/null 2>&1; then \
+        echo "⚠️ hadolint not found, attempting to run via Docker..."; \
+        if ! docker run --rm -i hadolint/hadolint < Dockerfile; then \
+            echo "❌ Dockerfile linting failed"; \
+            exit 1; \
+        fi; \
+    else \
+        if ! hadolint Dockerfile; then \
+            echo "❌ Dockerfile linting failed"; \
+            exit 1; \
+        fi; \
+    fi
+    @echo "✅ Dockerfile passed linting checks"
+
 # Prepare local TTS model for Docker build context using just variable
 prepare_local_model:
     @echo "📦 Preparing local TTS model..."
@@ -194,7 +211,7 @@ prepare_docker_files: prepare_local_model
 
 
 # Build Docker image with better error handling
-docker_build *ARGS: docker_check
+docker_build *ARGS: docker_check hadolint_check
     @echo "🐳 Building Docker image..."
     @echo "   Local Tags:  {{DOCKER_IMAGE_NAME}}:{{DOCKER_TAG_LATEST}}, {{DOCKER_IMAGE_NAME}}:{{DOCKER_TAG_GIT}}"
     @echo "   GHCR Tags:   {{GHCR_TAG_LATEST}}, {{GHCR_TAG_COMMIT}}"
@@ -275,6 +292,10 @@ docker_run_gpu *ARGS: prepare_dirs docker_check
         "{{DOCKER_IMAGE_NAME}}:{{DOCKER_TAG_LATEST}}" \
         montaigne \
         {{ARGS}} || (echo "❌ Docker GPU run failed" && exit 1)
+
+# Lint Dockerfile without building
+lint_dockerfile: hadolint_check
+    @echo "✅ Dockerfile linting completed"
 
 # === Main Pipeline ===
 # Run TTS tasks inside Nix shell for reliable environment

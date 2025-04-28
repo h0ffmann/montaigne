@@ -110,11 +110,10 @@ class XTTSv2Engine(BaseTTSEngine):
     def _load_model(self):
         logger.info(f"Loading TTS model '{XTTS_MODEL_NAME}' onto device: {self.device}")
         try:
-            # --- Alternative: Use weights_only context manager ---
-            logger.info("Attempting to load model within torch.serialization.weights_only(False) context.")
-            from torch.serialization import weights_only
+            # A configuração de compatibilidade weights_only=False é aplicada globalmente via entrypoint.sh no Docker
+            # ou implicitamente no ambiente Nix (se necessário).
             start_time = time.time()
-            with warnings.catch_warnings(), weights_only(False): # Wrap TTS init
+            with warnings.catch_warnings(): # Removido o contexto weights_only
                 warnings.simplefilter("ignore", UserWarning)
                 # TTS checks for CUDA itself, but passing the device is good practice
                 model = TTS(model_name=XTTS_MODEL_NAME, progress_bar=True).to(self.device)

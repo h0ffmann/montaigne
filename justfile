@@ -154,8 +154,8 @@ prepare_docker_files: prepare_local_model
     echo '#!/bin/bash' > entrypoint.sh
     echo 'set -e' >> entrypoint.sh
     echo '' >> entrypoint.sh
-    echo '# Optional: Just print PyTorch version for confirmation' >> entrypoint.sh
-    echo '/usr/bin/python3.11 -c "import torch; print(f\"---> PyTorch version: {torch.__version__}\", flush=True)" || echo "⚠️ Could not print PyTorch version."' >> entrypoint.sh
+    echo '# Apply PyTorch compatibility setting before any model loading' >> entrypoint.sh
+    echo '/usr/bin/python3.11 -c "import torch; print(f\"---> PyTorch version: {torch.__version__}\", flush=True); torch._C._set_default_weights_only_false_for_speed(); print(\"✅ PyTorch weights_only=False compatibility setting applied.\", flush=True)" || { echo \"❌ Failed to apply PyTorch compatibility setting in entrypoint.\"; exit 1; }' >> entrypoint.sh
     echo '' >> entrypoint.sh
     echo '# Execute the original command' >> entrypoint.sh
     echo 'echo "🚀 Executing Docker CMD/args: $@" ' >> entrypoint.sh

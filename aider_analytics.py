@@ -4,7 +4,11 @@ import collections
 import argparse
 import matplotlib.pyplot as plt
 import math
+import logging
 from pathlib import Path
+
+# Set up module-level logger
+logger = logging.getLogger(__name__)
 
 # --- Configuration ---
 COMMIT_TYPES = {
@@ -416,13 +420,11 @@ def main():
     if args.verbose:
         logging.basicConfig(level=logging.DEBUG, 
                            format='%(asctime)s [%(levelname)s] %(message)s')
-        logger = logging.getLogger(__name__)
         logger.setLevel(logging.DEBUG)
         logger.debug("Verbose mode enabled")
     else:
         logging.basicConfig(level=logging.INFO,
                            format='%(asctime)s [%(levelname)s] %(message)s')
-        logger = logging.getLogger(__name__)
 
     raw_log = get_commits(args.n_commits)
     parsed_commits = parse_log_data(raw_log)

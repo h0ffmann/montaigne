@@ -167,14 +167,6 @@ def analyze_commits(commits):
     term_counts = collections.Counter()
     file_counts = collections.Counter()
 
-    # Pattern to detect aider in author name
-    aider_author_pattern = re.compile(r'\(aider\)', re.IGNORECASE)
-    # Pattern to extract the commit type prefix (simple start check)
-    # Ensure it matches conventional commit format with proper word boundaries
-    type_pattern = re.compile(r"^([a-zA-Z]+)(?:\(.*?\))?:", re.IGNORECASE) # Matches 'type:' or 'type(scope):'
-    
-    # Add a simpler fallback pattern for direct prefix checking
-    simple_prefix_pattern = re.compile(r"^(feat|fix|refactor|chore|docs|style|test|perf|ci|build):", re.IGNORECASE)
     # Common conventional commit prefixes that indicate Aider commits
     aider_prefixes = ['feat', 'fix', 'chore', 'docs', 'refactor', 'style', 'test', 'perf', 'ci', 'build']
 
@@ -187,60 +179,35 @@ def analyze_commits(commits):
         body = commit['body'].lower()
         email = commit['email'].lower()
 
-        # --- Step 1: Determine Commit Type (Independent of Author) ---
+        # --- Step 1: Determine Commit Type ---
         commit_type_found = False
-        match = type_pattern.match(subject)
         
-        # Debug output to verify regex matching
-        if subject.startswith(("feat:", "fix:", "refactor:", "chore:", "docs:")):
-            logger.debug(f"Subject starts with conventional prefix: '{subject[:20]}...'")
-            logger.debug(f"Regex match result: {match is not None}")
-            if match:
-                logger.debug(f"Matched groups: {match.groups()}")
-        
-        if match:
-            type_key = match.group(1).lower()
-            if type_key in COMMIT_TYPES:
-                commit_counts[COMMIT_TYPES[type_key]] += 1
+        # Simple direct check for conventional commit prefixes
+        for prefix in aider_prefixes:
+            if subject_lower.startswith(f"{prefix}:"):
+                commit_counts[COMMIT_TYPES.get(prefix, "Other Conventional")] += 1
                 commit_type_found = True
-            else:
-                # It looked conventional but unknown type
-                commit_counts["Other Conventional"] += 1
-                commit_type_found = True
+                break
         
         if not commit_type_found:
             commit_counts["Other"] += 1
 
-        # --- Step 2: Determine if Likely Aider (Simplified Logic) ---
+        # --- Step 2: Determine if Likely Aider ---
+        # SIMPLIFIED: Any commit with conventional prefix is from Aider
         is_aider_commit = False
         
-        # Check if commit starts with conventional prefix (feat:, fix:, etc.)
-        # This is the primary indicator for Aider commits
-        if match:
-            prefix = match.group(1).lower()
-            if prefix in aider_prefixes:
+        # Direct string check for conventional prefixes
+        for prefix in aider_prefixes:
+            if subject_lower.startswith(f"{prefix}:"):
                 is_aider_commit = True
                 logger.debug(f"Detected Aider commit with prefix '{prefix}': {subject[:50]}")
-        # Fallback: Try simpler pattern match
-        elif simple_prefix_match := simple_prefix_pattern.match(subject):
-            prefix = simple_prefix_match.group(1).lower()
-            is_aider_commit = True
-            logger.debug(f"Detected Aider commit with simple pattern '{prefix}': {subject[:50]}")
-        # Extra fallback: Direct string check
-        elif any(subject.lower().startswith(f"{prefix}:") for prefix in aider_prefixes):
-            is_aider_commit = True
-            logger.debug(f"Detected Aider commit with direct string check: {subject[:50]}")
+                break
         
         # Fallback: Check author name for "(aider)"
-        elif aider_author_pattern.search(author):
+        if not is_aider_commit and '(aider)' in author.lower():
             is_aider_commit = True
             logger.debug(f"Detected Aider commit by author pattern: {author}")
         
-        # Fallback: Check email for aider indicators
-        elif "aider" in email or "ai-commit" in email or "bot" in email:
-            is_aider_commit = True
-            logger.debug(f"Detected Aider commit by email: {email}")
-
         # Increment Aider count if identified
         if is_aider_commit:
             aider_commits += 1

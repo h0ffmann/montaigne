@@ -175,8 +175,18 @@ class PiperStreamingTTS:
         logger.debug(f"Full text: '{text[:80]}...'")
 
         # Split text into chunks
-        chunks = re.split(r'(?<=[.!?,\n])\s+', text)
+        # Modify the regex to split only on sentence-ending punctuation (.!?) and newlines.
+        # This helps keep comma-separated phrases together, which might be better for repetition.
+        # Original regex: r'(?<=[.!?,\n])\s+'
+        sentence_split_regex = r'(?<=[.!?\n])\s+'
+        logger.debug(f"Splitting text using regex: {sentence_split_regex}")
+        chunks = re.split(sentence_split_regex, text)
+        # Filter out empty strings that might result from splitting
         chunks = [chunk.strip() for chunk in chunks if chunk.strip()]
+        logger.info(f"Split text into {len(chunks)} chunks.")
+        # Log the first few chars of each chunk for debugging
+        for i, chunk in enumerate(chunks):
+            logger.debug(f"  Chunk {i+1}/{len(chunks)}: '{chunk[:50]}...'")
 
         if not chunks:
             logger.warning("Text splitting resulted in no chunks.")

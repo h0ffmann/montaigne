@@ -16,11 +16,12 @@ logging.basicConfig(
 )
 logger = logging.getLogger("montaigne.cli")
 
+
 try:
     from .preprocessing import preprocess_text_for_tts, chunk_text
     # Import engine classes with checks
     from .tts_engine import BaseTTSEngine, XTTSv2Engine, BarkEngine, XTTS_MODEL_NAME
-    from .evaluation import AudioEvaluator
+    from .evaluation import AudioEvaluator # Keep evaluation for batch mode
     from .voice_profiles import list_voice_profiles, get_voice_profile # Keep profile import
     from .audio_utils import concatenate_audio_files, cleanup_files
 except ImportError as e:
@@ -28,7 +29,16 @@ except ImportError as e:
     sys.exit(1)
 
 # Global instances are tricky with multiple engines; maybe lazy load in get function
+# Batch Engine instances
 engine_instances = {}
+
+# --- Add imports and factory for Streaming Engine ---
+try:
+    from .streaming_tts import RealtimeTTSEngine, BaseStreamingEngine, REALTINETTS_AVAILABLE
+except ImportError: # streaming_tts.py might not exist or have issues
+    RealtimeTTSEngine = None # type: ignore
+    BaseStreamingEngine = None # type: ignore
+    REALTINETTS_AVAILABLE = False
 
 def get_tts_engine(engine_type: EngineChoice, use_cuda: bool):
     """Factory function to get or create a TTS engine instance."""
@@ -70,10 +80,12 @@ def cli():
 @click.option('--engine', type=click.Choice([e.value for e in EngineChoice]), default=EngineChoice.XTTS.value, show_default=True, help="Select the TTS engine.")
 @click.option('--voice-profile', type=click.Choice(list_voice_profiles()), help="Use a prebuilt voice profile (XTTS only).")
 @click.option('--speaker-wav', '-s', type=click.Path(exists=True, file_okay=True, dir_okay=False, readable=True, path_type=Path), help="Path to a reference WAV file for voice cloning (XTTS only).")
+# Update help text to clarify youtube ID requires internet
 @click.option('--speaker-youtube-id', help="YouTube Video ID for voice cloning (XTTS only, downloads audio). Mutually exclusive with --speaker-wav and --voice-profile.")
 @click.option('--speaker-prompt', help="Voice prompt for Bark engine (e.g., 'en_speaker_6').")
 @click.option('--text', '-t', help="Text to synthesize directly. Mutually exclusive with --text-file.")
 @click.option('--text-file', '-f', type=click.Path(exists=True, file_okay=True, dir_okay=False, readable=True, resolve_path=True, path_type=Path), help="Path to a text file containing the synthesis text.")
+# Update help text to indicate this is for batch mode
 @click.option('--output-file', '-o', type=click.Path(writable=True, path_type=Path), required=True, help="Path to save the output WAV audio file.")
 @click.option('--language', '-l', default="en", show_default=True, help="Language code (e.g., en, pt). Bark uses this for generic voice selection if --speaker-prompt is not given.")
 @click.option('--speed', type=float, default=1.0, show_default=True, help="Adjust playback speed (XTTS only).")
@@ -303,6 +315,83 @@ def synthesize(
     total_duration = time.time() - start_total_time
     print(f"\n✨ Montaigne ({engine_display_name}) process finished in {total_duration:.2f} seconds.")
     if not synthesis_successful:
+        sys.exit(1)
+
+# --- Add Live TTS Command ---
+@cli.command()
+@click.option('--speaker-wav', '-s', type=click.Path(exists=True, file_okay=True, dir_okay=False, readable=True, path_type=Path), help="Path to speaker WAV for Coqui backend (recommended for quality).")
+@click.option('--voice-profile', type=click.Choice(list_voice_profiles()), help="Use a prebuilt voice profile (maps to --speaker-wav if supported).")
+# Removed youtube ID for live MVP - adds complexity with download sync
+@click.option('--language', '-l', default="en", show_default=True, help="Language code (e.g., en, pt). Affects Coqui backend.")
+@click.option('--cpu', is_flag=True, help="Force CPU for TTS.")
+def live(
+    speaker_wav: Path | None,
+    voice_profile: str | None,
+    language: str,
+    cpu: bool
+):
+    """Starts an interactive live TTS session."""
+    if not REALTINETTS_AVAILABLE:
+        click.echo("❌ RealtimeTTS library is required for live mode but not installed/found.", err=True)
+        sys.exit(1)
+
+    use_cuda = not cpu
+    click.echo(f"🎙️ Starting Montaigne Live TTS Session... (CUDA: {use_cuda})")
+
+    # --- Determine Speaker File for Coqui Backend ---
+    actual_speaker_wav_path: str | Path | None = None
+    speaker_display_name = "System Default" # Assume fallback initially
+
+    # Logic to prefer speaker_wav then voice_profile
+    if speaker_wav:
+         actual_speaker_wav_path = speaker_wav
+         speaker_display_name = f"File: {speaker_wav.name}"
+    elif voice_profile:
+         profile_path = get_voice_profile(voice_profile) # Handles download
+         if profile_path:
+              actual_speaker_wav_path = profile_path
+              speaker_display_name = f"Profile: {voice_profile}"
+         else:
+             # Error logged by get_voice_profile
+             click.echo(f"⚠️ Could not load voice profile '{voice_profile}'. Will attempt fallback.", err=True)
+    # No speaker provided, will attempt fallback within RealtimeTTSEngine
+
+    click.echo(f"Attempting to use speaker: {speaker_display_name}")
+
+    try:
+        engine = get_streaming_engine(use_cuda)
+        # Initialize the specific backend *now* that we have speaker info
+        engine.initialize_engine(speaker_wav=actual_speaker_wav_path, language=language)
+
+        # --- Interactive REPL ---
+        click.echo("\nType text and press Enter to synthesize. Type ':quit' or press Ctrl+C to exit.")
+        while True:
+            try:
+                text = input("> ")
+                if not text.strip():
+                    continue
+                if text.lower() == ':quit':
+                    break
+
+                # Simple preprocessing for the REPL (can be expanded later)
+                processed_text = text.strip() # Basic strip for now
+
+                engine.speak(processed_text) # Let the engine handle playback
+
+            except KeyboardInterrupt:
+                print("\nExiting...")
+                break
+            except EOFError: # Handle Ctrl+D
+                print("\nExiting...")
+                break
+
+        engine.stop() # Clean up the stream
+
+    except Exception as e:
+        logger.exception("Critical error during live TTS session initialization or runtime.")
+        click.echo(f"❌ An unexpected error occurred: {e}", err=True)
+        if 'engine' in locals() and engine is not None:
+             engine.stop() # Attempt cleanup
         sys.exit(1)
 
 if __name__ == "__main__":

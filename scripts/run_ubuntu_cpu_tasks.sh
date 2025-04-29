@@ -13,17 +13,28 @@ fi
 
 echo "🐍 Setting up Python virtual environment (.venv) using UV..."
 command -v uv >/dev/null 2>&1 || { echo "❌ uv command not found! Install uv first (e.g., pip install uv)."; exit 1; }
+# Ensure clean environment if script is rerun
+rm -rf .venv
 uv venv .venv --seed # Create venv
 
-echo "📦 Installing dependencies (CPU-only PyTorch) into .venv using system uv..."
+echo "📦 Installing dependencies (CPU-only PyTorch & montaigne package) into .venv using system uv..."
 # Use the system 'uv' command and point it to the venv's Python interpreter
+
+# 1. Install PyTorch CPU first
+echo "   Installing PyTorch CPU..."
+uv pip install --python .venv/bin/python \
+    torch==2.1.2 torchaudio==2.1.2 --extra-index-url https://download.pytorch.org/whl/cpu
+
+# 2. Install the montaigne package from the packages directory editably.
+#    This ensures its modules are found and pulls in its specific dependencies.
+#    Add any other direct dependencies needed at the top level if required (like numpy/scipy if not already pulled).
+echo "   Installing montaigne package and dependencies..."
 uv pip install --python .venv/bin/python \
     numpy pandas scipy \
-    -e .
-uv pip install --python .venv/bin/python \
-    torch==2.1.2 torchaudio==2.1.2 --extra-index-url https://download.pytorch.org/whl/cpu \
-    -e .
+    -e ./packages/montaigne # <-- Install the specific package editably
 
+# Note: We removed the '-e .' which installed the root workspace.
+# We now explicitly install the required member '-e ./packages/montaigne'.
 
 echo "✨ Running TTS synthesis with CPU using uv run..."
 # Force CPU mode via env vars and use 'uv run' to execute within the venv
@@ -45,9 +56,17 @@ uv run python -m montaigne.main synthesize \
     --output-file output/bark_ubuntu_test.wav
 
 echo "👾 Generate repomix output using uv run..."
-# Ensure repomix is installed in the venv first if not globally available
-echo "   (Skipping repomix install check - ensure it's installed in venv or globally if needed)"
+# Ensure repomix is installed. You might need to add it to dependencies or install separately.
+# For now, assuming it might be installed globally or handled elsewhere.
 # Example: uv pip install --python .venv/bin/python repomix
-# uv run python -m repomix . # Assuming repomix installed as module
+# Check if command exists in venv before running (optional)
+# if uv run --quiet command -v repomix > /dev/null; then
+#    echo "   Running repomix..."
+#    uv run repomix . # Assuming repomix installed as module/script
+# else
+#    echo "   Skipping repomix generation (command not found in venv)."
+# fi
+echo "   (Skipping repomix generation for now)"
+
 
 echo "✅ TTS tasks completed successfully in CPU-only mode! Activate env with: source .venv/bin/activate"

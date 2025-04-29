@@ -357,7 +357,8 @@ def synthesize(
         sys.exit(1)
 
     click.echo(
-        f"🎙️ Starting synthesis with {engine_display_name} for {len(processed_chunks)} chunks (Lang: {language}, Speaker: {speaker_display_name})..."
+        f"🎙️ Starting synthesis with {engine_display_name} for {len(processed_chunks)} chunks "
+        f"(Lang: {language}, Speaker: {speaker_display_name})..."
     )
 
     for i, chunk_text_processed in enumerate(processed_chunks):

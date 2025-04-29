@@ -390,27 +390,47 @@ mix:
     @repomix .
 
 # === Workspace Management ===
-workspace_install:
-    @echo "📦 Installing all workspace packages in development mode..."
-    @uv pip install -e .
-
-workspace_add_pkg NAME:
-    @echo "📦 Creating new package {{NAME}} in workspace..."
-    @mkdir -p packages/{{NAME}}/src/{{NAME}}
-    @touch packages/{{NAME}}/src/{{NAME}}/__init__.py
-    @echo '''[project]
-name = "{{NAME}}"
-version = "0.1.0"
-description = "Add description here"
-authors = [{ name = "Matheus Hoffmann", email = "hoffmann@poli.ufrj.br" }]
-requires-python = ">=3.11,<3.12"
-dependencies = []
-
-[build-system]
-requires = ["setuptools>=61.0"]
-build-backend = "setuptools.build_meta"
-''' > packages/{{NAME}}/pyproject.toml
-    @echo "✅ Package {{NAME}} created. Run \"uv pip install -e .\" to update workspace."
+#workspace_install:
+#    @echo "📦 Installing all workspace packages in development mode..."
+#    @uv pip install -e .
+#
+#workspace_add_pkg NAME:
+#    @echo "📦 Creating new package {{NAME}} in workspace..."
+#    @mkdir -p packages/{{NAME}}/src/{{NAME}}
+#    @touch packages/{{NAME}}/src/{{NAME}}/__init__.py
+#    @echo '''[project]
+#name = "{{NAME}}"
+#version = "0.1.0"
+#description = "Add description here"
+#authors = [{ name = "Matheus Hoffmann", email = "hoffmann@poli.ufrj.br" }]
+#requires-python = ">=3.11,<3.12"
+#dependencies = []
+#
+#[build-system]
+#requires = ["setuptools>=61.0"]
+#build-backend = "setuptools.build_meta"
+#''' > packages/{{NAME}}/pyproject.toml
+#    @echo "✅ Package {{NAME}} created. Run \"uv pip install -e .\" to update workspace."workspace_install:
+#    @echo "📦 Installing all workspace packages in development mode..."
+#    @uv pip install -e .
+#
+#workspace_add_pkg NAME:
+#    @echo "📦 Creating new package {{NAME}} in workspace..."
+#    @mkdir -p packages/{{NAME}}/src/{{NAME}}
+#    @touch packages/{{NAME}}/src/{{NAME}}/__init__.py
+#    @echo '''[project]
+#name = "{{NAME}}"
+#version = "0.1.0"
+#description = "Add description here"
+#authors = [{ name = "Matheus Hoffmann", email = "hoffmann@poli.ufrj.br" }]
+#requires-python = ">=3.11,<3.12"
+#dependencies = []
+#
+#[build-system]
+#requires = ["setuptools>=61.0"]
+#build-backend = "setuptools.build_meta"
+#''' > packages/{{NAME}}/pyproject.toml
+#    @echo "✅ Package {{NAME}} created. Run \"uv pip install -e .\" to update workspace."
 
 # === Ubuntu TTS Tasks (CPU-Only, No Nix/Flake required) ===
 run_tts_tasks_ubuntu_cpu:

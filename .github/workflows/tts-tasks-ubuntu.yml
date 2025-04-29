@@ -1,0 +1,134 @@
+name: Run TTS Tasks (Ubuntu - CPU Only)
+
+on:
+  push:
+    branches:
+      - master
+      - feat/ci-tts-ubuntu
+  pull_request:
+    branches:
+      - master
+  workflow_dispatch:
+    inputs:
+      debug_enabled:
+        description: 'Run with tmate debugging enabled (bool)'
+        required: false
+        default: false
+        type: boolean
+
+jobs:
+  lint-and-check:
+    name: Lint and Check Code
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+      
+      - name: Setup Python 3.11
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.11'
+          cache: 'pip'
+      
+      - name: Install UV
+        uses: astral-sh/setup-uv@v6
+        with:
+          version: "0.6.17"
+          enable-cache: true
+      
+      - name: Install linting dependencies
+        run: uv pip install ruff==0.11.7
+      
+      - name: Run Ruff linter
+        run: |
+          echo "Running Ruff linter checks..."
+          ruff check packages/
+      
+      - name: Run Ruff formatter check
+        run: |
+          echo "Running Ruff formatter checks..."
+          ruff format --check packages/
+      
+      - name: Lint Dockerfile
+        run: |
+          echo "Installing Hadolint..."
+          curl -sL -o /tmp/hadolint "https://github.com/hadolint/hadolint/releases/latest/download/hadolint-Linux-x86_64"
+          chmod +x /tmp/hadolint
+          echo "Running Hadolint on Dockerfile..."
+          /tmp/hadolint Dockerfile
+
+  run-tts-on-ubuntu:
+    name: Run TTS Tasks
+    needs: lint-and-check
+    runs-on: ubuntu-latest
+    env:
+      # Ensure CPU-only mode for PyTorch/TTS
+      CUDA_VISIBLE_DEVICES: ""
+      USE_CUDA: "0"
+      FORCE_CPU: "1"
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+      
+      - name: Setup Python 3.11
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.11'
+          cache: 'pip'
+      
+      - name: Install system dependencies
+        run: |
+          sudo apt-get update
+          # Install system-level dependencies (no CUDA libraries)
+          sudo apt-get install -y --no-install-recommends \
+            ffmpeg \
+            libsndfile1 \
+            libportaudio2 \
+            libasound2-dev \
+            libgl1 \
+            build-essential \
+            pkg-config
+      
+      - name: Install UV
+        uses: astral-sh/setup-uv@v6
+        with:
+          version: "0.6.17"  # Match the version used in Dockerfile
+          enable-cache: true # Enable caching for faster runs
+      
+      - name: Install Just
+        uses: extractions/setup-just@v2
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      
+      - name: Run TTS Tasks via Just (CPU-only)
+        run: just run_tts_tasks_ubuntu_cpu
+        
+      - name: Upload Artifacts
+        uses: actions/upload-artifact@v3
+        if: always()
+        with:
+          name: tts-outputs
+          path: |
+            output/*.wav
+            repomix-output.md
+          retention-days: 7
+          
+      - name: Setup tmate session for debugging
+        if: failure() && inputs.debug_enabled == 'true'
+        uses: mxschmitt/action-tmate@v3
+        timeout-minutes: 15
+      
+      - name: Upload Artifacts
+        uses: actions/upload-artifact@v3
+        if: always()
+        with:
+          name: tts-outputs
+          path: |
+            output/*.wav
+            repomix-output.md
+          retention-days: 7
+          
+      - name: Setup tmate session for debugging
+        if: failure() && inputs.debug_enabled == 'true'
+        uses: mxschmitt/action-tmate@v3
+        timeout-minutes: 15

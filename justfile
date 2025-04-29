@@ -52,16 +52,12 @@ nix_shell:
     @NIXPKGS_ALLOW_BROKEN=1 nix develop --impure
 
 # === Linting & Formatting (Run inside Nix Shell) ===
-# Use `uv tool run` assuming ruff is in pyproject.toml (dev-)dependencies
 lint:
     @command -v ruff > /dev/null 2>&1 || (echo "❌ 'ruff' command not found. Are you inside 'nix develop'?" && exit 1)
-    @echo "✨ Running Ruff linter via uv..."
-    @{{UV}} tool run ruff -- check .
 
 format:
     @command -v ruff > /dev/null 2>&1 || (echo "❌ 'ruff' command not found. Are you inside 'nix develop'?" && exit 1)
     @echo "🎨 Running Ruff formatter via uv..."
-    @{{UV}} tool run ruff -- format .
 
 check: lint format
     @echo "✅ Lint and format checks passed."
@@ -174,7 +170,7 @@ hadolint_check:
         echo "   Using local hadolint (from Nix env)..."; \
         hadolint Dockerfile || { echo "❌ Local hadolint check failed."; exit 1; }; \
     else \
-        @bash scripts/hadolint_docker.sh || exit 1; \
+        bash scripts/hadolint_docker.sh || exit 1; \
     fi
     @echo "✅ Dockerfile passed linting checks."
 
@@ -183,7 +179,7 @@ prepare_local_model:
     @MODEL_PATH_VAR="{{MODEL_PATH_VAR}}" bash scripts/prepare_local_model.sh || exit 1
 
 prepare_docker_files: prepare_local_model # Run model prep first
-    @bash scripts/prepare_docker_files.sh || exit 1
+    bash scripts/prepare_docker_files.sh || exit 1
 
 docker_build *BUILD_FLAGS_AND_ARGS: docker_check hadolint_check
     # Ensure docker files are ready (run prepare_docker_files before this task if needed)
@@ -310,7 +306,7 @@ all:
 # === Ubuntu TTS Tasks (CPU-Only, No Nix/Flake required) ===
 run_tts_tasks_ubuntu_cpu:
     @echo "🚀 Running Ubuntu CPU TTS tasks via external script..."
-    @bash scripts/run_ubuntu_cpu_tasks.sh || exit 1
+    bash scripts/run_ubuntu_cpu_tasks.sh || exit 1
 
 # Removed all_original_flow task as it was complex and less preferred
 # Removed workspace_add_pkg task

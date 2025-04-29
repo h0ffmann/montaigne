@@ -268,6 +268,11 @@ mix:
     # Alternative: @{{UV}} tool run repomix -- .
     @echo "✅ Repomix generated."
 
+# === Individual TTS Tasks (Run inside Nix Shell) ===
+# These are called by run_nix_tts_tasks or the 'all' pipeline script
+run_nix_tts_tasks: prepare_dirs xtts bark yt
+    @echo "✅ All Nix TTS tasks completed."
+
 # === Main Pipeline (Refactored - Recommended) ===
 all:
     @echo "🚀 Starting Montaigne TTS CI Pipeline (Refactored Flow)..."

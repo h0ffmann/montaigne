@@ -212,14 +212,9 @@
                fi
                echo "🏗️ Installing local Montaigne package in editable mode into venv..."
 
-               # Add PortAudio library path to LD_LIBRARY_PATH for sounddevice
-               # The ${LD_LIBRARY_PATH:+:} syntax ensures a colon is only added if LD_LIBRARY_PATH was already set
-               echo "🔊 Adding PortAudio to LD_LIBRARY_PATH for audio playback..."
-               # Use makeLibraryPath for robustness and escape $ for shell
-               export LD_LIBRARY_PATH="${pkgs.lib.makeLibraryPath [ pkgs.portaudio ]}''${LD_LIBRARY_PATH:+:}''$LD_LIBRARY_PATH"
-               echo "   Current LD_LIBRARY_PATH includes:"
-               echo "   - ${pkgs.lib.makeLibraryPath [ pkgs.portaudio ]}" # Show the actual path added
-               echo "   This enables runtime loading of libportaudio.so.2 by sounddevice"
+               # NOTE: Explicit addition of PortAudio to LD_LIBRARY_PATH removed from shellHook.
+               # It's already included via `env.LD_LIBRARY_PATH = runtimeLibPath;`
+               # where `runtimeLibPath` includes `portaudio`.
 
                # Using -e attempts to install deps from pyproject.toml again.
                # Let's try --no-deps first to strictly avoid reinstalling Nix packages.

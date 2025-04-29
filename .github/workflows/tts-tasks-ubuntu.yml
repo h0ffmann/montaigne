@@ -52,7 +52,7 @@ jobs:
         run: |
           echo "Generating new lock file (--quiet) to compare..."
           # Generate quietly into a temporary file
-          uv pip lock --quiet --python python3 -o uv.lock.generated || { echo "❌ Failed to generate lock file with uv"; exit 1; } # Added --quiet
+          uv pip compile --quiet --python python3 -o uv.lock.generated || { echo "❌ Failed to generate lock file with uv"; exit 1; } # Added --quiet
 
           echo "Comparing existing uv.lock with the generated lock file..."
           # Compare quietly first (-q). If different (exit code != 0), show the diff and fail.

@@ -352,3 +352,6 @@ all:
       (echo "❌ Docker test run failed." && exit 1) # Exit on test failure
 
     @echo "✅ All tasks completed successfully!"
+
+mix:
+    @repomix . --output repo-content.txt

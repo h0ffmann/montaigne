@@ -20,8 +20,13 @@ dependencies = [
     # --- Potentially required by Bark/Whisper/TTS, ensure presence ---
     # Nix should ideally provide torch, torchaudio, numpy, pandas, scipy
     # Ensure HF libraries are present if not pulled by TTS/Bark
+    # "realtimetts>=0.3.1", # REMOVED - Using piper-tts directly
+    "sounddevice>=0.4.5",
+    "numpy>=1.20.0",
+    "piper-tts>=1.2.0",   # Keep for direct usage
     "transformers>=4.0.0",
     "accelerate>=0.20.0",
+    "huggingface-hub>=0.20.0", # For downloading models
 ]
 
 [project.optional-dependencies]

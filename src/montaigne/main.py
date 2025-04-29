@@ -16,11 +16,14 @@ logging.basicConfig(
 )
 logger = logging.getLogger("montaigne.cli")
 
+
 try:
     from .preprocessing import preprocess_text_for_tts, chunk_text
     # Import engine classes with checks
     from .tts_engine import BaseTTSEngine, XTTSv2Engine, BarkEngine, XTTS_MODEL_NAME
-    from .evaluation import AudioEvaluator
+    # Import the new Piper-based streaming engine (now PiperStreamingTTS)
+    from .streaming_tts import PiperStreamingTTS, run_interactive_prompt, PIPER_AVAILABLE, SOUNDDEVICE_AVAILABLE # Import new class and checks
+    from .evaluation import AudioEvaluator # Keep evaluation for batch mode
     from .voice_profiles import list_voice_profiles, get_voice_profile # Keep profile import
     from .audio_utils import concatenate_audio_files, cleanup_files
 except ImportError as e:
@@ -28,10 +31,14 @@ except ImportError as e:
     sys.exit(1)
 
 # Global instances are tricky with multiple engines; maybe lazy load in get function
+# Batch Engine instances
 engine_instances = {}
 
+# Streaming Engine (PiperStreamingTTS) is instantiated directly in the 'live' command now
+# No factory needed here. Checks PIPER_AVAILABLE and SOUNDDEVICE_AVAILABLE are imported above.
+
 def get_tts_engine(engine_type: EngineChoice, use_cuda: bool):
-    """Factory function to get or create a TTS engine instance."""
+    """Factory function to get or create a Batch TTS engine instance."""
     engine_key = (engine_type, use_cuda)
     if engine_key not in engine_instances:
         logger.info(f"Initializing TTS Engine ({engine_type.value})...")
@@ -50,12 +57,12 @@ def get_tts_engine(engine_type: EngineChoice, use_cuda: bool):
              sys.exit(1) # Exit if engine init fails
     return engine_instances[engine_key]
 
-
+# No global streaming engine instance needed anymore.
 # Evaluator instance can remain global or follow similar pattern if needed later
 evaluator_instance = None
 
 def get_evaluator(use_cuda: bool):
-    global evaluator_instance
+    global evaluator_instance # Keep evaluator logic for batch synthesize command
     if evaluator_instance is None:
         logger.info("Initializing Audio Evaluator (Whisper)...")
         evaluator_instance = AudioEvaluator(use_cuda=use_cuda)
@@ -70,10 +77,12 @@ def cli():
 @click.option('--engine', type=click.Choice([e.value for e in EngineChoice]), default=EngineChoice.XTTS.value, show_default=True, help="Select the TTS engine.")
 @click.option('--voice-profile', type=click.Choice(list_voice_profiles()), help="Use a prebuilt voice profile (XTTS only).")
 @click.option('--speaker-wav', '-s', type=click.Path(exists=True, file_okay=True, dir_okay=False, readable=True, path_type=Path), help="Path to a reference WAV file for voice cloning (XTTS only).")
+# Update help text to clarify youtube ID requires internet
 @click.option('--speaker-youtube-id', help="YouTube Video ID for voice cloning (XTTS only, downloads audio). Mutually exclusive with --speaker-wav and --voice-profile.")
 @click.option('--speaker-prompt', help="Voice prompt for Bark engine (e.g., 'en_speaker_6').")
 @click.option('--text', '-t', help="Text to synthesize directly. Mutually exclusive with --text-file.")
 @click.option('--text-file', '-f', type=click.Path(exists=True, file_okay=True, dir_okay=False, readable=True, resolve_path=True, path_type=Path), help="Path to a text file containing the synthesis text.")
+# Update help text to indicate this is for batch mode
 @click.option('--output-file', '-o', type=click.Path(writable=True, path_type=Path), required=True, help="Path to save the output WAV audio file.")
 @click.option('--language', '-l', default="en", show_default=True, help="Language code (e.g., en, pt). Bark uses this for generic voice selection if --speaker-prompt is not given.")
 @click.option('--speed', type=float, default=1.0, show_default=True, help="Adjust playback speed (XTTS only).")
@@ -303,6 +312,73 @@ def synthesize(
     total_duration = time.time() - start_total_time
     print(f"\n✨ Montaigne ({engine_display_name}) process finished in {total_duration:.2f} seconds.")
     if not synthesis_successful:
+        sys.exit(1)
+
+# --- Live TTS Command (Using PiperStreamingTTS with HF Download) ---
+@cli.command()
+@click.option('--piper-voice', '-v', default="en_US-amy-low", show_default=True, help="Piper voice model name from Hugging Face (e.g., 'en_US-amy-low', 'pt_BR-faber-low').")
+@click.option('--file', '-f', type=click.File('r'), default=None, help="Read text line-by-line from FILE instead of interactive input. Use '-' for stdin.")
+# Output dir option removed as the new class doesn't support chunk saving easily
+# @click.option('--output-dir', '-o', type=click.Path(file_okay=False, dir_okay=True, writable=True, path_type=Path), default=None, help="Directory to save generated audio chunks (timestamped WAV files).")
+@click.option('--cpu', is_flag=True, help="Prefer CPU for Piper TTS (onnxruntime might still choose GPU).")
+def live(
+    piper_voice: str,
+    file: click.File | None,
+    # output_dir: Path | None, # Removed
+    cpu: bool
+):
+    """Starts a live TTS session using Piper, downloading the specified voice."""
+
+    # Checks for library availability are done inside PiperStreamingTTS constructor now
+    use_cuda = not cpu
+    click.echo(f"🎙️ Starting Montaigne Live TTS Session (Piper Engine - HF, CUDA Pref: {use_cuda})...")
+
+    # if output_dir: # Removed output dir logic
+    #     output_dir.mkdir(parents=True, exist_ok=True)
+    #     click.echo(f"Saving audio chunks to: {output_dir.resolve()}")
+    if file:
+        click.echo(f"Reading input from: {'stdin' if file.name == '-' else file.name}")
+
+    engine: PiperStreamingTTS | None = None # Define engine variable before try block
+    try:
+        # Initialize the Piper engine instance
+        logger.info("Initializing Piper Streaming TTS Engine...")
+        engine = PiperStreamingTTS(use_cuda=use_cuda)
+
+        # Load the specified model
+        click.echo(f"Loading Piper voice model: {piper_voice}...")
+        if not engine.load_model(voice_name=piper_voice):
+             click.echo(f"❌ Failed to load Piper voice model '{piper_voice}'. Check logs.", err=True)
+             sys.exit(1)
+
+        # --- Input Loop (File or REPL) ---
+        if file:
+            click.echo("\nProcessing file line by line...")
+            for line in file:
+                processed_text = line.strip()
+                if not processed_text:
+                    continue
+                click.echo(f"Synthesizing: '{processed_text[:80]}...'")
+                if not engine.speak(processed_text):
+                     click.echo(f"⚠️ Warning: Failed to synthesize/play line: '{processed_text[:80]}...'", err=True)
+                # speak() method now blocks until playback is finished
+            click.echo("\nFile processing finished.")
+        else:
+            # Interactive REPL - use the dedicated function from streaming_tts
+            # Pass None for output_dir as it's no longer used
+            run_interactive_prompt(engine, None)
+
+        # Stop is handled by run_interactive_prompt or implicitly at end of file processing
+
+    except RuntimeError as e:
+         # Catch specific RuntimeErrors from constructor (missing libs)
+         click.echo(f"❌ Initialization Error: {e}", err=True)
+         sys.exit(1)
+    except Exception as e:
+        logger.exception("Critical error during live TTS session initialization or runtime.")
+        click.echo(f"❌ An unexpected error occurred: {e}", err=True)
+        if engine:
+             engine.stop() # Attempt cleanup if engine was initialized
         sys.exit(1)
 
 if __name__ == "__main__":

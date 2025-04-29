@@ -7,6 +7,7 @@ from datetime import datetime
 import numpy as np
 from typing import Optional
 import re # For sentence splitting in stream_speak
+import uuid # For session IDs
 
 # Import sounddevice safely
 try:
@@ -108,116 +109,150 @@ class PiperStreamingTTS:
                  logger.error("Is the piper-tts library installed correctly?")
             return False
 
-    def speak(self, text: str) -> bool:
-        """Synthesize and play speech using Piper TTS."""
+    def _synthesize_chunk_to_temp(self, text: str) -> Optional[Path]:
+        """Synthesizes a text chunk to a temporary WAV file and returns its path."""
+        if not self.voice_model:
+            logger.error("No voice model loaded.")
+            return None
+
+        logger.debug(f"Synthesizing chunk to temp: '{text[:50]}...'")
+        start_time = time.time()
+        temp_file_obj = None
+        temp_path = None
+
+        try:
+            # Import necessary modules locally
+            import wave
+            import tempfile
+            import os
+
+            # Create a temporary WAV file that persists after closing
+            temp_file_obj = tempfile.NamedTemporaryFile(suffix=".wav", delete=False)
+            temp_path = Path(temp_file_obj.name)
+            temp_file_obj.close() # Close the file handle immediately
+
+            # Open the WAV file for writing using the wave module
+            with wave.open(str(temp_path), 'wb') as wav_file:
+                wav_file.setnchannels(1)
+                wav_file.setsampwidth(2)
+                wav_file.setframerate(self.sample_rate)
+                # Synthesize directly to the WAV file object
+                self.voice_model.synthesize(text, wav_file)
+
+            synth_end_time = time.time()
+            logger.debug(f"Chunk synthesized to {temp_path.name} in {synth_end_time - start_time:.2f}s")
+            return temp_path
+
+        except wave.Error as e:
+             logger.error(f"Error configuring/writing temp WAV {temp_path.name if temp_path else 'N/A'}: {e}", exc_info=True)
+             # Clean up if temp file was created
+             if temp_path and temp_path.exists():
+                 try: os.unlink(temp_path)
+                 except OSError: pass
+             return None
+        except Exception as e:
+            logger.exception(f"Error during chunk synthesis to temp file {temp_path.name if temp_path else 'N/A'}")
+             # Clean up if temp file was created
+            if temp_path and temp_path.exists():
+                 try: os.unlink(temp_path)
+                 except OSError: pass
+            return None
+        # Note: No finally block here to delete the file, caller (stream_speak) is responsible
+
+    def stream_speak(self, text: str, session_id: uuid.UUID, output_dir: Path, prompt_count: int) -> bool:
+        """
+        Stream speech by breaking text into chunks, synthesizing each to a temp file,
+        concatenating them, saving the final output, playing it, and cleaning up temps.
+        """
         if not self.voice_model:
             logger.error("No voice model loaded. Call load_model() first.")
             return False
-        if not sd: # Should have been checked in __init__, but double-check
+        if not sd:
             logger.error("Sounddevice not available. Cannot play audio.")
             return False
 
-        logger.debug(f"Synthesizing text with Piper ({self.voice_name}): '{text[:50]}...'")
-        start_time = time.time()
-        temp_path = None # Initialize path for cleanup in finally block
+        logger.info(f"Starting stream_speak for prompt {prompt_count} (Session: {session_id})")
+        logger.debug(f"Full text: '{text[:80]}...'")
 
-        try:
-            # Import necessary modules locally for this method's logic
-            import wave
-            import tempfile
-            import soundfile as sf # Use soundfile for reading back
-            import os
-
-            # Create a temporary WAV file
-            # Using delete=False and manual cleanup is safer across platforms
-            with tempfile.NamedTemporaryFile(suffix=".wav", delete=False) as temp_file:
-                temp_path = temp_file.name
-            # temp_file is now closed, but the file persists at temp_path
-
-            # Open the WAV file for writing using the wave module
-            with wave.open(temp_path, 'wb') as wav_file:
-                # Configure WAV parameters (16-bit mono at sample rate)
-                wav_file.setnchannels(1)  # Mono
-                wav_file.setsampwidth(2)  # 16-bit (2 bytes)
-                wav_file.setframerate(self.sample_rate)  # Sample rate from model
-
-                # Now synthesize directly to the WAV file object
-                logger.info(f"Synthesizing text to temporary file: {temp_path}")
-                self.voice_model.synthesize(text, wav_file)
-                # wave file is automatically closed by 'with' statement
-
-            synth_end_time = time.time()
-            logger.debug(f"Piper synthesis to file took {synth_end_time - start_time:.2f}s")
-
-            # Read back the audio data from the temporary file using soundfile
-            logger.info(f"Reading audio from {temp_path} for playback...")
-            # soundfile automatically detects sample rate, but good to verify
-            audio_data, read_sr = sf.read(temp_path, dtype='float32') # Read as float32 for sounddevice
-            if read_sr != self.sample_rate:
-                 logger.warning(f"Sample rate mismatch! Model: {self.sample_rate}, Read file: {read_sr}. Using read rate.")
-                 play_rate = read_sr
-            else:
-                 play_rate = self.sample_rate
-
-            # Play audio using sounddevice
-            logger.debug(f"Playing audio ({len(audio_data)/play_rate:.2f}s) via sounddevice...")
-            sd.play(audio_data, play_rate)
-            sd.wait() # Wait for playback to finish
-            play_end_time = time.time()
-            logger.debug(f"Playback finished (duration: {play_end_time - synth_end_time:.2f}s)")
-
-            return True
-
-        except wave.Error as e:
-             logger.error(f"Error configuring or writing WAV file: {e}", exc_info=True)
-             print(f"❌ Error handling WAV file: {e}", file=sys.stderr)
-             return False
-        except sf.SoundFileError as e:
-             logger.error(f"Error reading back temporary WAV file: {e}", exc_info=True)
-             print(f"❌ Error reading audio file: {e}", file=sys.stderr)
-             return False
-        except Exception as e:
-            logger.exception(f"Error during Piper synthesis or playback")
-            print(f"❌ Error generating or playing speech: {e}", file=sys.stderr)
-            return False
-        finally:
-            # Clean up the temporary file
-            if temp_path and os.path.exists(temp_path):
-                try:
-                    logger.debug(f"Cleaning up temporary file: {temp_path}")
-                    os.unlink(temp_path)
-                except OSError as e:
-                    logger.error(f"Failed to delete temporary file {temp_path}: {e}")
-
-    def stream_speak(self, text: str) -> bool:
-        """Stream speech by breaking text into chunks (sentences) and processing sequentially."""
-        if not self.voice_model:
-            logger.error("No voice model loaded. Call load_model() first.")
-            return False
-
-        logger.info(f"Starting stream_speak for text: '{text[:50]}...'")
-        # Split text into sentences/clauses using regex (handles ., !, ?, and , followed by space/end)
-        # This provides a more 'streaming' feel for interactive input with commas.
-        chunks = re.split(r'(?<=[.!?,\n])\s+', text) # Added comma and newline to split points
+        # Split text into chunks
+        # Modify the regex to split only on sentence-ending punctuation (.!?) and newlines.
+        # This helps keep comma-separated phrases together, which might be better for repetition.
+        # Original regex: r'(?<=[.!?,\n])\s+'
+        sentence_split_regex = r'(?<=[.!?\n])\s+'
+        logger.debug(f"Splitting text using regex: {sentence_split_regex}")
+        chunks = re.split(sentence_split_regex, text)
         # Filter out empty strings that might result from splitting
         chunks = [chunk.strip() for chunk in chunks if chunk.strip()]
+        logger.info(f"Split text into {len(chunks)} chunks.")
+        # Log the first few chars of each chunk for debugging
+        for i, chunk in enumerate(chunks):
+            logger.debug(f"  Chunk {i+1}/{len(chunks)}: '{chunk[:50]}...'")
 
         if not chunks:
             logger.warning("Text splitting resulted in no chunks.")
-            return True # No error, just nothing to speak
+            return True
 
-        all_successful = True
+        temp_chunk_files: list[Path] = []
+        all_chunks_synthesized = True
+
+        # Synthesize each chunk to a temporary file
         for i, chunk in enumerate(chunks):
-            logger.info(f"Processing chunk {i+1}/{len(chunks)}: '{chunk[:40]}...'")
-            success = self.speak(chunk)
-            if not success:
-                logger.error(f"Failed to speak chunk {i+1}. Continuing with next chunks...")
-                all_successful = False
-            # Optional: Add a small delay between chunks if needed?
-            # time.sleep(0.1)
+            logger.info(f"Synthesizing chunk {i+1}/{len(chunks)} for prompt {prompt_count}...")
+            temp_path = self._synthesize_chunk_to_temp(chunk)
+            if temp_path and temp_path.exists():
+                temp_chunk_files.append(temp_path)
+            else:
+                logger.error(f"Failed to synthesize chunk {i+1}. Aborting stream for this prompt.")
+                all_chunks_synthesized = False
+                break # Stop processing chunks for this prompt if one fails
 
-        logger.info("Finished stream_speak.")
-        return all_successful
+        # Proceed only if all chunks were synthesized and we have temp files
+        # Construct the new filename including the voice name
+        voice_name_part = self.voice_name if self.voice_name else "unknown_voice"
+        final_output_path = output_dir / f"live_piper_{voice_name_part}_{session_id}_{prompt_count}.wav"
+        concatenation_successful = False
+        playback_successful = False
+
+        if all_chunks_synthesized and temp_chunk_files:
+            logger.info(f"Concatenating {len(temp_chunk_files)} chunks into {final_output_path.name}...")
+            # Import concatenation utils here
+            from .audio_utils import concatenate_audio_files, cleanup_files
+            import soundfile as sf # Needed for reading final file for playback
+
+            concatenation_successful = concatenate_audio_files(temp_chunk_files, final_output_path)
+
+            if concatenation_successful and final_output_path.exists():
+                logger.info(f"Playing concatenated audio: {final_output_path.name}")
+                try:
+                    audio_data, read_sr = sf.read(str(final_output_path), dtype='float32')
+                    if read_sr != self.sample_rate:
+                         logger.warning(f"Sample rate mismatch! Model: {self.sample_rate}, Final file: {read_sr}. Using file rate.")
+                         play_rate = read_sr
+                    else:
+                         play_rate = self.sample_rate
+                    sd.play(audio_data, play_rate)
+                    sd.wait()
+                    playback_successful = True
+                    logger.info("Playback finished.")
+                except sf.SoundFileError as e:
+                    logger.error(f"Error reading final audio file {final_output_path.name} for playback: {e}", exc_info=True)
+                except Exception as e:
+                    logger.exception(f"Error during playback of {final_output_path.name}")
+            else:
+                logger.error(f"Concatenation failed or final file missing: {final_output_path.name}")
+        else:
+             logger.error("Not all chunks were synthesized successfully, skipping concatenation and playback.")
+
+        # Clean up temporary chunk files regardless of success/failure
+        if temp_chunk_files:
+            logger.info(f"Cleaning up {len(temp_chunk_files)} temporary chunk files...")
+            from .audio_utils import cleanup_files # Re-import locally if needed
+            cleanup_files(temp_chunk_files)
+
+        logger.info(f"Finished stream_speak for prompt {prompt_count}.")
+        # Return True if concatenation and playback were successful
+        return concatenation_successful and playback_successful
+
 
     def stop(self):
         """Stops any ongoing audio playback via sounddevice."""
@@ -231,24 +266,21 @@ class PiperStreamingTTS:
 
 
 # --- Interactive Prompt Functionality ---
-# Needs to be adapted for the new PiperStreamingTTS class
 
-def run_interactive_prompt(engine: PiperStreamingTTS, output_dir: Optional[Path] = None):
-    """Run an interactive prompt that converts text to speech using Piper."""
-    # Note: The new class doesn't support saving chunks directly.
-    # This function could be adapted to save the *entire* synthesized audio if needed,
-    # but the primary use case here is live playback.
-    if output_dir:
-        logger.warning("Saving audio chunks is not directly supported by PiperStreamingTTS in this implementation.")
+def run_interactive_prompt(engine: PiperStreamingTTS, session_id: uuid.UUID, output_dir: Path):
+    """Run an interactive prompt that converts text to speech using Piper and saves output."""
 
     print("🎙️ Montaigne Real-time TTS (Piper Engine - HF Download)")
+    print(f"   Session ID: {session_id}")
+    print(f"   Saving to: {output_dir}")
     if engine.voice_name:
         print(f"   Voice: {engine.voice_name}")
     else:
         print("   Voice: (Not loaded yet)")
-    print("Type text and press Enter to hear it spoken.")
+    print("Type text and press Enter to hear it spoken and saved.")
     print("Type ':quit' to exit.")
 
+    prompt_count = 0
     while True:
         try:
             text = input("> ")
@@ -257,11 +289,12 @@ def run_interactive_prompt(engine: PiperStreamingTTS, output_dir: Optional[Path]
             if text.lower() == ':quit':
                 break
 
+            prompt_count += 1
             # Simple preprocessing for the REPL (can be expanded later)
             processed_text = text.strip() # Basic strip for now
 
-            # Use stream_speak for a potentially better experience with longer inputs
-            engine.stream_speak(processed_text)
+            # Use stream_speak, passing session info for saving
+            engine.stream_speak(processed_text, session_id, output_dir, prompt_count)
 
         except KeyboardInterrupt:
             print("\nExiting...")

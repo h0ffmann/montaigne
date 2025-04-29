@@ -158,7 +158,7 @@ montaigne live --piper-voice VOICE_NAME [--file INPUT_TXT | INTERACTIVE] [--cpu]
 
 2.  **Interactive session with a specific Portuguese voice:**
     ```bash
-    montaigne live --piper-voice pt_BR-faber-low
+    montaigne live --piper-voice pt_BR-faber-medium
     ```
 
 3.  **Read from a file:**

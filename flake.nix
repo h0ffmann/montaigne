@@ -280,6 +280,10 @@
             echo "   which python         # Verify venv Python path ($(command -v python))"
             echo "   uv pip list          # List venv packages"
             echo ""
+            # --- Final LD_LIBRARY_PATH Check ---
+            echo "🔧 Final LD_LIBRARY_PATH value:"
+            echo "   $LD_LIBRARY_PATH"
+            echo "================================"; echo ""
           ''; # End of shellHook definition
         }; # End of mkShell definition
 

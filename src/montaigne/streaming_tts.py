@@ -196,9 +196,9 @@ class PiperStreamingTTS:
             return False
 
         logger.info(f"Starting stream_speak for text: '{text[:50]}...'")
-        # Split text into sentences using regex (handles ., !, ? followed by space/end)
-        # Keep the delimiters with the sentence for potentially better prosody.
-        chunks = re.split(r'(?<=[.!?])\s+', text)
+        # Split text into sentences/clauses using regex (handles ., !, ?, and , followed by space/end)
+        # This provides a more 'streaming' feel for interactive input with commas.
+        chunks = re.split(r'(?<=[.!?,\n])\s+', text) # Added comma and newline to split points
         # Filter out empty strings that might result from splitting
         chunks = [chunk.strip() for chunk in chunks if chunk.strip()]
 

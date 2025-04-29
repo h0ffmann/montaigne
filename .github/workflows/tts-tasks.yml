@@ -1,20 +1,21 @@
 name: Run TTS Tasks (Nix Environment)
 
-on:
-  push:
-    branches:
-      - master # Or your main branch
-      - feat/ci-tts-tasks-nixos
-  pull_request:
-    branches:
-      - master # Or your main branch
-  workflow_dispatch: # Allows manual triggering
-    inputs:
-      debug_enabled:
-        description: 'Run with tmate debugging enabled (bool)'
-        required: false
-        default: false
-        type: boolean
+on: {}
+  #push:
+  #  branches:
+  #    - master # Or your main branch
+  #    - feat/ci-tts-tasks-nixos
+  #pull_request:
+  #  branches:
+  #    - master # Or your main branch
+  #workflow_dispatch: # Allows manual triggering
+  #  inputs:
+  #    debug_enabled:
+  #      description: 'Run with tmate debugging enabled (bool)'
+  #      required: false
+  #      default: false
+  #      type: boolean
+
 
 jobs:
   run-tts-on-nix:

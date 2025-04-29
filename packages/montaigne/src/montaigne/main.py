@@ -28,14 +28,12 @@ try:
 
     # Import the new Piper-based streaming engine (now PiperStreamingTTS)
     from .streaming_tts import (  # Import new class and checks
-        PIPER_AVAILABLE,
-        SOUNDDEVICE_AVAILABLE,
         PiperStreamingTTS,
         run_interactive_prompt,
     )
 
     # Import engine classes with checks
-    from .tts_engine import XTTS_MODEL_NAME, BarkEngine, BaseTTSEngine, XTTSv2Engine
+    from .tts_engine import BarkEngine, BaseTTSEngine, XTTSv2Engine
 
     # from .evaluation import AudioEvaluator # Keep evaluation for batch mode TODO
     from .voice_profiles import (  # Keep profile import
@@ -89,7 +87,7 @@ def get_evaluator(use_cuda: bool):
     global evaluator_instance  # Keep evaluator logic for batch synthesize command
     if evaluator_instance is None:
         logger.info("Initializing Audio Evaluator (Whisper)...")
-        evaluator_instance = AudioEvaluator(use_cuda=use_cuda)
+        # evaluator_instance = AudioEvaluator(use_cuda=use_cuda) # Commented out as import is commented
     return evaluator_instance
 
 

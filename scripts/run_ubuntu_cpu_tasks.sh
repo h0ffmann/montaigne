@@ -18,9 +18,12 @@ uv venv .venv --seed # Create venv
 echo "📦 Installing dependencies (CPU-only PyTorch) into .venv using system uv..."
 # Use the system 'uv' command and point it to the venv's Python interpreter
 uv pip install --python .venv/bin/python \
-    torch==2.1.2 torchaudio==2.1.2 --index-url https://download.pytorch.org/whl/cpu \
     numpy pandas scipy \
-    -e . # Install editable local project into venv
+    -e .
+uv pip install --python .venv/bin/python \
+    torch==2.1.2 torchaudio==2.1.2 --extra-index-url https://download.pytorch.org/whl/cpu \
+    -e .
+
 
 echo "✨ Running TTS synthesis with CPU using uv run..."
 # Force CPU mode via env vars and use 'uv run' to execute within the venv

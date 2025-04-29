@@ -309,7 +309,7 @@ run_tts_tasks:
         echo "=== Inside Nix Shell ==="; \
         just prepare_dirs; \
         echo "✨ Running XTTS synthesis..."; \
-        python -m montaigne.main synthesize \
+        montaigne synthesize \
             --output-file output/debug_output.wav \
             --speaker-wav input/speaker.wav \
             --language en \

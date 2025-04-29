@@ -10,8 +10,6 @@ Montaigne is a command-line tool for generating Text-to-Speech (TTS) audio using
 The project uses Python 3.11+, `uv` + Nix for environment management, `just` for tasks, and includes Docker support.
 
 <!-- Badges -->
-[![Docker Publish Status](https://github.com/hoffmann/montaigne/actions/workflows/docker-publish.yml/badge.svg)](https://github.com/hoffmann/montaigne/actions/workflows/docker-publish.yml)
-[![TTS Tasks Status](https://github.com/hoffmann/montaigne/actions/workflows/tts-tasks.yml/badge.svg)](https://github.com/hoffmann/montaigne/actions/workflows/tts-tasks.yml)
 ![License](https://img.shields.io/badge/License-MIT-blue.svg)
 ![Python Version](https://img.shields.io/badge/python-3.11-blue.svg)
 ![Code Style](https://img.shields.io/badge/code%20style-ruff-blue.svg)

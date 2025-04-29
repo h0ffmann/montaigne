@@ -6,6 +6,7 @@ import torch
 from datetime import datetime
 import numpy as np
 from typing import Optional
+import re # For sentence splitting in stream_speak
 
 # Import sounddevice safely
 try:

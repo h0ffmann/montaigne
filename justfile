@@ -325,9 +325,14 @@ run_tts_tasks:
         echo "=== Install workspace packages ==="; \
         echo "Installing root workspace in development mode..."; \
         uv pip install -e .; \
-        echo "Installing individual packages..."; \
+        echo "Installing individual packages explicitly..."; \
+        if [ -d "packages/montaigne" ]; then \
+            echo "Installing packages/montaigne in development mode..."; \
+            uv pip install -e "packages/montaigne"; \
+        fi; \
+        echo "Checking for any other packages..."; \
         for pkg in packages/*; do \
-            if [ -f "$$pkg/pyproject.toml" ]; then \
+            if [ -f "$$pkg/pyproject.toml" ] && [ "$$pkg" != "packages/montaigne" ]; then \
                 echo "Installing $$pkg in development mode..."; \
                 uv pip install -e "$$pkg"; \
             fi; \
@@ -337,6 +342,12 @@ run_tts_tasks:
         echo "=== Inside Nix Shell ==="; \
         just prepare_dirs; \
         echo "✨ Running XTTS synthesis..."; \
+        echo "Verifying module can be found..."; \
+        python -c "import sys; print(sys.path); \
+                   print(\\\"Looking for montaigne module...\\\"); \
+                   import importlib.util; \
+                   print(\\\"montaigne spec:\\\", importlib.util.find_spec(\\\"montaigne\\\")); \
+                   import montaigne; print(\\\"Success: montaigne module found.\\\")" || echo "Failed to import montaigne module"; \
         python -m montaigne.main synthesize \
             --output-file output/debug_output.wav \
             --speaker-wav input/speaker.wav \

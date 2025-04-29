@@ -24,18 +24,6 @@ GHCR_TAG_LATEST   := GHCR_IMAGE_BASE + ":" + DOCKER_TAG_LATEST
 GHCR_TAG_COMMIT   := GHCR_IMAGE_BASE + ":" + DOCKER_TAG_GIT
 MANUAL_TAG        := env_var_or_default('MANUAL_TAG', '')
 
-# === Pass Environment Variables to Scripts ===
-# These vars are needed by some scripts in scripts/
-export MODEL_PATH_VAR
-export DOCKER_IMAGE_NAME
-export DOCKER_TAG_LATEST
-export DOCKER_TAG_GIT
-export GITHUB_OWNER_REPO
-export GHCR_IMAGE_BASE
-export GHCR_TAG_LATEST
-export GHCR_TAG_COMMIT
-export MANUAL_TAG
-
 # === Default Task ===
 default:
     @just --list
@@ -54,7 +42,8 @@ setup: install_workspace # Alias
 nix_setup:
     @nix flake update
     @echo "Entering Nix shell and setting up workspace..."
-    @NIXPKGS_ALLOW_BROKEN=1 nix develop --impure --command bash scripts/nix_setup.sh
+    # Pass MODEL_PATH_VAR for scripts that might need it inside nix develop (like prepare_local_model if called indirectly)
+    @MODEL_PATH_VAR="{{MODEL_PATH_VAR}}" NIXPKGS_ALLOW_BROKEN=1 nix develop --impure --command bash scripts/nix_setup.sh
 
 # Enter nix develop shell (user should run `just install_workspace` manually if needed)
 nix_shell:
@@ -63,29 +52,35 @@ nix_shell:
     @NIXPKGS_ALLOW_BROKEN=1 nix develop --impure
 
 # === Linting & Formatting (Run inside Nix Shell) ===
+# Use `uv tool run` assuming ruff is in pyproject.toml (dev-)dependencies
 lint:
-    @command -v ruff > /dev/null 2>&1 || (echo "❌ 'ruff' not found. Are you inside 'nix develop'?" && exit 1)
-    @echo "✨ Running Ruff linter..."
-    @ruff check .
+    @command -v {{UV}} > /dev/null 2>&1 || (echo "❌ '{{UV}}' command not found. Are you inside 'nix develop'?" && exit 1)
+    @echo "✨ Running Ruff linter via uv..."
+    @{{UV}} tool run ruff -- check .
 
 format:
-    @command -v ruff > /dev/null 2>&1 || (echo "❌ 'ruff' not found. Are you inside 'nix develop'?" && exit 1)
-    @echo "🎨 Running Ruff formatter..."
-    @ruff format .
+    @command -v {{UV}} > /dev/null 2>&1 || (echo "❌ '{{UV}}' command not found. Are you inside 'nix develop'?" && exit 1)
+    @echo "🎨 Running Ruff formatter via uv..."
+    @{{UV}} tool run ruff -- format .
 
 check: lint format
     @echo "✅ Lint and format checks passed."
 
 # === Analysis (Run inside Nix Shell) ===
-# Assuming aider-analytics is a tool available in the Nix env
+# Assuming aider-analytics is either on PATH via Nix or installable via `uv tool run`
+# Adjust command as necessary based on how aider-analytics is provided/managed.
 analytics:
-    @command -v aider-analytics > /dev/null 2>&1 || (echo "❌ 'aider-analytics' not found. Are you inside 'nix develop'?" && exit 1)
-    @echo "📊 Running commit analysis..."
-    @aider-analytics .
+    @command -v aider-analytics > /dev/null 2>&1 && \
+        (echo "📊 Running aider-analytics (found on PATH)..."; aider-analytics .) \
+        || \
+        (echo "📊 Trying aider-analytics via uv tool run..."; command -v {{UV}} > /dev/null 2>&1 || { echo "❌ UV needed for fallback but not found"; exit 1; }; {{UV}} tool run aider-analytics -- .) \
+        || \
+        (echo "❌ 'aider-analytics' not found on PATH or via uv tool run." && exit 1)
 
 # === Testing (Run inside Nix Shell) ===
+# Pytest is usually a dev dependency run via python, checking PATH is fine.
 test:
-    @command -v pytest > /dev/null 2>&1 || (echo "❌ 'pytest' not found. Are you inside 'nix develop'?" && exit 1)
+    @command -v pytest > /dev/null 2>&1 || (echo "❌ 'pytest' not found. Ensure it is installed (e.g., via uv pip install -e .[test]) and you are in nix develop env." && exit 1)
     @echo "🧪 Running tests with pytest..."
     @pytest packages/montaigne/tests/ # Update test path if tests were moved
 
@@ -96,15 +91,14 @@ clean_pycache:
 
 clean_build:
     @echo "🧹 Removing build artifacts..."
-    # Removed specific script names, general cleanup preferred
     @rm -rf build/ dist/ *.egg-info/ htmlcov/ .coverage* .pytest_cache/ model_files/ entrypoint.sh Dockerfile.bak .venv/
-    @echo "   (Note: Temporary scripts in scripts/ dir are not removed by clean)"
+    @echo "   (Note: Scripts in scripts/ dir are not removed by clean)"
 
 clean: clean_pycache clean_build
     @echo "✅ Project directories cleaned."
 
 # === TTS Tasks (Run inside Nix Shell) ===
-# Create input/output dirs and sample audio if needed
+# Simple python/ffmpeg calls, kept inline
 prepare_dirs:
     @echo "📁 Preparing directories and sample audio..."
     @mkdir -p input output
@@ -161,7 +155,7 @@ debug_gpu:
     @python -c "import torch; print(f'---> Torch Version: {torch.__version__}\n---> CUDA Available: {torch.cuda.is_available()}\n---> Device Count: {torch.cuda.device_count()}')"
 
 # === Docker Tasks ===
-# Check if Docker is available and working
+# Simple check, keep inline
 docker_check:
     @echo "🔍 Checking Docker setup..."
     @if ! command -v docker >/dev/null 2>&1; then \
@@ -173,42 +167,56 @@ docker_check:
     fi
     @echo "✅ Docker is ready: $$(docker --version)"
 
-# Uses external script for Docker fallback
+# Uses external script for Docker fallback for hadolint
 hadolint_check:
     @echo "🔍 Checking Dockerfile with hadolint..."
     @if command -v hadolint >/dev/null 2>&1; then \
-        echo "   Using local hadolint..."; \
+        echo "   Using local hadolint (from Nix env)..."; \
         hadolint Dockerfile || { echo "❌ Local hadolint check failed."; exit 1; }; \
     else \
         @bash scripts/hadolint_docker.sh || exit 1; \
     fi
     @echo "✅ Dockerfile passed linting checks."
 
-# Delegate to scripts
+# Delegate to scripts, passing MODEL_PATH_VAR explicitly
 prepare_local_model:
-    @bash scripts/prepare_local_model.sh || exit 1
+    @MODEL_PATH_VAR="{{MODEL_PATH_VAR}}" bash scripts/prepare_local_model.sh || exit 1
 
 prepare_docker_files: prepare_local_model # Run model prep first
     @bash scripts/prepare_docker_files.sh || exit 1
 
 docker_build *BUILD_FLAGS_AND_ARGS: docker_check hadolint_check
-    # Ensure docker files are ready before calling build script
-    # Implicit dependency: Assumes prepare_docker_files ran if needed
-    @bash scripts/build_docker.sh {{BUILD_FLAGS_AND_ARGS}} || exit 1
+    # Ensure docker files are ready (run prepare_docker_files before this task if needed)
+    # Pass needed variables as environment variables PRECEDING the command
+    @MODEL_PATH_VAR="{{MODEL_PATH_VAR}}" \
+     DOCKER_IMAGE_NAME="{{DOCKER_IMAGE_NAME}}" \
+     DOCKER_TAG_LATEST="{{DOCKER_TAG_LATEST}}" \
+     DOCKER_TAG_GIT="{{DOCKER_TAG_GIT}}" \
+     GITHUB_OWNER_REPO="{{GITHUB_OWNER_REPO}}" \
+     GHCR_IMAGE_BASE="{{GHCR_IMAGE_BASE}}" \
+     GHCR_TAG_LATEST="{{GHCR_TAG_LATEST}}" \
+     GHCR_TAG_COMMIT="{{GHCR_TAG_COMMIT}}" \
+     MANUAL_TAG="{{MANUAL_TAG}}" \
+     bash scripts/build_docker.sh {{BUILD_FLAGS_AND_ARGS}} || exit 1
 
 # Call prepare script first, then build script
 docker_dev *ARGS:
     @echo "🐳 Building Docker DEV image (local model requested)..."
-    @just prepare_docker_files || exit 1
-    @just docker_build USE_LOCAL_MODEL=true {{ARGS}}
+    @just prepare_docker_files || exit 1 # Prepare step first
+    @just docker_build USE_LOCAL_MODEL=true {{ARGS}} # Then build
     @if [ -d "model_files" ]; then echo "   Cleaning up ./model_files..."; rm -rf ./model_files; fi
     @echo "✅ Docker DEV build process complete."
 
 docker_push: docker_check
-    @bash scripts/push_docker.sh || exit 1
+    # Pass needed variables as environment variables PRECEDING the command
+    @GITHUB_OWNER_REPO="{{GITHUB_OWNER_REPO}}" \
+     GHCR_IMAGE_BASE="{{GHCR_IMAGE_BASE}}" \
+     GHCR_TAG_LATEST="{{GHCR_TAG_LATEST}}" \
+     GHCR_TAG_COMMIT="{{GHCR_TAG_COMMIT}}" \
+     MANUAL_TAG="{{MANUAL_TAG}}" \
+     bash scripts/push_docker.sh || exit 1
 
 # Run container - Simplified using direct realpath and single docker run
-# No script needed here anymore
 docker_run *ARGS: prepare_dirs docker_check
     @echo "🐳 Running default synthesis in Docker container..."
     @if [ ! -f "input/speaker.wav" ]; then \
@@ -256,9 +264,12 @@ lint_dockerfile: hadolint_check # Alias for clarity
 
 # Generate repomix (Simple command, keep inline)
 mix:
-    @command -v repomix > /dev/null 2>&1 || (echo "❌ 'repomix' not found in Nix env." && exit 1)
+    @command -v repomix > /dev/null 2>&1 || \
+     (echo "❌ 'repomix' not found. Is it in Nix packages or installable via uv tool run?"; exit 1)
     @echo "👾 Generating repomix..."
+    # Decide how repomix is run: directly (if in Nix PATH) or via uv?
     @repomix .
+    # Alternative: @{{UV}} tool run repomix -- .
     @echo "✅ Repomix generated."
 
 # === Main Pipeline (Refactored - Recommended) ===
@@ -266,6 +277,7 @@ all:
     @echo "🚀 Starting Montaigne TTS CI Pipeline (Refactored Flow)..."
     # === Step 1: Run Nix environment tasks via script ===
     @echo "[Step 1/3] Setting up Nix environment and running Python tasks via script..."
+    # This script should internally use `just check`, `just mix` etc.
     @NIXPKGS_ALLOW_BROKEN=1 nix develop --impure --command bash scripts/run_nix_tasks.sh \
         || { echo "❌ Pipeline failed during Nix environment tasks script."; exit 1; }
 
@@ -274,7 +286,7 @@ all:
     @just docker_check || exit 1
     @just lint_dockerfile || exit 1
     @echo "   Preparing Docker files for build..."
-    @just prepare_docker_files || exit 1 # Prepare files explicitly
+    @just prepare_docker_files || exit 1
     @echo "   Attempting Docker build (trying local model first, --no-cache)..."
     @just docker_build USE_LOCAL_MODEL=true --no-cache || \
       (echo "   ⚠️ Build with local model failed, retrying without..."; \
@@ -299,3 +311,6 @@ all:
 run_tts_tasks_ubuntu_cpu:
     @echo "🚀 Running Ubuntu CPU TTS tasks via external script..."
     @bash scripts/run_ubuntu_cpu_tasks.sh || exit 1
+
+# Removed all_original_flow task as it was complex and less preferred
+# Removed workspace_add_pkg task

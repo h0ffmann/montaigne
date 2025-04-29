@@ -125,7 +125,7 @@ jobs:
         run: just run_tts_tasks_ubuntu_cpu
         
       - name: Upload Artifacts
-        uses: actions/upload-artifact@v3
+        uses: actions/upload-artifact@v4
         if: always()
         with:
           name: tts-outputs

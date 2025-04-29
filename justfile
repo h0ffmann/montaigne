@@ -323,6 +323,9 @@ run_tts_tasks:
     @nix develop --impure --command bash -c '\
         set -e; \
         echo "=== Install workspace packages ==="; \
+        echo "Installing root workspace in development mode..."; \
+        uv pip install -e .; \
+        echo "Installing individual packages..."; \
         for pkg in packages/*; do \
             if [ -f "$$pkg/pyproject.toml" ]; then \
                 echo "Installing $$pkg in development mode..."; \
@@ -380,23 +383,6 @@ all:
 
 mix:
     @repomix .
-
-# === Workspace Management ===
-workspace_install:
-    @echo "📦 Installing all workspace packages..."
-    @for pkg in packages/*; do \
-        if [ -f "$$pkg/pyproject.toml" ]; then \
-            echo "Installing $$pkg in development mode..."; \
-            uv pip install -e "$$pkg"; \
-        fi \
-    done
-
-workspace_add_pkg NAME:
-    @echo "📦 Creating new package {{NAME}} in workspace..."
-    @mkdir -p packages/{{NAME}}/src/{{NAME}}
-    @touch packages/{{NAME}}/src/{{NAME}}/__init__.py
-    @echo '[project]\nname = "{{NAME}}"\nversion = "0.1.0"\ndescription = "Add description here"\nauthors = [{ name = "Matheus Hoffmann", email = "hoffmann@poli.ufrj.br" }]\nrequires-python = ">=3.11,<3.12"\ndependencies = []\n\n[build-system]\nrequires = ["setuptools>=61.0"]\nbuild-backend = "setuptools.build_meta"\n' > packages/{{NAME}}/pyproject.toml
-    @echo "✅ Package {{NAME}} created. Install with 'uv pip install -e packages/{{NAME}}'"
 
 # === Workspace Management ===
 workspace_install:

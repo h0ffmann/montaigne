@@ -340,14 +340,18 @@ def synthesize(
 @click.option('--voice-profile', type=click.Choice(list_voice_profiles()), help="Use a prebuilt voice profile (maps to --speaker-wav if supported).")
 # Removed youtube ID for live MVP - adds complexity with download sync
 @click.option('--language', '-l', default="en", show_default=True, help="Language code (e.g., en, pt). Affects Coqui backend.")
+@click.option('--file', '-f', type=click.File('r'), default=None, help="Read text line-by-line from FILE instead of interactive input. Use '-' for stdin.")
+@click.option('--output-dir', '-o', type=click.Path(file_okay=False, dir_okay=True, writable=True, path_type=Path), default=None, help="Directory to save generated audio chunks (timestamped WAV files).")
 @click.option('--cpu', is_flag=True, help="Force CPU for TTS.")
 def live(
     speaker_wav: Path | None,
     voice_profile: str | None,
     language: str,
+    file: click.File | None,
+    output_dir: Path | None,
     cpu: bool
 ):
-    """Starts an interactive live TTS session."""
+    """Starts a live TTS session, either interactive or from a file."""
     if not REALTINETTS_AVAILABLE:
         click.echo("❌ RealtimeTTS library is required for live mode but not installed/found.", err=True)
         sys.exit(1)
@@ -374,29 +378,65 @@ def live(
     # No speaker provided, will attempt fallback within RealtimeTTSEngine
 
     click.echo(f"Attempting to use speaker: {speaker_display_name}")
+    if output_dir:
+        output_dir.mkdir(parents=True, exist_ok=True)
+        click.echo(f"Saving audio chunks to: {output_dir.resolve()}")
+    if file:
+        click.echo(f"Reading input from: {'stdin' if file.name == '-' else file.name}")
 
     try:
         engine = get_streaming_engine(use_cuda)
-        # Initialize the specific backend *now* that we have speaker info
-        engine.initialize_engine(speaker_wav=actual_speaker_wav_path, language=language)
+        # Initialize the specific backend *now* that we have speaker info and output dir
+        engine.initialize_engine(
+            speaker_wav=actual_speaker_wav_path,
+            language=language,
+            output_dir=output_dir # Pass output dir for saving
+        )
 
-        # --- Interactive REPL ---
-        click.echo("\nType text and press Enter to synthesize. Type ':quit' or press Ctrl+C to exit.")
-        while True:
-            try:
-                text = input("> ")
-                if not text.strip():
+        # --- Input Loop (File or REPL) ---
+        if file:
+            click.echo("\nProcessing file line by line...")
+            for line in file:
+                processed_text = line.strip()
+                if not processed_text:
                     continue
-                if text.lower() == ':quit':
+                click.echo(f"Feeding: '{processed_text[:80]}...'")
+                engine.speak(processed_text)
+                # Add a small delay to prevent overwhelming the engine in file mode?
+                # Or rely on RealtimeTTS internal buffering. Let's rely on buffering for now.
+                # time.sleep(0.1)
+            click.echo("\nFile processing finished.")
+        else:
+            # Interactive REPL
+            click.echo("\nType text and press Enter to synthesize. Type ':quit' or press Ctrl+C to exit.")
+            while True:
+                try:
+                    text = input("> ")
+                    if not text.strip():
+                        continue
+                    if text.lower() == ':quit':
+                        break
+
+                    # Simple preprocessing for the REPL (can be expanded later)
+                    processed_text = text.strip() # Basic strip for now
+
+                    engine.speak(processed_text) # Let the engine handle playback
+
+                except KeyboardInterrupt:
+                    print("\nExiting...")
+                    break
+                except EOFError: # Handle Ctrl+D
+                    print("\nExiting...")
                     break
 
-                # Simple preprocessing for the REPL (can be expanded later)
-                processed_text = text.strip() # Basic strip for now
+        # Wait for the stream to finish playing any remaining audio, especially in file mode
+        click.echo("Waiting for audio stream to finish...")
+        if engine.stream:
+             engine.stream.wait() # Wait for playback queue to empty
 
-                engine.speak(processed_text) # Let the engine handle playback
+        engine.stop() # Clean up the stream
 
-            except KeyboardInterrupt:
-                print("\nExiting...")
+    except Exception as e:
                 break
             except EOFError: # Handle Ctrl+D
                 print("\nExiting...")

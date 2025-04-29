@@ -341,13 +341,15 @@ class BarkEngine(BaseTTSEngine):
                 else:
                     logger.debug(f"Restoring CUDA_VISIBLE_DEVICES to '{original_cuda_visible}'")
                     os.environ["CUDA_VISIBLE_DEVICES"] = original_cuda_visible
-                "Python version compatibility, network connection, "
-                "and ensure you have accepted the Coqui TTS license terms."
-            )
-            raise RuntimeError(f"Could not initialize TTS model '{XTTS_MODEL_NAME}'. {hint}") from e
+# --- End of BarkEngine ---
 
+# --- XTTS Engine Implementation (Duplicate Section - Likely Merge Error) ---
+# The following synthesize method seems to be a duplicate of the one above (lines 158-195)
+# and should likely be removed entirely. Keeping it for context but marking for removal.
+# REMOVE START
     def synthesize(self, text: str, language: str, output_path: Path, **kwargs) -> bool:
         """Synthesizes using XTTSv2."""
+# REMOVE END
         speaker_wav = kwargs.get("speaker_wav")
         speed = kwargs.get("speed", 1.0)
 

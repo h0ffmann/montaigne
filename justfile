@@ -63,15 +63,11 @@ check: lint format
     @echo "✅ Lint and format checks passed."
 
 # === Analysis (Run inside Nix Shell) ===
-# Assuming aider-analytics is either on PATH via Nix or installable via `uv tool run`
-# Adjust command as necessary based on how aider-analytics is provided/managed.
+# Assuming aider-analytics is installed as a Python package in the environment
 analytics:
-    @command -v aider-analytics > /dev/null 2>&1 && \
-        (echo "📊 Running aider-analytics (found on PATH)..."; aider-analytics .) \
-        || \
-        (echo "📊 Trying aider-analytics via uv tool run..."; command -v {{UV}} > /dev/null 2>&1 || { echo "❌ UV needed for fallback but not found"; exit 1; }; {{UV}} tool run aider-analytics -- .) \
-        || \
-        (echo "❌ 'aider-analytics' not found on PATH or via uv tool run." && exit 1)
+    @command -v python > /dev/null 2>&1 || (echo "❌ 'python' not found in Nix env." && exit 1)
+    @echo "📊 Running aider-analytics module directly..."
+    @python -m aider_analytics.main .
 
 # === Testing (Run inside Nix Shell) ===
 # Pytest is usually a dev dependency run via python, checking PATH is fine.

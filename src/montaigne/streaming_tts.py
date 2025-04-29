@@ -17,15 +17,16 @@ except ImportError:
 
 # Assume RealtimeTTS and necessary engines are installed via pyproject.toml
 try:
-    from realtimetts import TextToAudioStream, CoquiEngine, SystemEngine, BaseEngine
+    from realtimetts import TextToAudioStream, CoquiEngine, SystemEngine, PiperEngine, BaseEngine
     REALTINETTS_AVAILABLE = True
 except ImportError:
-    print("❌ RealtimeTTS library not found. Please install it (`pip install realtimetts`)", file=sys.stderr)
+    print("❌ RealtimeTTS library not found. Please install it (`pip install realtimetts` and potentially `piper-tts`)", file=sys.stderr)
     # Define dummy classes to avoid import errors elsewhere if initialization fails later
     class BaseEngine: pass
     class TextToAudioStream: pass
     class CoquiEngine: pass
     class SystemEngine: pass
+    class PiperEngine: pass # Add dummy PiperEngine
     REALTINETTS_AVAILABLE = False
 
 # Assume sounddevice is installed
@@ -92,12 +93,14 @@ class RealtimeTTSEngine(BaseStreamingEngine):
 
     def initialize_engine(
         self,
-        speaker_wav: str | Path | None = None,
-        language: str = "en",
-        output_dir: Path | None = None # Add output_dir parameter
+        backend_engine: str, # Added: 'coqui', 'system', 'piper'
+        speaker_wav: str | Path | None = None, # Used by Coqui
+        language: str = "en", # Used by Coqui/Piper
+        piper_model_path: Path | None = None, # Used by Piper
+        output_dir: Path | None = None # Used for saving
     ):
-        """Initializes the backend engine and TextToAudioStream."""
-        logger.info("Initializing RealtimeTTS Engine...")
+        """Initializes the selected backend engine and TextToAudioStream."""
+        logger.info(f"Initializing RealtimeTTS with backend: {backend_engine}...")
         self.output_dir = output_dir # Store for use in callback
         self.chunk_counter = 0 # Reset counter on init
 
@@ -105,51 +108,71 @@ class RealtimeTTSEngine(BaseStreamingEngine):
              logger.error("SoundFile library is required for saving audio but not found. Install with `pip install soundfile`.")
              raise RuntimeError("SoundFile not available for audio saving.")
 
-        # --- Backend Selection (MVP: Prioritize Coqui if speaker_wav is given, else System) ---
-        if speaker_wav:
-            speaker_wav_path = Path(speaker_wav)
-            if speaker_wav_path.exists() and speaker_wav_path.is_file():
-                try:
-                    logger.info(f"Attempting to initialize RealtimeTTS with CoquiEngine (Speaker: {speaker_wav_path.name}, Lang: {language})...")
-                    # CoquiEngine requires speaker_wav and language if not using default.
-                    self.engine_backend = CoquiEngine(
-                        model_name="tts_models/multilingual/multi-dataset/xtts_v2",
-                        language=language,
-                        speaker_wav=str(speaker_wav_path),
-                        # Note: RealtimeTTS might manage device selection internally,
-                        # but providing `device=self.device` can be explicit.
-                        device=self.device
-                    )
-                    logger.info(f"Using CoquiEngine with speaker {speaker_wav_path.name}.")
-                except Exception as e:
-                    logger.error(f"Failed to initialize CoquiEngine: {e}. Falling back...", exc_info=True)
-                    self.engine_backend = None
+        # --- Backend Selection ---
+        self.engine_backend = None # Reset before selection
+
+        if backend_engine == 'coqui':
+            if speaker_wav:
+                speaker_wav_path = Path(speaker_wav)
+                if speaker_wav_path.exists() and speaker_wav_path.is_file():
+                    try:
+                        logger.info(f"Attempting to initialize CoquiEngine (Speaker: {speaker_wav_path.name}, Lang: {language})...")
+                        self.engine_backend = CoquiEngine(
+                            model_name="tts_models/multilingual/multi-dataset/xtts_v2",
+                            language=language,
+                            speaker_wav=str(speaker_wav_path),
+                            device=self.device # Pass explicit device
+                        )
+                        logger.info(f"Using CoquiEngine with speaker {speaker_wav_path.name}.")
+                    except Exception as e:
+                        logger.error(f"Failed to initialize CoquiEngine: {e}. Check speaker file format/TTS install.", exc_info=True)
+                        # Fallback handled by main CLI logic if Coqui fails init
+                else:
+                    logger.warning(f"Provided speaker_wav '{speaker_wav}' not found or invalid for Coqui.")
             else:
-                logger.warning(f"Provided speaker_wav '{speaker_wav}' not found or invalid. Falling back.")
-                self.engine_backend = None
+                 logger.warning("Coqui backend selected, but no valid speaker_wav provided.")
+                 # Fallback should be handled by CLI logic before calling initialize_engine
+
+        elif backend_engine == 'piper':
+            if piper_model_path and piper_model_path.exists():
+                try:
+                    logger.info(f"Attempting to initialize PiperEngine (Model: {piper_model_path.name}, Lang: {language})...")
+                    # PiperEngine needs the model path. Language might be inferred or used internally.
+                    # Device selection might be handled internally by Piper/onnxruntime.
+                    # Check RealtimeTTS PiperEngine docs for explicit device passing if needed.
+                    self.engine_backend = PiperEngine(
+                        model_path=str(piper_model_path),
+                        # language=language # Pass language if PiperEngine supports it directly
+                        use_cuda=(self.device == 'cuda') # Pass cuda preference
+                    )
+                    logger.info(f"Using PiperEngine with model {piper_model_path.name}.")
+                except Exception as e:
+                    logger.error(f"Failed to initialize PiperEngine: {e}. Check model path/piper install.", exc_info=True)
+            else:
+                logger.error(f"Piper backend selected, but required model path '{piper_model_path}' is invalid or missing.")
+
+        elif backend_engine == 'system':
+            logger.info("Attempting to initialize SystemEngine...")
+            try:
+                if SystemEngine.is_engine_available():
+                    self.engine_backend = SystemEngine()
+                    logger.info("Using SystemEngine.")
+                else:
+                    logger.error("System TTS engine is not available on this system.")
+            except Exception as e:
+                logger.error(f"Failed to initialize SystemEngine: {e}", exc_info=True)
+
         else:
-             logger.info("No speaker_wav provided. Initializing without CoquiEngine.")
-             self.engine_backend = None
+             logger.error(f"Unknown backend engine specified: {backend_engine}")
 
 
-        # Fallback if Coqui wasn't initialized
+        # Check if any backend was successfully initialized
         if self.engine_backend is None:
-             logger.info("Falling back to SystemEngine (uses OS default TTS).")
-             try:
-                 # Check if system engine is actually available (e.g., on headless systems)
-                 if SystemEngine.is_engine_available():
-                      self.engine_backend = SystemEngine()
-                      logger.info("Using SystemEngine.")
-                 else:
-                     logger.error("System TTS engine is not available on this system.")
-                     raise RuntimeError("No suitable RealtimeTTS backend could be initialized (Coqui failed/not requested, System unavailable).")
-             except Exception as e:
-                 logger.error(f"Failed to initialize SystemEngine: {e}", exc_info=True)
-                 raise RuntimeError("Could not initialize any TTS backend for RealtimeTTS.") from e
-
+             raise RuntimeError(f"Could not initialize the selected backend engine '{backend_engine}'. Check logs for details.")
 
         if not isinstance(self.engine_backend, BaseEngine):
-             raise RuntimeError("Failed to set a valid engine_backend.")
+             # This case should ideally be caught by the check above, but safety first.
+             raise RuntimeError("Initialization resulted in an invalid engine_backend type.")
 
         # --- Initialize the Stream ---
         logger.info("Initializing TextToAudioStream...")

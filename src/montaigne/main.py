@@ -339,13 +339,17 @@ def synthesize(
 @click.option('--speaker-wav', '-s', type=click.Path(exists=True, file_okay=True, dir_okay=False, readable=True, path_type=Path), help="Path to speaker WAV for Coqui backend (recommended for quality).")
 @click.option('--voice-profile', type=click.Choice(list_voice_profiles()), help="Use a prebuilt voice profile (maps to --speaker-wav if supported).")
 # Removed youtube ID for live MVP - adds complexity with download sync
-@click.option('--language', '-l', default="en", show_default=True, help="Language code (e.g., en, pt). Affects Coqui backend.")
+@click.option('--backend-engine', type=click.Choice(['coqui', 'system', 'piper']), default='coqui', show_default=True, help="Select the RealtimeTTS backend engine.")
+@click.option('--piper-model-path', type=click.Path(exists=True, file_okay=True, dir_okay=False, readable=True, path_type=Path), default=None, help="Path to the Piper '.onnx' model file (required if --backend-engine=piper).")
+@click.option('--language', '-l', default="en", show_default=True, help="Language code (e.g., en, pt). Affects Coqui/Piper backend.")
 @click.option('--file', '-f', type=click.File('r'), default=None, help="Read text line-by-line from FILE instead of interactive input. Use '-' for stdin.")
 @click.option('--output-dir', '-o', type=click.Path(file_okay=False, dir_okay=True, writable=True, path_type=Path), default=None, help="Directory to save generated audio chunks (timestamped WAV files).")
 @click.option('--cpu', is_flag=True, help="Force CPU for TTS.")
 def live(
     speaker_wav: Path | None,
     voice_profile: str | None,
+    backend_engine: str,
+    piper_model_path: Path | None,
     language: str,
     file: click.File | None,
     output_dir: Path | None,
@@ -356,8 +360,17 @@ def live(
         click.echo("❌ RealtimeTTS library is required for live mode but not installed/found.", err=True)
         sys.exit(1)
 
+    # --- Validation for Backend/Options ---
+    if backend_engine == 'piper' and not piper_model_path:
+        raise click.UsageError("Piper backend requires --piper-model-path.")
+    if backend_engine != 'coqui' and (speaker_wav or voice_profile):
+        logger.warning(f"--speaker-wav and --voice-profile are ignored for '{backend_engine}' backend.")
+    if backend_engine == 'coqui' and not (speaker_wav or voice_profile):
+        logger.warning("Coqui backend selected but no speaker provided (--speaker-wav or --voice-profile). Will attempt fallback to SystemEngine.")
+        backend_engine = 'system' # Force fallback if Coqui is chosen without speaker
+
     use_cuda = not cpu
-    click.echo(f"🎙️ Starting Montaigne Live TTS Session... (CUDA: {use_cuda})")
+    click.echo(f"🎙️ Starting Montaigne Live TTS Session... (Backend: {backend_engine}, CUDA: {use_cuda})")
 
     # --- Determine Speaker File for Coqui Backend ---
     actual_speaker_wav_path: str | Path | None = None
@@ -386,11 +399,13 @@ def live(
 
     try:
         engine = get_streaming_engine(use_cuda)
-        # Initialize the specific backend *now* that we have speaker info and output dir
+        # Initialize the specific backend *now* that we have all options
         engine.initialize_engine(
-            speaker_wav=actual_speaker_wav_path,
+            backend_engine=backend_engine,
+            speaker_wav=actual_speaker_wav_path, # Used only by Coqui
             language=language,
-            output_dir=output_dir # Pass output dir for saving
+            piper_model_path=piper_model_path, # Used only by Piper
+            output_dir=output_dir # Used for saving chunks
         )
 
         # --- Input Loop (File or REPL) ---

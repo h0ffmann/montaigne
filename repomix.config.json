@@ -6,7 +6,13 @@
             "**/.*",
             "gemini_*",
             "model_files/*",
-            "analysis_plots/"
+            "analysis_plots/*",
+            "flake.nix",
+            "README.md",
+            "aider_analytics.py",
+            "uv.lock",
+            ".github/*",
+            "DEBUG.md"
         ]
     }
 }

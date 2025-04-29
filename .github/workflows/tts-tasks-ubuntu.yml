@@ -37,7 +37,7 @@ jobs:
           enable-cache: true
       
       - name: Install linting dependencies
-        run: uv pip install ruff==0.11.7
+        run: uv pip install --system ruff==0.11.7
       
       - name: Run Ruff linter
         run: |

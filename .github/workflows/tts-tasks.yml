@@ -48,7 +48,7 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }} # Optional: needed for private Just releases
 
-      - name: Run TTS Tasks via Just
+      - name: Run TTS Tasks via Just (includes repomix.md generation)
         run: just run_tts_tasks
         # No specific env needed here as 'just run_tts_tasks' calls nix develop internally
 

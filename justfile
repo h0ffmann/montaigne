@@ -320,52 +320,16 @@ lint_dockerfile: hadolint_check
 run_tts_tasks:
     @echo "🚀 Running TTS tasks inside Nix shell..."
     @echo "🐍 Provide edits in DIFF format, please." # Request for Gemini
-    @nix develop --impure --command bash -c '\
+    @nix develop --impure --command bash -c 'set -e && \
         set -e; \
         echo "=== Install workspace packages ==="; \
-        echo "Installing root workspace in development mode..."; \
-        uv pip install -e .; \
-        echo "Installing individual packages explicitly..."; \
-        if [ -d "packages/montaigne" ]; then \
-            echo "Installing packages/montaigne in development mode..."; \
-            uv pip install -e "packages/montaigne"; \
-        fi; \
-        echo "Checking for any other packages..."; \
-        for pkg in packages/*; do \
-            if [ -f "$$pkg/pyproject.toml" ] && [ "$$pkg" != "packages/montaigne" ]; then \
-                echo "Installing $$pkg in development mode..."; \
-                uv pip install -e "$$pkg"; \
-            fi; \
-        done; \
+        echo "Installing all workspace packages at once..."; \
+        uv pip install --editable ./packages/montaigne --editable .; \
+        echo "Verifying montaigne module..."; \
+        python -c "import montaigne; print(f\"✅ Found montaigne module: {montaigne.__file__}\")"; \
         echo "=== Refresh repomix.md (using config) ==="; \
         repomix .; \
-        echo "=== Inside Nix Shell ==="; \
-        just prepare_dirs; \
-        echo "✨ Running XTTS synthesis..."; \
-        echo "Verifying module can be found..."; \
-        python -c "import sys; print(sys.path); \
-                   print(\\\"Looking for montaigne module...\\\"); \
-                   import importlib.util; \
-                   print(\\\"montaigne spec:\\\", importlib.util.find_spec(\\\"montaigne\\\")); \
-                   import montaigne; print(\\\"Success: montaigne module found.\\\")" || echo "Failed to import montaigne module"; \
-        python -m montaigne.main synthesize \
-            --output-file output/debug_output.wav \
-            --speaker-wav input/speaker.wav \
-            --language en \
-            --text "This is a debug test [p=0.5] with *emphasis*."; \
-        echo "🐾 Running Bark synthesis..."; \
-        python -m montaigne.main synthesize \
-            --engine bark \
-            --text "Hello from the Bark engine. It sounds different!" \
-            --language en \
-            --output-file output/bark_en_default.wav; \
-        echo "▶️ Running YouTube speaker synthesis..."; \
-        python -m montaigne.main synthesize \
-            --engine xtts \
-            --speaker-youtube-id "dQw4w9WgXcQ" \
-            --text "Testing YouTube download." \
-            --language en \
-            --output-file output/yt_test.wav; \
+        just prepare_dirs xtts bark yt; \
         echo "=== Nix Shell Tasks Complete ==="; \
     ' || (echo "❌ TTS tasks failed" && exit 1)
 

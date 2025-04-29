@@ -188,6 +188,35 @@ class PiperStreamingTTS:
                 except OSError as e:
                     logger.error(f"Failed to delete temporary file {temp_path}: {e}")
 
+    def stream_speak(self, text: str) -> bool:
+        """Stream speech by breaking text into chunks (sentences) and processing sequentially."""
+        if not self.voice_model:
+            logger.error("No voice model loaded. Call load_model() first.")
+            return False
+
+        logger.info(f"Starting stream_speak for text: '{text[:50]}...'")
+        # Split text into sentences using regex (handles ., !, ? followed by space/end)
+        # Keep the delimiters with the sentence for potentially better prosody.
+        chunks = re.split(r'(?<=[.!?])\s+', text)
+        # Filter out empty strings that might result from splitting
+        chunks = [chunk.strip() for chunk in chunks if chunk.strip()]
+
+        if not chunks:
+            logger.warning("Text splitting resulted in no chunks.")
+            return True # No error, just nothing to speak
+
+        all_successful = True
+        for i, chunk in enumerate(chunks):
+            logger.info(f"Processing chunk {i+1}/{len(chunks)}: '{chunk[:40]}...'")
+            success = self.speak(chunk)
+            if not success:
+                logger.error(f"Failed to speak chunk {i+1}. Continuing with next chunks...")
+                all_successful = False
+            # Optional: Add a small delay between chunks if needed?
+            # time.sleep(0.1)
+
+        logger.info("Finished stream_speak.")
+        return all_successful
 
     def stop(self):
         """Stops any ongoing audio playback via sounddevice."""
@@ -230,7 +259,8 @@ def run_interactive_prompt(engine: PiperStreamingTTS, output_dir: Optional[Path]
             # Simple preprocessing for the REPL (can be expanded later)
             processed_text = text.strip() # Basic strip for now
 
-            engine.speak(processed_text) # Let the engine handle synthesis and playback
+            # Use stream_speak for a potentially better experience with longer inputs
+            engine.stream_speak(processed_text)
 
         except KeyboardInterrupt:
             print("\nExiting...")

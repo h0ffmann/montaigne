@@ -73,7 +73,7 @@
           (buildPythonPackage rec {
             pname = "realtimetts";
             version = "0.3.43"; # Using a known version, adjust if needed
-            format = "pyproject"; # Use pyproject if applicable, otherwise remove/adjust
+            # format = "pyproject"; # Let Nix infer the format
             src = fetchPypi { inherit pname version; sha256 = "0000000000000000000000000000000000000000000000000000000000000000"; }; # Placeholder SHA256
             # List direct dependencies needed by realtimetts that aren't automatically handled
             # Check realtimetts setup.py/pyproject.toml for exact deps and versions

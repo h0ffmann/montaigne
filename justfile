@@ -61,7 +61,7 @@ analytics:
 test:
     @command -v pytest > /dev/null 2>&1 || (echo "❌ 'pytest' not found. Are you inside 'nix develop'?" && exit 1)
     @echo "🧪 Running tests with pytest..."
-    @pytest tests/
+    @pytest packages/montaigne/tests/ # Update test path if tests were moved
 
 # === Cleaning ===
 clean_pycache:
@@ -93,7 +93,7 @@ prepare_dirs:
 # Run XTTS synthesis (Must be run inside `nix develop`)
 xtts: prepare_dirs
     @echo "✨ Running XTTS synthesis..."
-    @python -m montaigne.main synthesize \
+    @montaigne synthesize \
         --output-file output/xtts_output.wav \
         --speaker-wav input/speaker.wav \
         --language en \
@@ -102,7 +102,7 @@ xtts: prepare_dirs
 # Run Bark synthesis (Must be run inside `nix develop`)
 bark: prepare_dirs
     @echo "🐾 Running Bark synthesis..."
-    @python -m montaigne.main synthesize \
+    @montaigne synthesize \
         --engine bark \
         --text "Hello from the Bark engine. It sounds different!" \
         --language en \
@@ -111,12 +111,28 @@ bark: prepare_dirs
 # Run YouTube speaker synthesis (Must be run inside `nix develop`)
 yt: prepare_dirs
     @echo "▶️ Running XTTS with YouTube speaker..."
-    @python -m montaigne.main synthesize \
+    @montaigne synthesize \
         --engine xtts \
         --speaker-youtube-id "dQw4w9WgXcQ" \
         --text "Testing YouTube download." \
         --language en \
         --output-file output/yt_test.wav
+
+# === Debugging Tasks (Run inside Nix Shell) ===
+# Simple XTTS synthesis test run (CPU)
+debug: prepare_dirs
+    @echo "🐛 Running debug XTTS synthesis (CPU)..."
+    @montaigne synthesize \
+        --output-file output/debug_output.wav \
+        --speaker-wav input/speaker.wav \
+        --language en \
+        --text "This is a debug test [p=0.5] with *emphasis*." \
+        --cpu
+
+# Check PyTorch CUDA availability
+debug_gpu:
+    @echo "🐛 Checking PyTorch CUDA availability..."
+    @python -c "import torch; print(f'---> Torch Version: {torch.__version__}'); print(f'---> CUDA Available: {torch.cuda.is_available()}'); print(f'---> Device Count: {torch.cuda.device_count()}')"
 
 # === Docker Tasks ===
 # Check if Docker is available and working
@@ -321,7 +337,7 @@ run_tts_tasks:
             --language en \
             --output-file output/bark_en_default.wav; \
         echo "▶️ Running YouTube speaker synthesis..."; \
-        python -m montaigne.main synthesize \
+        montaigne synthesize \
             --engine xtts \
             --speaker-youtube-id "dQw4w9WgXcQ" \
             --text "Testing YouTube download." \

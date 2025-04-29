@@ -20,8 +20,9 @@ dependencies = [
     # --- Potentially required by Bark/Whisper/TTS, ensure presence ---
     # Nix should ideally provide torch, torchaudio, numpy, pandas, scipy
     # Ensure HF libraries are present if not pulled by TTS/Bark
-    "realtimetts>=0.3.2", # For live TTS streaming
-    "sounddevice>=0.4.6", # Common audio backend for playback
+    "realtimetts>=0.3.1",
+    "sounddevice>=0.4.5",
+    "numpy>=1.20.0",
     "piper-tts>=1.2.0",   # Added for Piper backend in RealtimeTTS
     "transformers>=4.0.0",
     "accelerate>=0.20.0",

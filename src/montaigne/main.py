@@ -21,6 +21,7 @@ try:
     from .preprocessing import preprocess_text_for_tts, chunk_text
     # Import engine classes with checks
     from .tts_engine import BaseTTSEngine, XTTSv2Engine, BarkEngine, XTTS_MODEL_NAME
+    from .streaming_tts import RealtimeTTSEngine, run_interactive_prompt, map_montaigne_voice_to_streaming
     from .evaluation import AudioEvaluator # Keep evaluation for batch mode
     from .voice_profiles import list_voice_profiles, get_voice_profile # Keep profile import
     from .audio_utils import concatenate_audio_files, cleanup_files
@@ -457,6 +458,49 @@ def live(
         if 'engine' in locals() and engine is not None:
              engine.stop() # Attempt cleanup
         sys.exit(1)
+
+@cli.command()
+@click.option('--interactive/--no-interactive', default=True,
+              help="Start in interactive mode (prompt)")
+@click.option('--engine', type=click.Choice(['xtts', 'bark', 'realtime']),
+              default='realtime', help="Select the TTS engine.")
+@click.option('--voice-profile', type=click.Choice(list_voice_profiles()),
+              help="Use a prebuilt voice profile.")
+@click.option('--output-dir', '-o', type=click.Path(file_okay=False,
+              dir_okay=True, writable=True, path_type=Path),
+              help="Directory to save audio files.")
+@click.option('--cpu', is_flag=True, help="Force CPU for TTS and evaluation.")
+def tts_live(interactive, engine, voice_profile, output_dir, cpu):
+    """Start a real-time TTS session with interactive prompt."""
+    use_cuda = not cpu
+
+    if engine == 'realtime':
+        try:
+            # Initialize the real-time TTS engine
+            realtime_engine = RealtimeTTSEngine(use_cuda=use_cuda)
+
+            if voice_profile:
+                # Map Montaigne voice profile to streaming engine voice
+                streaming_voice = map_montaigne_voice_to_streaming(voice_profile)
+                logger.info(f"Using voice profile: {voice_profile} -> {streaming_voice}")
+                # voice configuration would go here for the specific engine
+
+            if interactive:
+                # Create output directory if provided
+                if output_dir:
+                    output_dir = Path(output_dir)
+                    output_dir.mkdir(parents=True, exist_ok=True)
+
+                # Run interactive prompt
+                run_interactive_prompt(realtime_engine, output_dir)
+            else:
+                # Handle stdin/file input in streaming mode
+                click.echo("Non-interactive streaming mode not implemented yet.")
+        except Exception as e:
+            logger.exception("Error initializing real-time TTS")
+            click.echo(f"❌ Error initializing real-time TTS: {e}", err=True)
+    else:
+        click.echo(f"Live TTS with {engine} engine is not implemented yet.")
 
 if __name__ == "__main__":
     cli()

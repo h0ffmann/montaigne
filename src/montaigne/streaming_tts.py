@@ -241,3 +241,372 @@ class RealtimeTTSEngine(BaseStreamingEngine):
 
         except Exception as e:
             logger.error(f"Error saving audio chunk {self.chunk_counter}: {e}", exc_info=True)
+"""
+Streaming TTS module for real-time text-to-speech capabilities.
+"""
+import logging
+import time
+import numpy as np
+from pathlib import Path
+from typing import Optional, Callable, Dict, Any, List
+
+# Audio playback libraries
+try:
+    import sounddevice as sd
+    SOUNDDEVICE_AVAILABLE = True
+except ImportError:
+    SOUNDDEVICE_AVAILABLE = False
+
+# RealtimeTTS library
+try:
+    from realtimetts import TextToAudioStream, PiperEngine, EdgeTTSEngine
+    REALTIMETTS_AVAILABLE = True
+except ImportError:
+    TextToAudioStream = None  # type: ignore
+    PiperEngine = None  # type: ignore
+    EdgeTTSEngine = None  # type: ignore
+    REALTIMETTS_AVAILABLE = False
+
+# Check for torch separately
+try:
+    import torch
+    TORCH_AVAILABLE = True
+except ImportError:
+    TORCH_AVAILABLE = False
+
+logger = logging.getLogger(__name__)
+
+class TTSMonitor:
+    """Monitors and displays TTS performance metrics."""
+
+    def __init__(self):
+        self.words_received = 0
+        self.words_processed = 0
+        self.words_played = 0
+        self.lag_measurements = []
+        self.start_time = None
+
+    def start(self):
+        """Start monitoring."""
+        self.start_time = time.time()
+
+    def update(self, words_received: int, words_processed: int, words_played: int):
+        """Update metrics."""
+        self.words_received = words_received
+        self.words_processed = words_processed
+        self.words_played = words_played
+
+        # Calculate lag
+        current_lag = words_received - words_played
+        self.lag_measurements.append(current_lag)
+
+    def display(self):
+        """Display current metrics."""
+        if not self.start_time:
+            return
+
+        elapsed = time.time() - self.start_time
+        avg_lag = sum(self.lag_measurements) / len(self.lag_measurements) if self.lag_measurements else 0
+
+        print(f"\rWords in queue: {self.words_received - self.words_played} | "
+              f"Avg lag: {avg_lag:.2f} words | "
+              f"Processing rate: {self.words_processed / elapsed:.2f} words/sec",
+              end="")
+
+
+class AudioRecorder:
+    """Records and saves audio chunks to a file."""
+
+    def __init__(self, output_path: Path, sample_rate: int = 22050):
+        self.output_path = output_path
+        self.sample_rate = sample_rate
+        self.chunks = []
+
+    def add_chunk(self, audio_chunk: np.ndarray):
+        """Add an audio chunk to the recording."""
+        self.chunks.append(audio_chunk)
+
+    def save(self):
+        """Save the complete audio to file."""
+        if not self.chunks:
+            return False
+
+        try:
+            # Combine chunks
+            full_audio = np.concatenate(self.chunks)
+
+            # Import here to avoid dependency issues if not needed
+            import soundfile as sf
+
+            # Create parent directory if it doesn't exist
+            self.output_path.parent.mkdir(parents=True, exist_ok=True)
+
+            # Save to file
+            sf.write(str(self.output_path), full_audio, self.sample_rate)
+            logger.info(f"✅ Audio saved to: {self.output_path}")
+            return True
+        except Exception as e:
+            logger.error(f"Error saving audio to {self.output_path}: {e}")
+            return False
+
+
+class StreamingTTSEngine:
+    """Base class for streaming TTS functionality."""
+
+    def __init__(self, engine_name: str, use_cuda: bool = True):
+        self.engine_name = engine_name
+        self.use_cuda = use_cuda
+        self.streaming_engine = None
+        self.active = False
+        self.monitor = TTSMonitor()
+        self.recorder = None
+        self.device = self._check_device(use_cuda)
+        self.init_streaming_engine()
+
+    def _check_device(self, use_cuda_flag: bool) -> str:
+        """Checks CUDA availability and returns the appropriate device."""
+        logger.info(f"Checking CUDA availability (use_cuda={use_cuda_flag})")
+        is_available = False
+
+        if not use_cuda_flag:
+            logger.info("CUDA usage explicitly disabled via --cpu flag.")
+        else:
+            if TORCH_AVAILABLE:
+                is_available = torch.cuda.is_available()
+                logger.info(f"torch.cuda.is_available() check returned: {is_available}")
+                if is_available:
+                    count = torch.cuda.device_count()
+                    logger.info(f"Detected {count} CUDA device(s).")
+            else:
+                logger.warning("PyTorch not available. CUDA support will be limited.")
+
+        selected_device = "cuda" if use_cuda_flag and is_available else "cpu"
+        logger.info(f"Selected device: {selected_device}")
+        if selected_device == "cpu":
+            logger.warning(f"{self.__class__.__name__} will run on CPU. Inference may be slow.")
+        return selected_device
+
+    def init_streaming_engine(self):
+        """Initialize the specific streaming engine implementation."""
+        pass
+
+    def stream_text(self, text: str, output_path: Optional[Path] = None, **kwargs) -> bool:
+        """Stream text to audio with optional saving to output_path."""
+        pass
+
+    def stop_streaming(self):
+        """Stop any ongoing streaming."""
+        self.active = False
+        if self.recorder:
+            self.recorder.save()
+        self.recorder = None
+
+    def _on_audio_chunk(self, audio_chunk: np.ndarray):
+        """Process and play audio chunk. Override in subclasses."""
+        # If we have a recorder, add the chunk to it
+        if self.recorder:
+            self.recorder.add_chunk(audio_chunk)
+
+        # Play the audio if sounddevice is available
+        if SOUNDDEVICE_AVAILABLE:
+            self._play_audio_chunk(audio_chunk)
+
+    def _on_stream_start(self):
+        """Called when streaming starts."""
+        self.active = True
+        self.monitor.start()
+
+    def _on_stream_stop(self):
+        """Called when streaming stops."""
+        self.active = False
+        print("\n✅ Streaming complete.")
+
+    def _play_audio_chunk(self, audio_chunk: np.ndarray, sample_rate: int = 22050):
+        """Play an audio chunk through system speakers."""
+        if not SOUNDDEVICE_AVAILABLE:
+            return
+
+        # Convert audio to float32 if needed
+        if audio_chunk.dtype != np.float32:
+            audio_chunk = audio_chunk.astype(np.float32)
+
+        try:
+            # Play audio
+            sd.play(audio_chunk, sample_rate)
+            sd.wait()  # Wait until audio is finished playing
+        except Exception as e:
+            logger.error(f"Error playing audio chunk: {e}")
+
+
+class RealtimeTTSEngine(StreamingTTSEngine):
+    """Implementation using RealtimeTTS library."""
+
+    def __init__(self, use_cuda: bool = True):
+        if not REALTIMETTS_AVAILABLE:
+            raise RuntimeError("RealtimeTTS library not found. Please install it (`pip install realtimetts`)")
+        super().__init__("realtimetts", use_cuda)
+
+    def init_streaming_engine(self):
+        """Initialize the RealtimeTTS engine."""
+        if not REALTIMETTS_AVAILABLE:
+            logger.error("RealtimeTTS not available. Cannot initialize engine.")
+            return
+
+        logger.info("Initializing RealtimeTTS streaming engine...")
+        try:
+            # Choose appropriate engine based on availability
+            if self.use_cuda and TORCH_AVAILABLE and torch.cuda.is_available():
+                # Use GPU-accelerated engine (Piper) if available
+                logger.info("Initializing Piper TTS engine (GPU-accelerated)")
+                engine = PiperEngine()
+            else:
+                # Fallback to CPU-friendly engine (EdgeTTS)
+                logger.info("Initializing EdgeTTS engine (CPU-friendly)")
+                engine = EdgeTTSEngine()
+
+            self.streaming_engine = TextToAudioStream(
+                engine=engine,
+                on_audio_chunk=self._on_audio_chunk,
+                on_stream_start=self._on_stream_start,
+                on_stream_stop=self._on_stream_stop
+            )
+            logger.info("RealtimeTTS engine initialized successfully")
+        except Exception as e:
+            logger.exception("Failed to initialize RealtimeTTS engine")
+            raise RuntimeError(f"Could not initialize RealtimeTTS engine: {e}")
+
+    def _update_monitor(self, words_received, words_processed, words_played):
+        """Update the monitor with current metrics."""
+        if self.monitor:
+            self.monitor.update(words_received, words_processed, words_played)
+            self.monitor.display()
+
+    def stream_text(self, text: str, output_path: Optional[Path] = None, **kwargs) -> bool:
+        """Stream text to audio with RealtimeTTS."""
+        if not self.streaming_engine:
+            logger.error("RealtimeTTS engine not initialized.")
+            return False
+
+        # Setup recorder if output_path is provided
+        if output_path:
+            self.recorder = AudioRecorder(output_path)
+            logger.info(f"Audio will be saved to: {output_path}")
+
+        try:
+            # Track word metrics manually
+            words_total = len(text.split())
+            words_current = 0
+
+            # Define a callback for tracking progress
+            def progress_callback(num_chars_processed):
+                nonlocal words_current
+                # Estimate words processed based on character ratio
+                ratio = num_chars_processed / max(len(text), 1)
+                words_processed = int(words_total * ratio)
+                if words_processed != words_current:
+                    words_current = words_processed
+                    # Assuming words_played lags slightly behind words_processed
+                    words_played = max(0, words_processed - 2)
+                    self._update_monitor(words_total, words_processed, words_played)
+
+            # Stream the text
+            logger.info(f"Streaming text ({len(text)} characters, ~{words_total} words)...")
+            print("🎙️ Streaming audio... (Press Ctrl+C to stop)")
+
+            # Start streaming
+            self.active = True
+            self.streaming_engine.tts_stream(
+                text,
+                progress_callback=progress_callback,
+                **kwargs
+            )
+
+            # Wait for streaming to complete naturally
+            while self.active:
+                time.sleep(0.1)
+
+            # Final update
+            self._update_monitor(words_total, words_total, words_total)
+            print()  # Add newline after progress display
+
+            # Save recording if needed
+            if self.recorder and output_path:
+                success = self.recorder.save()
+                if success:
+                    print(f"✅ Audio saved to: {output_path}")
+
+            return True
+        except KeyboardInterrupt:
+            print("\n⏹️ Streaming stopped by user.")
+            self.stop_streaming()
+            return False
+        except Exception as e:
+            logger.exception("Error during RealtimeTTS streaming")
+            print(f"❌ Error during streaming: {e}")
+            self.stop_streaming()
+            return False
+
+
+def run_interactive_prompt(engine: StreamingTTSEngine, output_dir: Optional[Path] = None):
+    """Run an interactive prompt that converts text to speech in real-time."""
+    print("🎙️ Montaigne Real-time TTS")
+    print("Type text and press Enter to hear it spoken.")
+    print("Type ':quit' to exit, ':help' for commands.")
+
+    session_num = int(time.time())
+
+    while True:
+        try:
+            text = input("> ")
+            if text.lower() == ':quit':
+                break
+            elif text.lower() == ':help':
+                print_help()
+            elif text.startswith(':'):
+                handle_command(text, engine)
+            else:
+                # Create output path for this prompt if output_dir is provided
+                output_path = None
+                if output_dir:
+                    output_path = output_dir / f"tts_live_{session_num}_{int(time.time())}.wav"
+
+                # Stream text to audio in real-time
+                engine.stream_text(
+                    text,
+                    output_path=output_path
+                )
+        except KeyboardInterrupt:
+            print("\nExiting...")
+            break
+
+
+def print_help():
+    """Print help information for interactive mode."""
+    print("Available commands:")
+    print("  :help       - Show this help message")
+    print("  :quit       - Exit the interactive prompt")
+    # Future commands could include voice selection, language selection, etc.
+
+
+def handle_command(command: str, engine: StreamingTTSEngine):
+    """Handle special commands in interactive mode."""
+    # Simple command handling for now
+    print(f"Unknown command: {command}")
+    print("Type ':help' for available commands.")
+
+
+def map_montaigne_voice_to_streaming(voice_profile: str):
+    """Map Montaigne voice profile to streaming engine voice."""
+    # Basic voice profile mapping
+    VOICE_PROFILE_MAPPING = {
+        "trump": "en_US/trump",
+        "obama": "en_US/obama",
+        "biden": "en_US/biden",
+    }
+
+    # For RealtimeTTS with Piper engine
+    if voice_profile in ["trump", "obama", "biden"]:
+        return f"en_US/{voice_profile}"
+
+    # For other profiles, use default mapping
+    return VOICE_PROFILE_MAPPING.get(voice_profile, "en_US/cmu-arctic_low#rms")

@@ -197,7 +197,9 @@ class PiperStreamingTTS:
                 break # Stop processing chunks for this prompt if one fails
 
         # Proceed only if all chunks were synthesized and we have temp files
-        final_output_path = output_dir / f"live_{session_id}_{prompt_count}.wav"
+        # Construct the new filename including the voice name
+        voice_name_part = self.voice_name if self.voice_name else "unknown_voice"
+        final_output_path = output_dir / f"live_piper_{voice_name_part}_{session_id}_{prompt_count}.wav"
         concatenation_successful = False
         playback_successful = False
 

@@ -56,15 +56,10 @@ class PiperStreamingTTS:
 
     def load_model(self, voice_name: str = "en_US-amy-low") -> bool:
         """Load a Piper voice model from Hugging Face."""
-        global PIPER_AVAILABLE # Allow modification if import fails
+        # Check PIPER_AVAILABLE which should be set at the module level
         if not PIPER_AVAILABLE:
-             # Try importing again just in case it became available after init
-             try:
-                 from piper import PiperVoice
-                 PIPER_AVAILABLE = True
-             except ImportError:
-                 logger.error("piper-tts library is required but not found. Install with `pip install piper-tts`")
-                 return False
+            logger.error("piper-tts library is required but was not found during initial import. Install with `pip install piper-tts`")
+            return False
 
         logger.info(f"Attempting to load Piper voice: {voice_name} (CUDA: {self.use_cuda})")
         # Basic structure assumption: lang/lang_REGION/speaker/quality/model.onnx
@@ -87,6 +82,10 @@ class PiperStreamingTTS:
             config_path_hf = hf_hub_download(repo_id=repo_id, filename=config_filename)
 
             logger.info(f"Loading PiperVoice model...")
+            # Import PiperVoice here, right before use, ensuring it's in scope
+            # The global PIPER_AVAILABLE check at the start ensures this import should succeed
+            from piper import PiperVoice
+
             # PiperVoice.load handles device selection internally based on onnxruntime providers
             # Pass use_cuda preference to it
             self.voice_model = PiperVoice.load(model_path_hf, config_path_hf, use_cuda=self.use_cuda)

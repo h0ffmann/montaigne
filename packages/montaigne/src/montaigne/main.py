@@ -24,7 +24,7 @@ try:
     from .tts_engine import BaseTTSEngine, XTTSv2Engine, BarkEngine, XTTS_MODEL_NAME
     # Import the new Piper-based streaming engine (now PiperStreamingTTS)
     from .streaming_tts import PiperStreamingTTS, run_interactive_prompt, PIPER_AVAILABLE, SOUNDDEVICE_AVAILABLE # Import new class and checks
-    from .evaluation import AudioEvaluator # Keep evaluation for batch mode
+    #from .evaluation import AudioEvaluator # Keep evaluation for batch mode TODO
     from .voice_profiles import list_voice_profiles, get_voice_profile # Keep profile import
     from .audio_utils import concatenate_audio_files, cleanup_files
 except ImportError as e:

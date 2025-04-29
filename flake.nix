@@ -88,6 +88,7 @@
           gnumake
           python
           uv
+          ruff
           nodejs_22
           corepack_22
           docker

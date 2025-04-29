@@ -1,10 +1,10 @@
 [project]
-name = "montaigne-workspace" # Renamed root project
+name = "montaigne-workspace"
 version = "0.1.0"
 description = "Workspace for Montaigne TTS and related tools."
 authors = [{ name = "Matheus Hoffmann", email = "hoffmann@poli.ufrj.br" }]
 requires-python = ">=3.11,<3.12"
-dependencies = [] # Root project has no direct dependencies now
+dependencies = []
 
 [project.optional-dependencies]
 dev = [
@@ -13,9 +13,6 @@ dev = [
     "build==1.2.2.post1",
 ]
 
-# No scripts defined at the root level anymore
-# [project.scripts]
-
 [tool.uv.workspace]
 members = ["packages/*"]
 
@@ -23,7 +20,6 @@ members = ["packages/*"]
 requires = ["setuptools>=61.0"]
 build-backend = "setuptools.build_meta"
 
-# Ruff config can remain at the root for workspace-wide checks
 [tool.ruff]
 line-length = 88
 select = ["E", "F", "W", "I", "N", "C4", "UP", "ARG", "B"]
@@ -31,3 +27,9 @@ ignore = ["B008"]
 
 [tool.ruff.format]
 quote-style = "double"
+
+[tool.setuptools.packages.find]
+where = ["."]  # list of folders that contain the packages (["."] by default)
+include = ["*"]  # package names should match these glob patterns (["*"] by default)
+exclude = ['next', 'input', 'output', 'packages', 'model_files', 'analysis_plots'] 
+namespaces = false  # to disable scanning PEP 420 namespaces (true by default)

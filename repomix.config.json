@@ -12,7 +12,7 @@
             "aider_analytics.py",
             "uv.lock",
             ".github/*",
-            "DEBUG.md",
+            "next/",
             ".venv*",
             "*.egg-info/"
         ]

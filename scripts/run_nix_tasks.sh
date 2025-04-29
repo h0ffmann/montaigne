@@ -1,54 +1,33 @@
 #!/bin/bash
 # This script executes tasks within the Nix environment for the 'all' pipeline.
+# It calls existing just tasks which should have the correct environment setup.
 set -e
 
-echo "--- [Nix Env] Check Environment ---"
+echo "--- [Nix Env] Check Basic Tools (inside script) ---"
 echo "🐍 Python: $(python --version)"
 echo "📦 UV: $(uv --version)"
-python -c "import torch; print('🐍 PyTorch Version:', torch.__version__)" || echo "🐍 PyTorch not available yet."
+# Can't reliably check ruff directly here if path is the issue, just tasks below will test it
 
 echo "--- [Nix Env] Installing Workspace Packages ---"
-uv pip install -e . --verbose
-python -c "import montaigne; print(f'✅ Verified montaigne module: {montaigne.__file__}')"
+# Assuming 'just install_workspace' works correctly when run from shell
+just install_workspace
 
-echo "--- [Nix Env] Running Linter and Formatter Checks ---"
-ruff check .
-ruff format .
+echo "--- [Nix Env] Running Linter and Formatter Checks (via just) ---"
+# Delegate to the just task which should find ruff
+just check # Runs 'just lint' and 'just format' internally
 
-echo "--- [Nix Env] Generating Repomix ---"
-repomix .
+echo "--- [Nix Env] Generating Repomix (via just) ---"
+# Delegate to the just task which should find repomix
+just mix
 
-echo "--- [Nix Env] Preparing Directories ---"
-# Use direct commands instead of 'just prepare_dirs'
-mkdir -p input output
-if [ ! -f "input/speaker.wav" ]; then
-    echo "⚠️ Creating sample speaker.wav file (via script)..."
-    ffmpeg -f lavfi -i "sine=frequency=1000:duration=5" -ac 1 -ar 16000 input/speaker.wav 2>/dev/null || \
-        { echo "❌ Failed to create speaker.wav (inside script)."; exit 1; }
-fi
+echo "--- [Nix Env] Preparing Directories (via just) ---"
+# Delegate to the just task which should find ffmpeg
+just prepare_dirs
 
-echo "--- [Nix Env] Running TTS Synthesis Tasks ---"
-echo "✨ Running XTTS synthesis (via script)..."
-python -m montaigne.main synthesize \
-    --output-file output/xtts_output.wav \
-    --speaker-wav input/speaker.wav \
-    --language en \
-    --text "This is a test with XTTS from script."
+echo "--- [Nix Env] Running TTS Synthesis Tasks (via just) ---"
+# Delegate to the just tasks which should find python and run the modules
+just xtts
+just bark
+just yt
 
-echo "🐾 Running Bark synthesis (via script)..."
-python -m montaigne.main synthesize \
-    --engine bark \
-    --text "Hello from the Bark engine from script." \
-    --language en \
-    --output-file output/bark_en_default.wav
-
-echo "▶️ Running XTTS with YouTube speaker (via script)..."
-python -m montaigne.main synthesize \
-    --engine xtts \
-    --speaker-youtube-id "dQw4w9WgXcQ" \
-    --text "Testing YouTube download from script." \
-    --language en \
-    --output-file output/yt_test.wav
-
-
-echo "--- [Nix Env] Tasks Completed Successfully ---"
+echo "--- [Nix Env] Script tasks via delegation completed Successfully ---"

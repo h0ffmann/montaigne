@@ -83,7 +83,7 @@ def get_tts_engine(engine_type: EngineChoice, use_cuda: bool):
 evaluator_instance = None
 
 
-def get_evaluator(use_cuda: bool):
+def get_evaluator():  # Removed unused use_cuda argument
     global evaluator_instance  # Keep evaluator logic for batch synthesize command
     if evaluator_instance is None:
         logger.info("Initializing Audio Evaluator (Whisper)...")
@@ -121,7 +121,10 @@ def cli():
 # Update help text to clarify youtube ID requires internet
 @click.option(
     "--speaker-youtube-id",
-    help="YouTube Video ID for voice cloning (XTTS only, downloads audio). Mutually exclusive with --speaker-wav and --voice-profile.",
+    help=(
+        "YouTube Video ID for voice cloning (XTTS only, downloads audio). "
+        "Mutually exclusive with --speaker-wav and --voice-profile."
+    ),
 )
 @click.option(
     "--speaker-prompt", help="Voice prompt for Bark engine (e.g., 'en_speaker_6')."
@@ -270,7 +273,9 @@ def synthesize(
         else:
             # speaker_wav must be set if voice_profile is not (validated above)
             actual_speaker_wav = speaker_wav  # type: ignore [assignment] - Click ensures it exists
-            speaker_display_name = f"File: {actual_speaker_wav.name if actual_speaker_wav else 'N/A'}"  # Check added for type safety
+            speaker_display_name = (
+                f"File: {actual_speaker_wav.name if actual_speaker_wav else 'N/A'}"
+            )  # Check added for type safety
             logger.info(f"Using speaker WAV file: {actual_speaker_wav.name}")
 
         # Common setup for XTTS once actual_speaker_wav is determined
@@ -399,7 +404,8 @@ def synthesize(
         sys.exit(1)
     elif len(valid_chunk_files) < len(chunk_output_files):
         click.secho(
-            f"⚠️ Warning: Only {len(valid_chunk_files)} out of {len(chunk_output_files)} chunks were valid for concatenation.",
+            f"⚠️ Warning: Only {len(valid_chunk_files)} out of {len(chunk_output_files)} chunks "
+            "were valid for concatenation.",
             fg="yellow",
         )
 

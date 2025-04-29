@@ -75,7 +75,8 @@ class PiperStreamingTTS:
         # Check PIPER_AVAILABLE which should be set at the module level
         if not PIPER_AVAILABLE:
             logger.error(
-                "piper-tts library is required but was not found during initial import. Install with `pip install piper-tts`"
+                "piper-tts library is required but was not found during initial import. "
+                "Install with `pip install piper-tts`"
             )
             return False
 

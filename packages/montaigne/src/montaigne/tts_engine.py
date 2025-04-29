@@ -314,7 +314,8 @@ class BarkEngine(BaseTTSEngine):
                 logger.info(f"Using generic Bark history prompt: {history_prompt}")
             else:
                 logger.warning(
-                    f"Language '{language}' ({simple_lang_code}) not directly listed in Bark presets. Bark may default to English or perform poorly."
+                    f"Language '{language}' ({simple_lang_code}) not directly listed in Bark presets. "
+                    "Bark may default to English or perform poorly."
                 )
                 # Proceed without a history prompt, Bark might default
 

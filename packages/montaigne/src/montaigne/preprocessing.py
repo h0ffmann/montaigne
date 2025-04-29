@@ -97,7 +97,8 @@ def chunk_text(
             # Future: Implement sentence splitting within long paragraphs.
             if len(para) > max_chunk_len * 1.5:  # Allow some leeway
                 logger.warning(
-                    f"Paragraph {i + 1} significantly exceeds max_chunk_len ({len(para)} chars). Consider sentence splitting. Content: '{para[:100]}...'"
+                    f"Paragraph {i + 1} significantly exceeds max_chunk_len ({len(para)} chars). "
+                    f"Consider sentence splitting. Content: '{para[:100]}...'"
                 )
             # Even if long, add it as one chunk for now with paragraph strategy
             chunks.append(para)

@@ -126,6 +126,7 @@
           libGL.dev
           openssl.dev
           ncurses5.dev
+          pkgs.portaudio
         ];
 
       in
@@ -136,7 +137,7 @@
           packages = montaigneTools ++ nixPythonMlPackages;
           # buildInputs are implicitly added to PATH and include .dev outputs
           # Needed for compiling non-Nix Python packages if they require these libs.
-          buildInputs = devBuildInputs; 
+          buildInputs = devBuildInputs;
 
           # --- Environment Variables ---
           env = {
@@ -167,107 +168,107 @@
 
           # --- Shell Hook ---
           shellHook = ''
-                        unset SOURCE_DATE_EPOCH
-                        echo "👋 Entering Montaigne Dev Env (Nix managing Python core + PyTorch/CUDA)..."
+            unset SOURCE_DATE_EPOCH
+            echo "👋 Entering Montaigne Dev Env (Nix managing Python core + PyTorch/CUDA)..."
 
-                        # --- Venv Setup ---
-                        # Use the python provided in `packages` which should be the correct one
-                        _NIX_PYTHON_INTERPRETER=$(command -v python)
-                        if ! command -v "$_NIX_PYTHON_INTERPRETER" &> /dev/null; then echo "❌ Fatal: Nix Python interpreter not found in PATH." && return 1; fi
-                        echo "🐍 Using Nix Python for venv base: $_NIX_PYTHON_INTERPRETER ($($_NIX_PYTHON_INTERPRETER --version))"
-                        _PROJECT_DIR="$(pwd)"; VENV_DIR="$_PROJECT_DIR/.venv"; export VIRTUAL_ENV="$VENV_DIR"; export PATH="$VENV_DIR/bin:$PATH"
+            # --- Venv Setup ---
+            # Use the python provided in `packages` which should be the correct one
+            _NIX_PYTHON_INTERPRETER=$(command -v python)
+            if ! command -v "$_NIX_PYTHON_INTERPRETER" &> /dev/null; then echo "❌ Fatal: Nix Python interpreter not found in PATH." && return 1; fi
+            echo "🐍 Using Nix Python for venv base: $_NIX_PYTHON_INTERPRETER ($($_NIX_PYTHON_INTERPRETER --version))"
+            _PROJECT_DIR="$(pwd)"; VENV_DIR="$_PROJECT_DIR/.venv"; export VIRTUAL_ENV="$VENV_DIR"; export PATH="$VENV_DIR/bin:$PATH"
 
-                        echo "   Resolved VIRTUAL_ENV='$VIRTUAL_ENV'"; echo "   Prepended venv bin to PATH."
-                        if [ ! -f "$VENV_DIR/bin/activate" ]; then
-                          echo "🐍 Creating Python virtual environment using uv in '$VENV_DIR'..."
-                          if ! uv venv "$VENV_DIR" --python "$_NIX_PYTHON_INTERPRETER"; then echo "❌ Fatal: Failed to create uv virtual environment." && return 1; fi
-                          echo "✅ Virtual environment created."
-                        else echo "🐍 Re-using existing virtual environment '$VENV_DIR'."; fi
+            echo "   Resolved VIRTUAL_ENV='$VIRTUAL_ENV'"; echo "   Prepended venv bin to PATH."
+            if [ ! -f "$VENV_DIR/bin/activate" ]; then
+              echo "🐍 Creating Python virtual environment using uv in '$VENV_DIR'..."
+              if ! uv venv "$VENV_DIR" --python "$_NIX_PYTHON_INTERPRETER"; then echo "❌ Fatal: Failed to create uv virtual environment." && return 1; fi
+              echo "✅ Virtual environment created."
+            else echo "🐍 Re-using existing virtual environment '$VENV_DIR'."; fi
 
-                        # --- Venv Activation ---
-                        if [ -f "$VENV_DIR/bin/activate" ]; then
-                           echo "🐍 Activating Python virtual environment..."; source "$VENV_DIR/bin/activate"; echo "   VIRTUAL_ENV is: $VIRTUAL_ENV"
-                           _VENV_PYTHON_PATH=$(command -v python); echo "   Python interpreter path (venv): $_VENV_PYTHON_PATH"; echo "   Python version (venv): $(python --version)"
-                           if ! [[ "$_VENV_PYTHON_PATH" == "$VENV_DIR/bin/python" ]]; then echo "⚠️ Warning: 'command -v python' found '$_VENV_PYTHON_PATH' not expected '$VENV_DIR/bin/python'."; fi
-                        else echo "❌ Fatal: Failed to find activate script in '$VENV_DIR/bin/activate'." && return 1; fi
+            # --- Venv Activation ---
+            if [ -f "$VENV_DIR/bin/activate" ]; then
+               echo "🐍 Activating Python virtual environment..."; source "$VENV_DIR/bin/activate"; echo "   VIRTUAL_ENV is: $VIRTUAL_ENV"
+               _VENV_PYTHON_PATH=$(command -v python); echo "   Python interpreter path (venv): $_VENV_PYTHON_PATH"; echo "   Python version (venv): $(python --version)"
+               if ! [[ "$_VENV_PYTHON_PATH" == "$VENV_DIR/bin/python" ]]; then echo "⚠️ Warning: 'command -v python' found '$_VENV_PYTHON_PATH' not expected '$VENV_DIR/bin/python'."; fi
+            else echo "❌ Fatal: Failed to find activate script in '$VENV_DIR/bin/activate'." && return 1; fi
 
-                        # --- uv Dependency Installation ---
-                        if command -v uv &> /dev/null; then
-                           echo "📦 Installing/Verifying remaining project-specific Python dependencies via uv..."
-                           # Nix now manages: torch, torchaudio, numpy, pandas, scipy, soundfile,
-                           # rapidfuzz, librosa, numba, transformers, accelerate
-                           # Explicitly install only those NOT managed by Nix:
-                           if ! uv pip install --no-cache-dir \
-                               click==8.1.8 \
-                               requests'>=2.31.0' \
-                               TTS==0.22.0 \
-                               openai-whisper==20240930 \
-                               pydub'>=0.25.0' \
-                               'suno-bark @ git+https://github.com/suno-ai/bark.git' \
-                               yt-dlp'>=2023.0.0' \
-                               ; then
-                             echo "❌ Fatal: Failed to install base dependencies with uv into venv '$VENV_DIR'." && return 1
-                           fi
-                           echo "🏗️ Installing local Montaigne package in editable mode into venv..."
-                           # Using -e attempts to install deps from pyproject.toml again.
-                           # Let's try --no-deps first to strictly avoid reinstalling Nix packages.
-                           if ! uv pip install --no-deps -e "$_PROJECT_DIR"; then
-                              echo "⚠️ Warning: Failed --no-deps editable install. Trying normal editable install..."
-                              # Fallback to normal editable if --no-deps fails (might reinstall some things)
-                              if ! uv pip install -e "$_PROJECT_DIR"; then
-                                 echo "❌ Error: Failed both --no-deps and normal editable install for local package."
-                              fi
-                           fi
-                           echo "✅ uv dependency installation complete."
-                        fi
-                        # --- Sanity Checks ---
-                        echo "" && echo "=== Sanity Checks ==="
-                        # --- PyTorch/Torchaudio Check ---
-                        echo "🔍 Checking PyTorch & Torchaudio (managed by Nix, accessed via venv Python)..."
-                        python -c "import torch; print(f'---> Torch Version: {torch.__version__}'); print(f'---> CUDA Available: {torch.cuda.is_available()}'); print(f'---> Device Count: {torch.cuda.device_count()}')"
+            # --- uv Dependency Installation ---
+            if command -v uv &> /dev/null; then
+               echo "📦 Installing/Verifying remaining project-specific Python dependencies via uv..."
+               # Nix now manages: torch, torchaudio, numpy, pandas, scipy, soundfile,
+               # rapidfuzz, librosa, numba, transformers, accelerate
+               # Explicitly install only those NOT managed by Nix:
+               if ! uv pip install --no-cache-dir \
+                   click==8.1.8 \
+                   requests'>=2.31.0' \
+                   TTS==0.22.0 \
+                   openai-whisper==20240930 \
+                   pydub'>=0.25.0' \
+                   'suno-bark @ git+https://github.com/suno-ai/bark.git' \
+                   yt-dlp'>=2023.0.0' \
+                   ; then
+                 echo "❌ Fatal: Failed to install base dependencies with uv into venv '$VENV_DIR'." && return 1
+               fi
+               echo "🏗️ Installing local Montaigne package in editable mode into venv..."
+               # Using -e attempts to install deps from pyproject.toml again.
+               # Let's try --no-deps first to strictly avoid reinstalling Nix packages.
+               if ! uv pip install --no-deps -e "$_PROJECT_DIR"; then
+                  echo "⚠️ Warning: Failed --no-deps editable install. Trying normal editable install..."
+                  # Fallback to normal editable if --no-deps fails (might reinstall some things)
+                  if ! uv pip install -e "$_PROJECT_DIR"; then
+                     echo "❌ Error: Failed both --no-deps and normal editable install for local package."
+                  fi
+               fi
+               echo "✅ uv dependency installation complete."
+            fi
+            # --- Sanity Checks ---
+            echo "" && echo "=== Sanity Checks ==="
+            # --- PyTorch/Torchaudio Check ---
+            echo "🔍 Checking PyTorch & Torchaudio (managed by Nix, accessed via venv Python)..."
+            python -c "import torch; print(f'---> Torch Version: {torch.__version__}'); print(f'---> CUDA Available: {torch.cuda.is_available()}'); print(f'---> Device Count: {torch.cuda.device_count()}')"
 
-                        # --- Docker Check ---
-                        echo "🐳 Checking Docker status..."
-                        if command -v docker &> /dev/null; then
-                          if timeout 5 docker info >/dev/null 2>&1; then
-                             echo "✅ Docker daemon is running and accessible."
-                             if timeout 5 docker info 2>/dev/null | grep -qE 'Runtimes:.* nvidia( |$)'; then echo "✅ NVIDIA Docker runtime detected in docker info."
-                             elif command -v nvidia-container-runtime &>/dev/null || command -v nvidia-container-runtime-hook &>/dev/null ; then echo "ℹ️ NVIDIA container runtime binary found, but not listed in 'docker info Runtimes'."
-                             else echo "⚠️ NVIDIA Docker runtime not detected."; fi
-                          else echo "⚠️ Docker daemon not running, not responsive within 5s, or permission error."; fi
-                        else echo "❌ Docker command not found \(is 'docker' included in 'packages'?\)."; fi
+            # --- Docker Check ---
+            echo "🐳 Checking Docker status..."
+            if command -v docker &> /dev/null; then
+              if timeout 5 docker info >/dev/null 2>&1; then
+                 echo "✅ Docker daemon is running and accessible."
+                 if timeout 5 docker info 2>/dev/null | grep -qE 'Runtimes:.* nvidia( |$)'; then echo "✅ NVIDIA Docker runtime detected in docker info."
+                 elif command -v nvidia-container-runtime &>/dev/null || command -v nvidia-container-runtime-hook &>/dev/null ; then echo "ℹ️ NVIDIA container runtime binary found, but not listed in 'docker info Runtimes'."
+                 else echo "⚠️ NVIDIA Docker runtime not detected."; fi
+              else echo "⚠️ Docker daemon not running, not responsive within 5s, or permission error."; fi
+            else echo "❌ Docker command not found \(is 'docker' included in 'packages'?\)."; fi
 
-                        # --- Host NVIDIA Driver Check ---
-                        echo "💻 Checking Host NVIDIA driver via nvidia-smi wrapper..."
-                        if command -v nvidia-smi &> /dev/null; then
-                          nvidia_smi_output=""; nvidia_smi_status=1
-                          if nvidia_smi_output=$(timeout 5 nvidia-smi --query-gpu=driver_version --format=csv,noheader 2>&1); nvidia_smi_status=$?; then
-                             if [ $nvidia_smi_status -eq 0 ] && [ -n "$nvidia_smi_output" ]; then echo "✅ nvidia-smi query successful. Host Driver Version: $nvidia_smi_output"
-                             else
-                               echo "   ℹ️ nvidia-smi query failed (Status: $nvidia_smi_status)/empty. Trying generic 'nvidia-smi'..."
-                               if nvidia_smi_output=$(timeout 5 nvidia-smi 2>&1); nvidia_smi_status=$?; then
-                                  if [ $nvidia_smi_status -eq 0 ] && echo "$nvidia_smi_output" | grep -q "Driver Version:"; then echo "✅ nvidia-smi generic command successful. Host drivers okay."; echo "$nvidia_smi_output" | grep "Driver Version:" | sed 's/ *|//'
-                                  else echo "⚠️ nvidia-smi generic command issue (Status: $nvidia_smi_status). Output:"; echo "--- START ---"; echo "$nvidia_smi_output"; echo "--- END ---"; fi
-                               else echo "⚠️ nvidia-smi generic command failed/timed out (Status: $nvidia_smi_status). Output:"; echo "--- START ---"; echo "$nvidia_smi_output"; echo "--- END ---"; fi
-                             fi
-                          else echo "⚠️ Error running/capturing nvidia-smi status."; fi
-                        else echo "❌ nvidia-smi command (wrapper) not found in PATH."; fi
+            # --- Host NVIDIA Driver Check ---
+            echo "💻 Checking Host NVIDIA driver via nvidia-smi wrapper..."
+            if command -v nvidia-smi &> /dev/null; then
+              nvidia_smi_output=""; nvidia_smi_status=1
+              if nvidia_smi_output=$(timeout 5 nvidia-smi --query-gpu=driver_version --format=csv,noheader 2>&1); nvidia_smi_status=$?; then
+                 if [ $nvidia_smi_status -eq 0 ] && [ -n "$nvidia_smi_output" ]; then echo "✅ nvidia-smi query successful. Host Driver Version: $nvidia_smi_output"
+                 else
+                   echo "   ℹ️ nvidia-smi query failed (Status: $nvidia_smi_status)/empty. Trying generic 'nvidia-smi'..."
+                   if nvidia_smi_output=$(timeout 5 nvidia-smi 2>&1); nvidia_smi_status=$?; then
+                      if [ $nvidia_smi_status -eq 0 ] && echo "$nvidia_smi_output" | grep -q "Driver Version:"; then echo "✅ nvidia-smi generic command successful. Host drivers okay."; echo "$nvidia_smi_output" | grep "Driver Version:" | sed 's/ *|//'
+                      else echo "⚠️ nvidia-smi generic command issue (Status: $nvidia_smi_status). Output:"; echo "--- START ---"; echo "$nvidia_smi_output"; echo "--- END ---"; fi
+                   else echo "⚠️ nvidia-smi generic command failed/timed out (Status: $nvidia_smi_status). Output:"; echo "--- START ---"; echo "$nvidia_smi_output"; echo "--- END ---"; fi
+                 fi
+              else echo "⚠️ Error running/capturing nvidia-smi status."; fi
+            else echo "❌ nvidia-smi command (wrapper) not found in PATH."; fi
 
-                        # --- Final Message ---
-                        echo "================================"; echo ""
-                        echo "✅ Montaigne environment ready!"
-                        # Use the nixpkgsRev variable defined in the Nix 'let' block
-                        # This uses Nix interpolation.
-                        echo "   Nix manages: Python ${python.version}, PyTorch+CUDA, Torchaudio, Core libs (from Nixpkgs commit ${nixpkgsRev})"
-                        echo "   uv manages other Python packages in: $VENV_DIR" # Use shell variable $VENV_DIR
-                        echo ""
-                        echo "📌 Quick Start:"
-                        echo "   just --list          # Show available commands"
-                        echo "   just run -- --help   # Run the Montaigne CLI"
-                        echo "   python --version     # Verify venv Python ($(python --version))"
-                        echo "   which python         # Verify venv Python path ($(command -v python))"
-                        echo "   uv pip list          # List venv packages"
-                        echo ""
+            # --- Final Message ---
+            echo "================================"; echo ""
+            echo "✅ Montaigne environment ready!"
+            # Use the nixpkgsRev variable defined in the Nix 'let' block
+            # This uses Nix interpolation.
+            echo "   Nix manages: Python ${python.version}, PyTorch+CUDA, Torchaudio, Core libs (from Nixpkgs commit ${nixpkgsRev})"
+            echo "   uv manages other Python packages in: $VENV_DIR" # Use shell variable $VENV_DIR
+            echo ""
+            echo "📌 Quick Start:"
+            echo "   just --list          # Show available commands"
+            echo "   just run -- --help   # Run the Montaigne CLI"
+            echo "   python --version     # Verify venv Python ($(python --version))"
+            echo "   which python         # Verify venv Python path ($(command -v python))"
+            echo "   uv pip list          # List venv packages"
+            echo ""
           ''; # End of shellHook definition
         }; # End of mkShell definition
 

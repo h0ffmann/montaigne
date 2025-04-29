@@ -1,4 +1,4 @@
-name: Run TTS Tasks (Ubuntu - CPU Only)
+name: TTS-Ubuntu
 
 on:
   push:
@@ -55,14 +55,9 @@ jobs:
       - name: Install linting dependencies
         run: |
           # Install using pip instead of uv to avoid dynamic linking issues
-          python -m pip install ruff==0.11.7 tomli tomli-w
+          python -m pip install ruff==0.11.7
       
-      - name: Configure Ruff environment
-        run: |
-          echo "Setting up Ruff environment variables..."
-          echo "RUFF_LINE_LENGTH=120" >> $GITHUB_ENV
-          # Run the pyproject.toml updater script
-          python update-pyproject.py
+
       
       - name: Run Ruff linter
         run: |

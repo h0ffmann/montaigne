@@ -1,8 +1,9 @@
 # Temporary copy stage to make files available during RUN install step
 FROM ubuntu:22.04 as file_copier
 WORKDIR /tmp/project_files
-COPY pyproject.toml ./
-COPY src/ ./src/
+COPY pyproject.toml ./ # Copy root pyproject.toml
+COPY uv.lock ./ # Copy lock file
+COPY packages/ ./packages/ # Copy all workspace packages
 
 # Add build arg to control model source
 ARG USE_LOCAL_MODEL=false
@@ -143,21 +144,19 @@ RUN echo "Setting up PyTorch index URL..." \
         --find-links "${TORCH_URL}" \
         "torch" \
         "torchaudio" \
-    # Install the application itself using the project files copied earlier
+    # Install the workspace packages using the project files copied earlier
     && echo "Copying project files for installation..." \
     && cp /tmp/project_files/pyproject.toml /app/pyproject.toml \
-    && cp -r /tmp/project_files/src /app/src \
-    && echo "Installing application '/app' using uv..." \
+    && cp /tmp/project_files/uv.lock /app/uv.lock \
+    && cp -r /tmp/project_files/packages /app/packages \
+    && echo "Installing workspace packages from '/app' using uv..." \
     && uv pip install \
         --system \
         --no-cache \
         --python /usr/bin/python3.11 \
-        # Explicitly specify the app path; it should pick up already installed torch/torchaudio
-        # Also install runtime deps needed by piper/sounddevice if not covered by /app install
-        # (Assuming /app install pulls them via pyproject.toml)
-        /app \
-        # Explicitly add huggingface-hub here as well, although /app should pull it
-        huggingface-hub \
+        # Install all workspace members defined in pyproject.toml from the current directory (.)
+        # This should pull in montaigne, aider-analytics, and their dependencies (like huggingface-hub)
+        . \
     # Clean up temporary project files and build dependencies
     && echo "Cleaning up build environment..." && rm -rf /tmp/project_files \
     && apt-get purge -y --auto-remove \

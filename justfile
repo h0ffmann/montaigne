@@ -55,7 +55,7 @@ check: lint format
 # === Analysis ===
 analytics:
     @echo "📊 Running commit analysis..."
-    @python aider_analytics.py
+    @aider-analytics .
 
 # === Testing ===
 test:

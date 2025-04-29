@@ -212,9 +212,12 @@
                fi
                echo "🏗️ Installing local Montaigne package in editable mode into venv..."
 
-               # NOTE: Explicit addition of PortAudio to LD_LIBRARY_PATH removed from shellHook.
-               # It's already included via `env.LD_LIBRARY_PATH = runtimeLibPath;`
-               # where `runtimeLibPath` includes `portaudio`.
+               # Add PortAudio library path to LD_LIBRARY_PATH for sounddevice
+               echo "🔊 Adding PortAudio to LD_LIBRARY_PATH for audio playback..."
+               export LD_LIBRARY_PATH="${pkgs.portaudio}/lib''${LD_LIBRARY_PATH:+:''$LD_LIBRARY_PATH}"
+               echo "   Current LD_LIBRARY_PATH includes:"
+               echo "   - ${pkgs.portaudio}/lib"
+               echo "   This enables runtime loading of libportaudio.so.2 by sounddevice"
 
                # Using -e attempts to install deps from pyproject.toml again.
                # Let's try --no-deps first to strictly avoid reinstalling Nix packages.

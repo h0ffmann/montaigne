@@ -4,7 +4,6 @@ on:
   push:
     branches:
       - master
-      - feat/ci-tts-ubuntu
   pull_request:
     branches:
       - master
@@ -28,7 +27,24 @@ jobs:
         uses: actions/setup-python@v4
         with:
           python-version: '3.11'
-          cache: 'pip'
+          # Remove the pip cache option as it's causing errors
+          # cache: 'pip'
+          
+      - name: Set up pip cache
+        uses: actions/cache@v3
+        with:
+          path: ~/.cache/pip
+          key: ${{ runner.os }}-pip-${{ hashFiles('**/requirements.txt', '**/pyproject.toml') }}
+          restore-keys: |
+            ${{ runner.os }}-pip-
+          
+      - name: Set up pip cache
+        uses: actions/cache@v3
+        with:
+          path: ~/.cache/pip
+          key: ${{ runner.os }}-pip-${{ hashFiles('**/requirements.txt', '**/pyproject.toml') }}
+          restore-keys: |
+            ${{ runner.os }}-pip-
       
       - name: Install UV
         uses: astral-sh/setup-uv@v6
@@ -37,17 +53,26 @@ jobs:
           enable-cache: true
       
       - name: Install linting dependencies
-        run: uv pip install --system ruff==0.11.7
+        run: |
+          # Install using pip instead of uv to avoid dynamic linking issues
+          python -m pip install ruff==0.11.7 tomli tomli-w
+      
+      - name: Configure Ruff environment
+        run: |
+          echo "Setting up Ruff environment variables..."
+          echo "RUFF_LINE_LENGTH=120" >> $GITHUB_ENV
+          # Run the pyproject.toml updater script
+          python update-pyproject.py
       
       - name: Run Ruff linter
         run: |
           echo "Running Ruff linter checks..."
-          ruff check packages/
+          python -m ruff check --force-exclude --config=ruff.toml packages/
       
       - name: Run Ruff formatter check
         run: |
           echo "Running Ruff formatter checks..."
-          ruff format --check packages/
+          python -m ruff format --force-exclude --config=ruff.toml --check packages/
       
       - name: Lint Dockerfile
         run: |
@@ -74,7 +99,8 @@ jobs:
         uses: actions/setup-python@v4
         with:
           python-version: '3.11'
-          cache: 'pip'
+          # Remove the pip cache option as it's causing errors
+          # cache: 'pip'
       
       - name: Install system dependencies
         run: |

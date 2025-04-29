@@ -66,6 +66,45 @@
         ];
         runtimeLibPath = pkgs.lib.makeLibraryPath runtimeLibs;
 
+        # --- Additional Python Packages for Real-time TTS ---
+        # Note: The sha256 below is a placeholder. Nix will provide the correct one on first build failure.
+        realtimePythonPackages = with python.pkgs; [
+          # Dependencies for real-time TTS
+          (buildPythonPackage rec {
+            pname = "realtimetts";
+            version = "0.3.43"; # Using a known version, adjust if needed
+            format = "pyproject"; # Use pyproject if applicable, otherwise remove/adjust
+            src = fetchPypi { inherit pname version; sha256 = "0000000000000000000000000000000000000000000000000000000000000000"; }; # Placeholder SHA256
+            # List direct dependencies needed by realtimetts that aren't automatically handled
+            # Check realtimetts setup.py/pyproject.toml for exact deps and versions
+            propagatedBuildInputs = [
+              sounddevice # Already in nixPythonMlPackages? No, add here or globally. Let's add here for now.
+              # Add other direct dependencies like:
+              # tqdm pip coloredlogs emoji onnxruntime tokenizers etc.
+              # Ensure these are available in pkgs or defined similarly.
+              # Example: pkgs.python311Packages.tqdm
+              # For now, assuming sounddevice is the main one to list explicitly here.
+              # If sounddevice is already in nixPythonMlPackages, remove it from here.
+              sounddevice
+              # Add other dependencies if needed and available in nixpkgs
+              # pkgs.python311Packages.tqdm
+              # pkgs.python311Packages.coloredlogs
+              # pkgs.python311Packages.emoji
+              # pkgs.onnxruntime-cuda # If using GPU version
+              # pkgs.python311Packages.tokenizers
+            ];
+            # Add build/check inputs if necessary
+            # nativeBuildInputs = [ pkgs.python311Packages.setuptools ];
+            # checkInputs = [ pkgs.python311Packages.pytestCheckHook ];
+            # pythonImportsCheck = [ "realtimetts" ]; # Basic import check
+          })
+          # Add sounddevice explicitly if not already managed elsewhere
+          sounddevice
+          # Add other dependencies like piper-tts if needed by realtimetts and managed by Nix
+          # piper-tts # Assuming piper-tts needs its own Nix derivation if not pulled by realtimetts
+        ];
+
+
         # --- General Development Tools ---
         montaigneTools = with pkgs; [
           cachix
@@ -135,7 +174,7 @@
         # --- Define the Development Shell ---
         devShells.default = pkgs.mkShell {
           name = "montaigne-dev-env-nix-torch";
-          packages = montaigneTools ++ nixPythonMlPackages;
+          packages = montaigneTools ++ nixPythonMlPackages ++ realtimePythonPackages;
           # buildInputs are implicitly added to PATH and include .dev outputs
           # Needed for compiling non-Nix Python packages if they require these libs.
           buildInputs = devBuildInputs;
@@ -207,11 +246,8 @@
                    pydub'>=0.25.0' \
                    'suno-bark @ git+https://github.com/suno-ai/bark.git' \
                    yt-dlp'>=2023.0.0' \
-                   # Add dependencies for tts_live explicitly
-                   realtimetts'>=0.3.1' \
-                   sounddevice'>=0.4.5' \
+                   # Nix now manages: realtimetts, sounddevice, piper-tts (if added to realtimePythonPackages)
                    # numpy is managed by Nix
-                   piper-tts'>=1.2.0' \
                    ; then
                  echo "❌ Fatal: Failed to install base dependencies with uv into venv '$VENV_DIR'." && return 1
                fi

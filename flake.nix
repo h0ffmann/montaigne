@@ -210,7 +210,8 @@
                    # Add dependencies for tts_live explicitly
                    realtimetts'>=0.3.1' \
                    sounddevice'>=0.4.5' \
-                   numpy'>=1.20.0' \
+                   # numpy is managed by Nix
+                   piper-tts'>=1.2.0' \
                    ; then
                  echo "❌ Fatal: Failed to install base dependencies with uv into venv '$VENV_DIR'." && return 1
                fi

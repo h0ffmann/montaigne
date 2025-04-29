@@ -6,6 +6,7 @@ import abc
 import torch
 from datetime import datetime
 import numpy as np
+from typing import Optional # Added Optional import
 
 # Need soundfile for saving chunks
 try:

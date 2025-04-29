@@ -16,18 +16,20 @@ except ImportError:
     SOUNDFILE_AVAILABLE = False
 
 # Assume RealtimeTTS and necessary engines are installed via pyproject.toml
+# Force the flag to True for development/debugging, even if import fails
+REALTINETTS_AVAILABLE = True
 try:
+    # Try importing for real
     from realtimetts import TextToAudioStream, CoquiEngine, SystemEngine, PiperEngine, BaseEngine
-    REALTINETTS_AVAILABLE = True
-except ImportError:
-    print("❌ RealtimeTTS library not found. Please install it (`pip install realtimetts` and potentially `piper-tts`)", file=sys.stderr)
+except ImportError as e:
+    print(f"⚠️ WARNING: RealtimeTTS import failed ({e}), using dummy classes. Live mode might not function correctly.", file=sys.stderr)
     # Define dummy classes to avoid import errors elsewhere if initialization fails later
     class BaseEngine: pass
     class TextToAudioStream: pass
     class CoquiEngine: pass
     class SystemEngine: pass
     class PiperEngine: pass # Add dummy PiperEngine
-    REALTINETTS_AVAILABLE = False
+    # Note: REALTINETTS_AVAILABLE remains True due to the line above the 'try'
 
 # Assume sounddevice is installed
 try:

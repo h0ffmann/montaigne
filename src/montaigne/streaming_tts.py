@@ -119,21 +119,18 @@ class PiperStreamingTTS:
         logger.debug(f"Synthesizing text with Piper ({self.voice_name}): '{text[:50]}...'")
         start_time = time.time()
         try:
-            # PiperVoice.synthesize returns an iterator yielding bytes (raw PCM audio)
-            raw_audio_bytes = b"".join(self.voice_model.synthesize_stream(text))
+            # Use the correct method: synthesize, which returns a list of int16 samples
+            audio_int16_list = self.voice_model.synthesize(text)
 
-            if not raw_audio_bytes:
+            if not audio_int16_list:
                  logger.warning("Piper synthesis resulted in empty audio.")
                  return True # Not an error, just nothing to play
 
-            # Convert bytes to numpy array (int16)
-            if len(raw_audio_bytes) % 2 != 0:
-                logger.warning("Received odd number of bytes from Piper, discarding last byte.")
-                raw_audio_bytes = raw_audio_bytes[:-1]
-
-            audio_array_int16 = np.frombuffer(raw_audio_bytes, dtype=np.int16)
+            # Convert the list of int16 samples to a NumPy array
+            audio_array_int16 = np.array(audio_int16_list, dtype=np.int16)
 
             # Convert to float32 for sounddevice playback
+            # Normalize int16 range [-32768, 32767] to float32 [-1.0, 1.0]
             audio_float32 = audio_array_int16.astype(np.float32) / 32768.0
 
             synth_end_time = time.time()

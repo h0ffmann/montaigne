@@ -248,7 +248,7 @@
                    yt-dlp'>=2023.0.0' \
                    # Nix now manages: realtimetts, sounddevice, piper-tts (if added to realtimePythonPackages)
                    # numpy is managed by Nix
-                   ; then
+                 then # <--- CORRECTED: Removed the ';'
                  echo "❌ Fatal: Failed to install base dependencies with uv into venv '$VENV_DIR'." && return 1
                fi
                echo "🏗️ Installing local Montaigne package in editable mode into venv..."

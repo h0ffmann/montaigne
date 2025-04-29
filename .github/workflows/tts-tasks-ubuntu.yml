@@ -10,12 +10,12 @@ on:
       debug_enabled:
         description: 'Run with tmate debugging enabled (bool)'
         required: false
-        default: false
+        default: true
         type: boolean
 
 jobs:
   lint-and-check:
-    name: Code Quality
+    name: Code Quality Asserts
     runs-on: ubuntu-latest
     steps:
       - name: Checkout repository
@@ -47,6 +47,27 @@ jobs:
         with:
           version: "0.6.17"
           enable-cache: true
+
+      - name: Verify uv.lock consistency
+        run: |
+          echo "Generating new lock file (--quiet) to compare..."
+          # Generate quietly into a temporary file
+          uv pip lock --quiet --python python3 -o uv.lock.generated || { echo "❌ Failed to generate lock file with uv"; exit 1; } # Added --quiet
+
+          echo "Comparing existing uv.lock with the generated lock file..."
+          # Compare quietly first (-q). If different (exit code != 0), show the diff and fail.
+          if diff -q uv.lock uv.lock.generated; then
+            echo "✅ uv.lock is consistent and up-to-date."
+            rm uv.lock.generated # Clean up on success
+          else
+            echo "❌ uv.lock is out-of-date or inconsistent!"
+            echo "Differences (existing vs generated):"
+            diff -u uv.lock uv.lock.generated || true # Show diff
+            echo ""
+            echo "👉 Please run 'uv pip lock --python python3' locally and commit the updated uv.lock file."
+            rm uv.lock.generated # Clean up on failure
+            exit 1
+          fi
       
       - name: Install linting dependencies
         run: |
@@ -72,7 +93,7 @@ jobs:
           /tmp/hadolint Dockerfile
 
   run-tts-on-ubuntu:
-    name: TTS Regression tests
+    name: TTS Batch Regression Asserts
     needs: lint-and-check
     runs-on: ubuntu-latest
     env:
@@ -90,7 +111,22 @@ jobs:
           python-version: '3.11'
           # Remove the pip cache option as it's causing errors
           # cache: 'pip'
-      
+
+      - name: Set up TTS Models Cache 
+        uses: actions/cache@v4
+        id: tts-models-cache # Give an ID
+        with:
+          # Paths where models are typically downloaded
+          path: |
+            ~/.local/share/tts
+            ~/.cache/suno
+            ~/.cache/torch
+            ~/.cache/huggingface/hub 
+          # Key based on OS and dependency files (adjust if needed)
+          key: ubuntu-tts-models-${{ hashFiles('**/pyproject.toml', '**/uv.lock') }}
+          restore-keys: |
+            ubuntu-tts-models-
+
       - name: Install system dependencies
         run: |
           sudo apt-get update

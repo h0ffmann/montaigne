@@ -215,9 +215,10 @@
                # Add PortAudio library path to LD_LIBRARY_PATH for sounddevice
                # The ${LD_LIBRARY_PATH:+:} syntax ensures a colon is only added if LD_LIBRARY_PATH was already set
                echo "🔊 Adding PortAudio to LD_LIBRARY_PATH for audio playback..."
-               export LD_LIBRARY_PATH="${pkgs.portaudio}/lib${LD_LIBRARY_PATH:+:}$LD_LIBRARY_PATH"
+               # Use makeLibraryPath for robustness
+               export LD_LIBRARY_PATH="${pkgs.lib.makeLibraryPath [ pkgs.portaudio ]}${LD_LIBRARY_PATH:+:}$LD_LIBRARY_PATH"
                echo "   Current LD_LIBRARY_PATH includes:"
-               echo "   - ${pkgs.portaudio}/lib"
+               echo "   - ${pkgs.lib.makeLibraryPath [ pkgs.portaudio ]}" # Show the actual path added
                echo "   This enables runtime loading of libportaudio.so.2 by sounddevice"
 
                # Using -e attempts to install deps from pyproject.toml again.

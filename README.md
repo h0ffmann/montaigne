@@ -104,7 +104,7 @@ montaigne synthesize --engine [xtts|bark] [ENGINE-ARGS] -o OUTPUT.WAV (-t "INPUT
 - `cillian`: Cillian Murphy - soft-spoken, intense Irish actor
 - `rust_cohle`: Matthew McConaughey (Rust Cohle) - Southern drawl, philosophical
 
-**Examples:**
+**`synthesize` Examples:**
 
 1.  **Synthesize using XTTS with a speaker file:**
     ```bash

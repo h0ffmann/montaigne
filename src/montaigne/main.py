@@ -60,12 +60,29 @@ def get_tts_engine(engine_type: EngineChoice, use_cuda: bool):
              sys.exit(1) # Exit if engine init fails
     return engine_instances[engine_key]
 
+# Streaming Engine instance
+streaming_engine_instance: BaseStreamingEngine | None = None
+
+def get_streaming_engine(use_cuda: bool) -> BaseStreamingEngine:
+    """Factory function to get or create a Streaming TTS engine instance (MVP: RealtimeTTS)."""
+    global streaming_engine_instance
+    if streaming_engine_instance is None:
+         if not REALTINETTS_AVAILABLE:
+             logger.critical("RealtimeTTS dependency is not met. Cannot start live mode.")
+             sys.exit(1)
+         if RealtimeTTSEngine is None:
+             logger.critical("RealtimeTTSEngine class could not be imported.")
+             sys.exit(1)
+
+         logger.info("Initializing Streaming TTS Engine (RealtimeTTS)...")
+         streaming_engine_instance = RealtimeTTSEngine(use_cuda=use_cuda)
+    return streaming_engine_instance
 
 # Evaluator instance can remain global or follow similar pattern if needed later
 evaluator_instance = None
 
 def get_evaluator(use_cuda: bool):
-    global evaluator_instance
+    global evaluator_instance # Keep evaluator logic for batch synthesize command
     if evaluator_instance is None:
         logger.info("Initializing Audio Evaluator (Whisper)...")
         evaluator_instance = AudioEvaluator(use_cuda=use_cuda)

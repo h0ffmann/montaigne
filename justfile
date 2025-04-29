@@ -398,7 +398,17 @@ workspace_add_pkg NAME:
     @echo "📦 Creating new package {{NAME}} in workspace..."
     @mkdir -p packages/{{NAME}}/src/{{NAME}}
     @touch packages/{{NAME}}/src/{{NAME}}/__init__.py
-    @echo '[project]\nname = "{{NAME}}"\nversion = "0.1.0"\ndescription = "Add description here"\nauthors = [{ name = "Matheus Hoffmann", email = "hoffmann@poli.ufrj.br" }]\nrequires-python = ">=3.11,<3.12"\ndependencies = []\n\n[build-system]\nrequires = ["setuptools>=61.0"]\nbuild-backend = "setuptools.build_meta"\n' > packages/{{NAME}}/pyproject.toml
+    @echo '[project]' > packages/{{NAME}}/pyproject.toml
+    @echo 'name = "{{NAME}}"' >> packages/{{NAME}}/pyproject.toml
+    @echo 'version = "0.1.0"' >> packages/{{NAME}}/pyproject.toml
+    @echo 'description = "Add description here"' >> packages/{{NAME}}/pyproject.toml
+    @echo 'authors = [{ name = "Matheus Hoffmann", email = "hoffmann@poli.ufrj.br" }]' >> packages/{{NAME}}/pyproject.toml
+    @echo 'requires-python = ">=3.11,<3.12"' >> packages/{{NAME}}/pyproject.toml
+    @echo 'dependencies = []' >> packages/{{NAME}}/pyproject.toml
+    @echo '' >> packages/{{NAME}}/pyproject.toml
+    @echo '[build-system]' >> packages/{{NAME}}/pyproject.toml
+    @echo 'requires = ["setuptools>=61.0"]' >> packages/{{NAME}}/pyproject.toml
+    @echo 'build-backend = "setuptools.build_meta"' >> packages/{{NAME}}/pyproject.toml
     @echo "✅ Package {{NAME}} created. Run 'uv pip install -e .' to update workspace."
 
 # === Ubuntu TTS Tasks (CPU-Only, No Nix/Flake required) ===

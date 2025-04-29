@@ -21,7 +21,8 @@ try:
     from .preprocessing import preprocess_text_for_tts, chunk_text
     # Import engine classes with checks
     from .tts_engine import BaseTTSEngine, XTTSv2Engine, BarkEngine, XTTS_MODEL_NAME
-    from .streaming_tts import RealtimeTTSEngine, run_interactive_prompt, map_montaigne_voice_to_streaming
+    # Import the new Piper-based streaming engine
+    from .streaming_tts import PiperStreamingEngine, run_interactive_prompt
     from .evaluation import AudioEvaluator # Keep evaluation for batch mode
     from .voice_profiles import list_voice_profiles, get_voice_profile # Keep profile import
     from .audio_utils import concatenate_audio_files, cleanup_files
@@ -34,15 +35,16 @@ except ImportError as e:
 engine_instances = {}
 
 # --- Add imports and factory for Streaming Engine ---
+# Removed RealtimeTTS specific imports
 try:
-    from .streaming_tts import RealtimeTTSEngine, BaseStreamingEngine, REALTINETTS_AVAILABLE
+    from .streaming_tts import PiperStreamingEngine, PIPER_AVAILABLE, SOUNDDEVICE_AVAILABLE
 except ImportError: # streaming_tts.py might not exist or have issues
-    RealtimeTTSEngine = None # type: ignore
-    BaseStreamingEngine = None # type: ignore
-    REALTINETTS_AVAILABLE = False
+    PiperStreamingEngine = None # type: ignore
+    PIPER_AVAILABLE = False
+    SOUNDDEVICE_AVAILABLE = False
 
 def get_tts_engine(engine_type: EngineChoice, use_cuda: bool):
-    """Factory function to get or create a TTS engine instance."""
+    """Factory function to get or create a Batch TTS engine instance."""
     engine_key = (engine_type, use_cuda)
     if engine_key not in engine_instances:
         logger.info(f"Initializing TTS Engine ({engine_type.value})...")
@@ -61,23 +63,9 @@ def get_tts_engine(engine_type: EngineChoice, use_cuda: bool):
              sys.exit(1) # Exit if engine init fails
     return engine_instances[engine_key]
 
-# Streaming Engine instance
-streaming_engine_instance: BaseStreamingEngine | None = None
-
-def get_streaming_engine(use_cuda: bool) -> BaseStreamingEngine:
-    """Factory function to get or create a Streaming TTS engine instance (MVP: RealtimeTTS)."""
-    global streaming_engine_instance
-    if streaming_engine_instance is None:
-         if not REALTINETTS_AVAILABLE:
-             logger.critical("RealtimeTTS dependency is not met. Cannot start live mode.")
-             sys.exit(1)
-         if RealtimeTTSEngine is None:
-             logger.critical("RealtimeTTSEngine class could not be imported.")
-             sys.exit(1)
-
-         logger.info("Initializing Streaming TTS Engine (RealtimeTTS)...")
-         streaming_engine_instance = RealtimeTTSEngine(use_cuda=use_cuda)
-    return streaming_engine_instance
+# Streaming Engine instance (Piper specific)
+# No factory needed if we only support Piper for live mode now
+piper_streaming_engine_instance: PiperStreamingEngine | None = None
 
 # Evaluator instance can remain global or follow similar pattern if needed later
 evaluator_instance = None
@@ -335,63 +323,31 @@ def synthesize(
     if not synthesis_successful:
         sys.exit(1)
 
-# --- Add Live TTS Command ---
+# --- Live TTS Command (Using Piper Directly) ---
 @cli.command()
-@click.option('--speaker-wav', '-s', type=click.Path(exists=True, file_okay=True, dir_okay=False, readable=True, path_type=Path), help="Path to speaker WAV for Coqui backend (recommended for quality).")
-@click.option('--voice-profile', type=click.Choice(list_voice_profiles()), help="Use a prebuilt voice profile (maps to --speaker-wav if supported).")
-# Removed youtube ID for live MVP - adds complexity with download sync
-@click.option('--backend-engine', type=click.Choice(['coqui', 'system', 'piper']), default='coqui', show_default=True, help="Select the RealtimeTTS backend engine.")
-@click.option('--piper-model-path', type=click.Path(exists=True, file_okay=True, dir_okay=False, readable=True, path_type=Path), default=None, help="Path to the Piper '.onnx' model file (required if --backend-engine=piper).")
-@click.option('--language', '-l', default="en", show_default=True, help="Language code (e.g., en, pt). Affects Coqui/Piper backend.")
+@click.option('--piper-model-path', '-m', type=click.Path(exists=True, file_okay=True, dir_okay=False, readable=True, path_type=Path), required=True, help="Path to the Piper '.onnx' model file.")
 @click.option('--file', '-f', type=click.File('r'), default=None, help="Read text line-by-line from FILE instead of interactive input. Use '-' for stdin.")
 @click.option('--output-dir', '-o', type=click.Path(file_okay=False, dir_okay=True, writable=True, path_type=Path), default=None, help="Directory to save generated audio chunks (timestamped WAV files).")
-@click.option('--cpu', is_flag=True, help="Force CPU for TTS.")
+@click.option('--cpu', is_flag=True, help="Prefer CPU for Piper TTS (onnxruntime might still choose GPU).")
 def live(
-    speaker_wav: Path | None,
-    voice_profile: str | None,
-    backend_engine: str,
-    piper_model_path: Path | None,
-    language: str,
+    piper_model_path: Path,
     file: click.File | None,
     output_dir: Path | None,
     cpu: bool
 ):
-    """Starts a live TTS session, either interactive or from a file."""
-    if not REALTINETTS_AVAILABLE:
-        click.echo("❌ RealtimeTTS library is required for live mode but not installed/found.", err=True)
+    """Starts a live TTS session using Piper, either interactive or from a file."""
+    global piper_streaming_engine_instance # Use the global instance
+
+    if not PIPER_AVAILABLE:
+        click.echo("❌ piper-tts library is required for live mode but not installed/found.", err=True)
+        sys.exit(1)
+    if not SOUNDDEVICE_AVAILABLE:
+        click.echo("❌ sounddevice library is required for live mode audio playback but not installed/found.", err=True)
         sys.exit(1)
 
-    # --- Validation for Backend/Options ---
-    if backend_engine == 'piper' and not piper_model_path:
-        raise click.UsageError("Piper backend requires --piper-model-path.")
-    if backend_engine != 'coqui' and (speaker_wav or voice_profile):
-        logger.warning(f"--speaker-wav and --voice-profile are ignored for '{backend_engine}' backend.")
-    if backend_engine == 'coqui' and not (speaker_wav or voice_profile):
-        logger.warning("Coqui backend selected but no speaker provided (--speaker-wav or --voice-profile). Will attempt fallback to SystemEngine.")
-        backend_engine = 'system' # Force fallback if Coqui is chosen without speaker
+    use_cuda = not cpu # This is a preference passed to PiperVoice.load
+    click.echo(f"🎙️ Starting Montaigne Live TTS Session (Piper Engine, CUDA Pref: {use_cuda})...")
 
-    use_cuda = not cpu
-    click.echo(f"🎙️ Starting Montaigne Live TTS Session... (Backend: {backend_engine}, CUDA: {use_cuda})")
-
-    # --- Determine Speaker File for Coqui Backend ---
-    actual_speaker_wav_path: str | Path | None = None
-    speaker_display_name = "System Default" # Assume fallback initially
-
-    # Logic to prefer speaker_wav then voice_profile
-    if speaker_wav:
-         actual_speaker_wav_path = speaker_wav
-         speaker_display_name = f"File: {speaker_wav.name}"
-    elif voice_profile:
-         profile_path = get_voice_profile(voice_profile) # Handles download
-         if profile_path:
-              actual_speaker_wav_path = profile_path
-              speaker_display_name = f"Profile: {voice_profile}"
-         else:
-             # Error logged by get_voice_profile
-             click.echo(f"⚠️ Could not load voice profile '{voice_profile}'. Will attempt fallback.", err=True)
-    # No speaker provided, will attempt fallback within RealtimeTTSEngine
-
-    click.echo(f"Attempting to use speaker: {speaker_display_name}")
     if output_dir:
         output_dir.mkdir(parents=True, exist_ok=True)
         click.echo(f"Saving audio chunks to: {output_dir.resolve()}")
@@ -399,15 +355,15 @@ def live(
         click.echo(f"Reading input from: {'stdin' if file.name == '-' else file.name}")
 
     try:
-        engine = get_streaming_engine(use_cuda)
-        # Initialize the specific backend *now* that we have all options
-        engine.initialize_engine(
-            backend_engine=backend_engine,
-            speaker_wav=actual_speaker_wav_path, # Used only by Coqui
-            language=language,
-            piper_model_path=piper_model_path, # Used only by Piper
-            output_dir=output_dir # Used for saving chunks
-        )
+        # Initialize the Piper engine instance if not already done
+        if piper_streaming_engine_instance is None:
+             logger.info("Initializing Piper Streaming Engine...")
+             piper_streaming_engine_instance = PiperStreamingEngine(
+                 model_path=piper_model_path,
+                 use_cuda=use_cuda
+             )
+        engine = piper_streaming_engine_instance
+        engine.set_output_dir(output_dir) # Configure saving per-run
 
         # --- Input Loop (File or REPL) ---
         if file:
@@ -416,91 +372,25 @@ def live(
                 processed_text = line.strip()
                 if not processed_text:
                     continue
-                click.echo(f"Feeding: '{processed_text[:80]}...'")
+                click.echo(f"Synthesizing: '{processed_text[:80]}...'")
                 engine.speak(processed_text)
-                # Add a small delay to prevent overwhelming the engine in file mode?
-                # Or rely on RealtimeTTS internal buffering. Let's rely on buffering for now.
-                # time.sleep(0.1)
+                # Piper/sounddevice handles playback blocking, no sleep needed
             click.echo("\nFile processing finished.")
         else:
-            # Interactive REPL
-            click.echo("\nType text and press Enter to synthesize. Type ':quit' or press Ctrl+C to exit.")
-            while True:
-                try:
-                    text = input("> ")
-                    if not text.strip():
-                        continue
-                    if text.lower() == ':quit':
-                        break
+            # Interactive REPL - use the dedicated function from streaming_tts
+            run_interactive_prompt(engine, output_dir) # Pass output_dir again for setup within the function
 
-                    # Simple preprocessing for the REPL (can be expanded later)
-                    processed_text = text.strip() # Basic strip for now
-
-                    engine.speak(processed_text) # Let the engine handle playback
-
-                except KeyboardInterrupt:
-                    print("\nExiting...")
-                    break
-                except EOFError: # Handle Ctrl+D
-                    print("\nExiting...")
-                    break
-
-        # Wait for the stream to finish playing any remaining audio, especially in file mode
-        click.echo("Waiting for audio stream to finish...")
-        if engine.stream:
-             engine.stream.wait() # Wait for playback queue to empty
-
-        engine.stop() # Clean up the stream
+        # No explicit stop needed here as run_interactive_prompt handles it on exit,
+        # and file mode waits for each playback.
 
     except Exception as e:
         logger.exception("Critical error during live TTS session initialization or runtime.")
         click.echo(f"❌ An unexpected error occurred: {e}", err=True)
-        if 'engine' in locals() and engine is not None:
-             engine.stop() # Attempt cleanup
+        if piper_streaming_engine_instance:
+             piper_streaming_engine_instance.stop() # Attempt cleanup
         sys.exit(1)
 
-@cli.command()
-@click.option('--interactive/--no-interactive', default=True,
-              help="Start in interactive mode (prompt)")
-@click.option('--engine', type=click.Choice(['xtts', 'bark', 'realtime']),
-              default='realtime', help="Select the TTS engine.")
-@click.option('--voice-profile', type=click.Choice(list_voice_profiles()),
-              help="Use a prebuilt voice profile.")
-@click.option('--output-dir', '-o', type=click.Path(file_okay=False,
-              dir_okay=True, writable=True, path_type=Path),
-              help="Directory to save audio files.")
-@click.option('--cpu', is_flag=True, help="Force CPU for TTS and evaluation.")
-def tts_live(interactive, engine, voice_profile, output_dir, cpu):
-    """Start a real-time TTS session with interactive prompt."""
-    use_cuda = not cpu
-
-    if engine == 'realtime':
-        try:
-            # Initialize the real-time TTS engine
-            realtime_engine = RealtimeTTSEngine(use_cuda=use_cuda)
-
-            if voice_profile:
-                # Map Montaigne voice profile to streaming engine voice
-                streaming_voice = map_montaigne_voice_to_streaming(voice_profile)
-                logger.info(f"Using voice profile: {voice_profile} -> {streaming_voice}")
-                # voice configuration would go here for the specific engine
-
-            if interactive:
-                # Create output directory if provided
-                if output_dir:
-                    output_dir = Path(output_dir)
-                    output_dir.mkdir(parents=True, exist_ok=True)
-
-                # Run interactive prompt
-                run_interactive_prompt(realtime_engine, output_dir)
-            else:
-                # Handle stdin/file input in streaming mode
-                click.echo("Non-interactive streaming mode not implemented yet.")
-        except Exception as e:
-            logger.exception("Error initializing real-time TTS")
-            click.echo(f"❌ Error initializing real-time TTS: {e}", err=True)
-    else:
-        click.echo(f"Live TTS with {engine} engine is not implemented yet.")
+# Removed the redundant tts_live command
 
 if __name__ == "__main__":
     cli()

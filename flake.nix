@@ -210,10 +210,10 @@
                    pydub'>=0.25.0' \
                    'suno-bark @ git+https://github.com/suno-ai/bark.git' \
                    yt-dlp'>=2023.0.0' \
-                   # Add back realtimetts and piper-tts to be managed by uv
-                   realtimetts'>=0.3.1' \
+                   # Add back piper-tts and sounddevice to be managed by uv
+                   # realtimetts'>=0.3.1' # REMOVED
                    piper-tts'>=1.2.0' \
-                   # sounddevice is pulled in by realtimetts
+                   sounddevice'>=0.4.5' \ # Keep sounddevice for direct playback
                    # numpy is managed by Nix
                  then
                  echo "❌ Fatal: Failed to install base dependencies with uv into venv '$VENV_DIR'." && return 1

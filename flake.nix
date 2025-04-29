@@ -62,6 +62,7 @@
           libGL
           openssl
           ncurses5
+          portaudio  # Added for sounddevice runtime loading
         ];
         runtimeLibPath = pkgs.lib.makeLibraryPath runtimeLibs;
 
@@ -210,6 +211,15 @@
                  echo "❌ Fatal: Failed to install base dependencies with uv into venv '$VENV_DIR'." && return 1
                fi
                echo "🏗️ Installing local Montaigne package in editable mode into venv..."
+
+               # Add PortAudio library path to LD_LIBRARY_PATH for sounddevice
+               # The ${LD_LIBRARY_PATH:+:} syntax ensures a colon is only added if LD_LIBRARY_PATH was already set
+               echo "🔊 Adding PortAudio to LD_LIBRARY_PATH for audio playback..."
+               export LD_LIBRARY_PATH="${pkgs.portaudio}/lib${LD_LIBRARY_PATH:+:}$LD_LIBRARY_PATH"
+               echo "   Current LD_LIBRARY_PATH includes:"
+               echo "   - ${pkgs.portaudio}/lib"
+               echo "   This enables runtime loading of libportaudio.so.2 by sounddevice"
+
                # Using -e attempts to install deps from pyproject.toml again.
                # Let's try --no-deps first to strictly avoid reinstalling Nix packages.
                if ! uv pip install --no-deps -e "$_PROJECT_DIR"; then

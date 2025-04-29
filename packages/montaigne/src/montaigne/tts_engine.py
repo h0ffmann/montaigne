@@ -2,7 +2,6 @@ import abc
 import logging
 import os
 import time
-import warnings
 from pathlib import Path
 
 import torch
@@ -141,7 +140,7 @@ class XTTSv2Engine(BaseTTSEngine):
             end_time = time.time()
             logger.info("✅ XTTSv2 model loaded successfully in %.2f seconds.", end_time - start_time)
             return model
-        except Exception as e:
+        except Exception:
             logger.error("❌ Failed to load TTS model: %s", XTTS_MODEL_NAME, exc_info=True) # Log full traceback
             # Include Coqui TTS license acceptance in hints
             hint = (

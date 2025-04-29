@@ -2,7 +2,8 @@
 FROM ubuntu:22.04 as file_copier
 WORKDIR /tmp/project_files
 COPY pyproject.toml ./
-COPY src/ ./src/
+COPY uv.lock ./ 
+COPY packages/ ./packages/ 
 
 # Add build arg to control model source
 ARG USE_LOCAL_MODEL=false
@@ -116,17 +117,17 @@ ARG USE_LOCAL_MODEL
 COPY model_files/ /tmp/model_files/
 RUN mkdir -p /root/.local/share/tts/tts_models--multilingual--multi-dataset--xtts_v2/ && \
     if [ "${USE_LOCAL_MODEL}" = "true" ] && [ -f "/tmp/model_files/model.pth" ]; then \
-        echo "Using local model files" && \
-        cp -r /tmp/model_files/* /root/.local/share/tts/tts_models--multilingual--multi-dataset--xtts_v2/; \
+    echo "Using local model files" && \
+    cp -r /tmp/model_files/* /root/.local/share/tts/tts_models--multilingual--multi-dataset--xtts_v2/; \
     else \
-        echo "Using downloaded model" && \
-        # Use cp --from only if source exists, otherwise log warning
-        if [ -d /model_download/root/.local/share/tts ]; then \
-            echo "Copying from model_downloader stage..." && \
-            cp -r --from=model_downloader /root/.local/share/tts/tts_models--multilingual--multi-dataset--xtts_v2/* /root/.local/share/tts/tts_models--multilingual--multi-dataset--xtts_v2/; \
-        else \
-            echo "Warning: Model downloader stage artifacts not found. Model will download at runtime."; \
-        fi; \
+    echo "Using downloaded model" && \
+    # Use cp --from only if source exists, otherwise log warning
+    if [ -d /model_download/root/.local/share/tts ]; then \
+    echo "Copying from model_downloader stage..." && \
+    cp -r --from=model_downloader /root/.local/share/tts/tts_models--multilingual--multi-dataset--xtts_v2/* /root/.local/share/tts/tts_models--multilingual--multi-dataset--xtts_v2/; \
+    else \
+    echo "Warning: Model downloader stage artifacts not found. Model will download at runtime."; \
+    fi; \
     fi && \
     rm -rf /tmp/model_files
 
@@ -137,32 +138,30 @@ RUN echo "Setting up PyTorch index URL..." \
     # Install PyTorch and Torchaudio separately first
     && echo "Installing PyTorch and Torchaudio for CUDA 12.1..." \
     && uv pip install \
-        --system \
-        --no-cache \
-        --python /usr/bin/python3.11 \
-        --find-links "${TORCH_URL}" \
-        "torch" \
-        "torchaudio" \
-    # Install the application itself using the project files copied earlier
+    --system \
+    --no-cache \
+    --python /usr/bin/python3.11 \
+    --find-links "${TORCH_URL}" \
+    "torch" \
+    "torchaudio" \
+    # Install the workspace packages using the project files copied earlier
     && echo "Copying project files for installation..." \
     && cp /tmp/project_files/pyproject.toml /app/pyproject.toml \
-    && cp -r /tmp/project_files/src /app/src \
-    && echo "Installing application '/app' using uv..." \
+    && cp /tmp/project_files/uv.lock /app/uv.lock \
+    && cp -r /tmp/project_files/packages /app/packages \
+    && echo "Installing workspace packages from '/app' using uv..." \
     && uv pip install \
-        --system \
-        --no-cache \
-        --python /usr/bin/python3.11 \
-        # Explicitly specify the app path; it should pick up already installed torch/torchaudio
-        # Also install runtime deps needed by piper/sounddevice if not covered by /app install
-        # (Assuming /app install pulls them via pyproject.toml)
-        /app \
-        # Explicitly add huggingface-hub here as well, although /app should pull it
-        huggingface-hub \
+    --system \
+    --no-cache \
+    --python /usr/bin/python3.11 \
+    # Install all workspace members defined in pyproject.toml from the current directory (.)
+    # This should pull in montaigne, aider-analytics, and their dependencies (like huggingface-hub)
+    . \
     # Clean up temporary project files and build dependencies
     && echo "Cleaning up build environment..." && rm -rf /tmp/project_files \
     && apt-get purge -y --auto-remove \
-       git curl software-properties-common gpg-agent \
-       build-essential pkg-config python3.11-dev \
+    git curl software-properties-common gpg-agent \
+    build-essential pkg-config python3.11-dev \
     && apt-get clean \
     && rm -rf /var/lib/apt/lists/* /etc/apt/sources.list.d/deadsnakes* \
     && echo "Cleanup complete."

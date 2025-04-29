@@ -48,9 +48,9 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }} # Optional: needed for private Just releases
 
-      - name: Run TTS Tasks via Just (includes repomix.md generation)
-        run: just run_tts_tasks
-        # No specific env needed here as 'just run_tts_tasks' calls nix develop internally
+      - name: Run Nix TTS Tasks via Just
+        # This task assumes it's already inside the Nix environment set up by previous steps
+        run: just run_nix_tts_tasks
 
       # Useful step for debugging CI failures
       - name: Setup tmate session for debugging

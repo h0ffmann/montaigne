@@ -88,6 +88,7 @@
           gnumake
           python
           uv
+          ruff
           nodejs_22
           corepack_22
           docker
@@ -196,48 +197,26 @@
                if ! [[ "$_VENV_PYTHON_PATH" == "$VENV_DIR/bin/python" ]]; then echo "⚠️ Warning: 'command -v python' found '$_VENV_PYTHON_PATH' not expected '$VENV_DIR/bin/python'."; fi
             else echo "❌ Fatal: Failed to find activate script in '$VENV_DIR/bin/activate'." && return 1; fi
 
-            # --- uv Dependency Installation ---
+            # --- uv Workspace Installation ---
             if command -v uv &> /dev/null; then
-               echo "📦 Installing/Verifying remaining project-specific Python dependencies via uv..."
-               # Nix now manages: torch, torchaudio, numpy, pandas, scipy, soundfile,
-               # rapidfuzz, librosa, numba, transformers, accelerate
-               # Explicitly install only those NOT managed by Nix:
-               if ! uv pip install --no-cache-dir \
-                   click==8.1.8 \
-                   requests'>=2.31.0' \
-                   TTS==0.22.0 \
-                   openai-whisper==20240930 \
-                   pydub'>=0.25.0' \
-                   'suno-bark @ git+https://github.com/suno-ai/bark.git' \
-                   yt-dlp'>=2023.0.0' \
-                   # Add back piper-tts and sounddevice to be managed by uv
-                   # realtimetts'>=0.3.1' # REMOVED
-                   piper-tts'>=1.2.0' \
-                   sounddevice'>=0.4.5' \ # Keep sounddevice for direct playback
-                   huggingface-hub'>=0.20.0' \ # Added for model download
-                   # numpy is managed by Nix
-                then
-                 echo "❌ Fatal: Failed to install base dependencies with uv into venv '$VENV_DIR'." && return 1
+               echo "📦 Installing/Verifying workspace packages via uv..."
+               # Install all workspace members defined in the root pyproject.toml
+               # Explicitly use -e . to ensure editable installs for workspace members
+               # This helps Python find the modules correctly via the generated entry points.
+               if ! uv pip install --no-cache-dir -e .; then
+                 echo "❌ Fatal: Failed to install workspace packages with uv into venv '$VENV_DIR'." && return 1
                fi
-               echo "🏗️ Installing local Montaigne package in editable mode into venv..."
 
-               # Add PortAudio library path to LD_LIBRARY_PATH for sounddevice
+               # Add PortAudio library path to LD_LIBRARY_PATH for sounddevice (still needed at runtime)
                echo "🔊 Adding PortAudio to LD_LIBRARY_PATH for audio playback..."
                export LD_LIBRARY_PATH="${pkgs.portaudio}/lib''${LD_LIBRARY_PATH:+:''$LD_LIBRARY_PATH}"
                echo "   Current LD_LIBRARY_PATH includes:"
                echo "   - ${pkgs.portaudio}/lib"
                echo "   This enables runtime loading of libportaudio.so.2 by sounddevice"
 
-               # Using -e attempts to install deps from pyproject.toml again.
-               # Let's try --no-deps first to strictly avoid reinstalling Nix packages.
-               if ! uv pip install --no-deps -e "$_PROJECT_DIR"; then
-                  echo "⚠️ Warning: Failed --no-deps editable install. Trying normal editable install..."
-                  # Fallback to normal editable if --no-deps fails (might reinstall some things)
-                  if ! uv pip install -e "$_PROJECT_DIR"; then
-                     echo "❌ Error: Failed both --no-deps and normal editable install for local package."
-                  fi
-               fi
-               echo "✅ uv dependency installation complete."
+               echo "✅ uv workspace installation complete."
+            else
+               echo "❌ Fatal: uv command not found. Cannot install workspace packages." && return 1
             fi
             # --- Sanity Checks ---
             echo "" && echo "=== Sanity Checks ==="

@@ -1,0 +1,66 @@
+# Python cache files
+__pycache__/
+*.py[cod]
+*$py.class
+.pytest_cache/
+.coverage
+htmlcov/
+
+# Virtual environments
+.env
+.venv/
+env/
+venv/
+ENV/
+env.bak/
+venv.bak/
+
+# Model files (handle separately in Dockerfile)
+#model_files/
+
+# Development and repo files
+.git/
+.github/
+analysis_plots/
+output/
+output-youtube/
+input/
+DEBUG.md
+TODO.md
+*.md
+
+# Node.js (for burke frontend)
+burke/node_modules/
+burke/dist/
+burke/.vite/
+
+# Nix
+.direnv/
+.devenv/
+result*
+flake.lock
+flake.nix
+
+# Editor configurations
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# Temporary files
+*.tmp
+*.bak
+*.log
+
+# Build artifacts
+dist/
+build/
+*.egg-info/
+
+# BFF implementation
+packages/cicero/
+
+repomix-output.md
+template_text_input.txt
+analysis_plots/
+next/

@@ -331,7 +331,7 @@ def live(
 
     # Checks for library availability are done inside PiperStreamingTTS constructor now
     use_cuda = not cpu
-    session_id = uuid.uuid7() # Generate a time-sortable UUID for the session
+    session_id = uuid.uuid4() # Generate a random UUID (uuid7 not available in Python < 3.13)
     click.echo(f"🎙️ Starting Montaigne Live TTS Session (Piper Engine - HF, CUDA Pref: {use_cuda})")
     click.echo(f"   Session ID: {session_id}")
 

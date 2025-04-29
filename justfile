@@ -304,8 +304,8 @@ run_tts_tasks:
     @echo "🐍 Provide edits in DIFF format, please." # Request for Gemini
     @nix develop --impure --command bash -c '\
         set -e; \
-        echo "=== Refresh repo-content.txt ==="; \
-        repomix . --output repo-content.txt; \
+        echo "=== Refresh repomix.md (using config) ==="; \
+        repomix .; \
         echo "=== Inside Nix Shell ==="; \
         just prepare_dirs; \
         echo "✨ Running XTTS synthesis..."; \
@@ -354,4 +354,4 @@ all:
     @echo "✅ All tasks completed successfully!"
 
 mix:
-    @repomix . --output repo-content.txt
+    @repomix .

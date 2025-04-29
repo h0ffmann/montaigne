@@ -90,15 +90,14 @@ input/
 # Outros
 *.bak
 *.tmp
-uv.lock # uv lock file
 
 .go/
 .xdg-runtime-dir/
 .aider*
 
-
+.venv*
 .env
-repo-content.txt
+repomix-output.md
 template_text_input.txt
 model_files/
 analysis_plots/

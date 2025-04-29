@@ -12,7 +12,24 @@
             "aider_analytics.py",
             "uv.lock",
             ".github/*",
-            "DEBUG.md"
+            "DEBUG.md",
+            ".venv*",
+            "*.egg-info/"
         ]
-    }
+    },
+    "output": {
+        "remove_comments": true,
+        "remove_empty_lines": true,
+        "compress": true,
+        "file_path": "repomix-output.md",
+        "style": "markdown",
+        "show_line_numbers": true,
+        "copy_to_clipboard": true,
+        "show_directory_structure": true
+    },
+    "security": {
+        "enable_security_check": true,
+        "exclude_suspicious_files": true
+    },
+    "include": []
 }

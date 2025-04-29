@@ -72,10 +72,10 @@
           # Dependencies for real-time TTS
           (buildPythonPackage rec {
             pname = "realtimetts";
-            version = "0.3.43"; # Using a known version, adjust if needed
+            version = "0.5.3"; # <-- CORRECTED VERSION HERE
             # format = "pyproject"; # Let Nix infer the format
             src = fetchPypi { inherit pname version; sha256 = "0000000000000000000000000000000000000000000000000000000000000000"; }; # Placeholder SHA256
-            # List direct dependencies needed by realtimetts that aren't automatically handled
+            # List direct dependencies needed by realtimetts
             # Check realtimetts setup.py/pyproject.toml for exact deps and versions
             propagatedBuildInputs = [
               sounddevice # Already in nixPythonMlPackages? No, add here or globally. Let's add here for now.

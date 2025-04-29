@@ -53,13 +53,12 @@ nix_shell:
 
 # === Linting & Formatting (Run inside Nix Shell) ===
 lint:
-    @command -v ruff > /dev/null 2>&1 || (echo "❌ 'ruff' command not found. Are you inside 'nix develop'?" && exit 1)
+    ruff check packages/
 
 format:
-    @command -v ruff > /dev/null 2>&1 || (echo "❌ 'ruff' command not found. Are you inside 'nix develop'?" && exit 1)
-    @echo "🎨 Running Ruff formatter via uv..."
+    ruff format packages/
 
-check: lint format
+check: format lint
     @echo "✅ Lint and format checks passed."
 
 # === Analysis (Run inside Nix Shell) ===

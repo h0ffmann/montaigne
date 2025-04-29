@@ -1,0 +1,27 @@
+# Ruff configuration file (takes precedence over pyproject.toml)
+
+# Line length configuration
+line-length = 120
+
+lint.select = [
+    "E",  # pycodestyle errors
+    "F",  # pyflakes
+    "W",  # pycodestyle warnings
+    "I",  # isort
+    "N",  # pep8-naming
+    "C4", # flake8-comprehensions
+    "UP", # pyupgrade
+    "ARG", # flake8-unused-arguments
+    "B",  # flake8-bugbear
+    ]
+lint.ignore = ["B008"]  
+
+# Target-version
+target-version = "py311"
+
+# Additional configuration
+[format]
+quote-style = "double"
+indent-style = "space"
+skip-magic-trailing-comma = false
+

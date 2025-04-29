@@ -4,7 +4,6 @@
         "useDefaultPatterns": true,
         "customPatterns": [
             "**/.*",
-            "gemini_*",
             "model_files/*",
             "analysis_plots/*",
             "flake.nix",

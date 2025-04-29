@@ -45,6 +45,6 @@ echo "👾 Generate repomix output using uv run..."
 # Ensure repomix is installed in the venv first if not globally available
 echo "   (Skipping repomix install check - ensure it's installed in venv or globally if needed)"
 # Example: uv pip install --python .venv/bin/python repomix
-uv run python -m repomix . # Assuming repomix installed as module
+# uv run python -m repomix . # Assuming repomix installed as module
 
 echo "✅ TTS tasks completed successfully in CPU-only mode! Activate env with: source .venv/bin/activate"

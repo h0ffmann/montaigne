@@ -437,14 +437,6 @@ def live(
         engine.stop() # Clean up the stream
 
     except Exception as e:
-                break
-            except EOFError: # Handle Ctrl+D
-                print("\nExiting...")
-                break
-
-        engine.stop() # Clean up the stream
-
-    except Exception as e:
         logger.exception("Critical error during live TTS session initialization or runtime.")
         click.echo(f"❌ An unexpected error occurred: {e}", err=True)
         if 'engine' in locals() and engine is not None:

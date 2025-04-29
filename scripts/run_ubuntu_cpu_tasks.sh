@@ -55,15 +55,15 @@ uv run python -m montaigne.main synthesize \
     --language en \
     --output-file output/bark_ubuntu_test.wav
 
-
-echo "▶️ Running XTTS with YouTube speaker using uv run..."
-COQUI_TOS_AGREED=1 CUDA_VISIBLE_DEVICES="" USE_CUDA="0" FORCE_CPU="1" \
-uv run python -m montaigne.main synthesize \
-    --engine xtts \
-    --speaker-youtube-id "dQw4w9WgXcQ" \
-    --text "Testing YouTube download." \
-    --language en \
-    --output-file output/yt_test.wav
-
+# yt_dlp.utils.DownloadError: ERROR: [youtube] dQw4w9WgXcQ: Sign in to confirm you’re not a bot. Use --cookies-from-browser or --cookies for the authentication. See  https://github.com/yt-dlp/yt-dlp/wiki/FAQ#how-do-i-pass-cookies-to-yt-dlp  for how to manually pass cookies. Also see  https://github.com/yt-dlp/yt-dlp/wiki/Extractors#exporting-youtube-cookies  for tips on effectively exporting YouTube cookies
+#echo "▶️ Running XTTS with YouTube speaker using uv run..."
+#COQUI_TOS_AGREED=1 CUDA_VISIBLE_DEVICES="" USE_CUDA="0" FORCE_CPU="1" \
+#uv run python -m montaigne.main synthesize \
+#    --engine xtts \
+#    --speaker-youtube-id "dQw4w9WgXcQ" \
+#    --text "Testing YouTube download." \
+#    --language en \
+#    --output-file output/yt_test.wav
+#
 
 echo "✅ TTS tasks completed successfully in CPU-only mode! Activate env with: source .venv/bin/activate"

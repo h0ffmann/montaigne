@@ -62,7 +62,7 @@
           libGL
           openssl
           ncurses5
-          portaudio  # Added for sounddevice runtime loading
+          portaudio # Added for sounddevice runtime loading
         ];
         runtimeLibPath = pkgs.lib.makeLibraryPath runtimeLibs;
 
@@ -74,7 +74,7 @@
             pname = "realtimetts";
             version = "0.5.3"; # <-- CORRECTED VERSION HERE
             # format = "pyproject"; # Let Nix infer the format
-            src = fetchPypi { inherit pname version; sha256 = "0000000000000000000000000000000000000000000000000000000000000000"; }; # Placeholder SHA256
+            src = fetchPypi { inherit pname version; sha256 = "sha256-0AAYpkAyCm2vWvf8pIDSuvrSm7yadJsEls20XTfjfZI="; }; # Placeholder SHA256
             # List direct dependencies needed by realtimetts
             # Check realtimetts setup.py/pyproject.toml for exact deps and versions
             propagatedBuildInputs = [

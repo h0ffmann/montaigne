@@ -319,7 +319,7 @@ def synthesize(
 @cli.command()
 @click.option('--piper-voice', '-v', default="en_US-amy-low", show_default=True, help="Piper voice model name from Hugging Face (e.g., 'en_US-amy-low', 'pt_BR-faber-medium').")
 @click.option('--file', '-f', type=click.File('r'), default=None, help="Read text line-by-line from FILE instead of interactive input. Use '-' for stdin.")
-@click.option('--output-dir', '-o', type=click.Path(file_okay=False, dir_okay=True, writable=True, path_type=Path), default="output/live_sessions", show_default=True, help="Directory to save generated audio files (named live_<session_id>_<prompt_count>.wav).")
+@click.option('--output-dir', '-o', type=click.Path(file_okay=False, dir_okay=True, writable=True, path_type=Path), default="output", show_default=True, help="Directory to save generated audio files (named live_<session_id>_<prompt_count>.wav).")
 @click.option('--cpu', is_flag=True, help="Prefer CPU for Piper TTS (onnxruntime might still choose GPU).")
 def live(
     piper_voice: str,

@@ -156,6 +156,8 @@ RUN echo "Setting up PyTorch index URL..." \
         # Also install runtime deps needed by piper/sounddevice if not covered by /app install
         # (Assuming /app install pulls them via pyproject.toml)
         /app \
+        # Explicitly add huggingface-hub here as well, although /app should pull it
+        huggingface-hub \
     # Clean up temporary project files and build dependencies
     && echo "Cleaning up build environment..." && rm -rf /tmp/project_files \
     && apt-get purge -y --auto-remove \

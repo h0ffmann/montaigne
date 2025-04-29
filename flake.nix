@@ -214,8 +214,9 @@
                    # realtimetts'>=0.3.1' # REMOVED
                    piper-tts'>=1.2.0' \
                    sounddevice'>=0.4.5' \ # Keep sounddevice for direct playback
+                   huggingface-hub'>=0.20.0' \ # Added for model download
                    # numpy is managed by Nix
-                 then
+                then
                  echo "❌ Fatal: Failed to install base dependencies with uv into venv '$VENV_DIR'." && return 1
                fi
                echo "🏗️ Installing local Montaigne package in editable mode into venv..."

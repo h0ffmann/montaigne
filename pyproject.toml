@@ -26,6 +26,7 @@ dependencies = [
     "piper-tts>=1.2.0",   # Keep for direct usage
     "transformers>=4.0.0",
     "accelerate>=0.20.0",
+    "huggingface-hub>=0.20.0", # For downloading models
 ]
 
 [project.optional-dependencies]

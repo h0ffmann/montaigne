@@ -141,7 +141,7 @@ class XTTSv2Engine(BaseTTSEngine):
             logger.info("✅ XTTSv2 model loaded successfully in %.2f seconds.", end_time - start_time)
             return model
         except Exception:
-            logger.error("❌ Failed to load TTS model: %s", XTTS_MODEL_NAME, exc_info=True) # Log full traceback
+            logger.error("❌ Failed to load TTS model: %s", XTTS_MODEL_NAME, exc_info=True)  # Log full traceback
             # Include Coqui TTS license acceptance in hints
             hint = (
                 "Check logs above. Possible issues: network connection (for download), "
@@ -150,7 +150,7 @@ class XTTSv2Engine(BaseTTSEngine):
                 "by setting the environment variable: export COQUI_TOS_AGREED=1"
             )
             logger.error("Hint: %s", hint)
-            return None # Return None to indicate failure
+            return None  # Return None to indicate failure
 
     def synthesize(self, text: str, language: str, output_path: Path, **kwargs) -> bool:
         """Synthesizes using XTTSv2."""
@@ -340,4 +340,6 @@ class BarkEngine(BaseTTSEngine):
                 else:
                     logger.debug(f"Restoring CUDA_VISIBLE_DEVICES to '{original_cuda_visible}'")
                     os.environ["CUDA_VISIBLE_DEVICES"] = original_cuda_visible
+
+
 # --- End of BarkEngine ---

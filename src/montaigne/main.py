@@ -4,6 +4,7 @@ import logging
 import sys
 import time
 from enum import Enum
+import uuid # For generating session IDs
 
 # Define available engines
 class EngineChoice(Enum):
@@ -316,26 +317,32 @@ def synthesize(
 
 # --- Live TTS Command (Using PiperStreamingTTS with HF Download) ---
 @cli.command()
-@click.option('--piper-voice', '-v', default="en_US-amy-low", show_default=True, help="Piper voice model name from Hugging Face (e.g., 'en_US-amy-low', 'pt_BR-faber-low').")
+@click.option('--piper-voice', '-v', default="en_US-amy-low", show_default=True, help="Piper voice model name from Hugging Face (e.g., 'en_US-amy-low', 'pt_BR-faber-medium').")
 @click.option('--file', '-f', type=click.File('r'), default=None, help="Read text line-by-line from FILE instead of interactive input. Use '-' for stdin.")
-# Output dir option removed as the new class doesn't support chunk saving easily
-# @click.option('--output-dir', '-o', type=click.Path(file_okay=False, dir_okay=True, writable=True, path_type=Path), default=None, help="Directory to save generated audio chunks (timestamped WAV files).")
+@click.option('--output-dir', '-o', type=click.Path(file_okay=False, dir_okay=True, writable=True, path_type=Path), default="output/live_sessions", show_default=True, help="Directory to save generated audio files (named live_<session_id>_<prompt_count>.wav).")
 @click.option('--cpu', is_flag=True, help="Prefer CPU for Piper TTS (onnxruntime might still choose GPU).")
 def live(
     piper_voice: str,
     file: click.File | None,
-    # output_dir: Path | None, # Removed
+    output_dir: Path,
     cpu: bool
 ):
     """Starts a live TTS session using Piper, downloading the specified voice."""
 
     # Checks for library availability are done inside PiperStreamingTTS constructor now
     use_cuda = not cpu
-    click.echo(f"🎙️ Starting Montaigne Live TTS Session (Piper Engine - HF, CUDA Pref: {use_cuda})...")
+    session_id = uuid.uuid7() # Generate a time-sortable UUID for the session
+    click.echo(f"🎙️ Starting Montaigne Live TTS Session (Piper Engine - HF, CUDA Pref: {use_cuda})")
+    click.echo(f"   Session ID: {session_id}")
 
-    # if output_dir: # Removed output dir logic
-    #     output_dir.mkdir(parents=True, exist_ok=True)
-    #     click.echo(f"Saving audio chunks to: {output_dir.resolve()}")
+    # Ensure output directory exists
+    try:
+        output_dir.mkdir(parents=True, exist_ok=True)
+        click.echo(f"💾 Saving audio prompts to: {output_dir.resolve()}")
+    except OSError as e:
+        click.echo(f"❌ Error creating output directory '{output_dir}': {e}", err=True)
+        sys.exit(1)
+
     if file:
         click.echo(f"Reading input from: {'stdin' if file.name == '-' else file.name}")
 
@@ -365,8 +372,8 @@ def live(
             click.echo("\nFile processing finished.")
         else:
             # Interactive REPL - use the dedicated function from streaming_tts
-            # Pass None for output_dir as it's no longer used
-            run_interactive_prompt(engine, None)
+            # Pass session_id and output_dir
+            run_interactive_prompt(engine, session_id, output_dir)
 
         # Stop is handled by run_interactive_prompt or implicitly at end of file processing
 

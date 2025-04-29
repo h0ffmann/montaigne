@@ -328,61 +328,61 @@ run_tts_tasks:
 # Improved main pipeline with better error handling
 all:
     @echo "🚀 Starting Montaigne TTS pipeline..."
-    @nix develop --impure --command bash -c '
-    set -e
-    echo "📦 Current Python environment packages:"
-    uv pip freeze
+    @nix develop --impure --command bash -c '''
+        set -e
+        echo "📦 Current Python environment packages:"
+        uv pip freeze
 
-    # Install workspace packages
-    echo "=== Install workspace packages ==="
-    echo "Installing all workspace packages at once..."
-    uv pip install --editable ./packages/montaigne --editable .
-    echo "Verifying montaigne module..."
-    python -c "import montaigne; print(f\"✅ Found montaigne module: {montaigne.__file__}\")"
+        # Install workspace packages
+        echo "=== Install workspace packages ==="
+        echo "Installing all workspace packages at once..."
+        uv pip install --editable ./packages/montaigne --editable .
+        echo "Verifying montaigne module..."
+        python -c "import montaigne; print(f\"✅ Found montaigne module: {montaigne.__file__}\")"
 
-    # Run repomix
-    echo "=== Refresh repomix.md (using config) ==="
-    repomix .
+        # Run repomix
+        echo "=== Refresh repomix.md (using config) ==="
+        repomix .
 
-    # Prepare directories and run TTS tasks
-    just prepare_dirs
+        # Prepare directories and run TTS tasks
+        just prepare_dirs
 
-    # Run TTS synthesis tasks
-    echo "✨ Running XTTS synthesis..."
-    python -m montaigne.main synthesize \
-        --output-file output/xtts_output.wav \
-        --speaker-wav input/speaker.wav \
-        --language en \
-        --text "This is a test with XTTS. It supports [p=0.5] pauses and *emphasis*."
+        # Run TTS synthesis tasks
+        echo "✨ Running XTTS synthesis..."
+        python -m montaigne.main synthesize \
+            --output-file output/xtts_output.wav \
+            --speaker-wav input/speaker.wav \
+            --language en \
+            --text "This is a test with XTTS. It supports [p=0.5] pauses and *emphasis*."
 
-    echo "🐾 Running Bark synthesis..."
-    python -m montaigne.main synthesize \
-        --engine bark \
-        --text "Hello from the Bark engine. It sounds different!" \
-        --language en \
-        --output-file output/bark_en_default.wav
+        echo "🐾 Running Bark synthesis..."
+        python -m montaigne.main synthesize \
+            --engine bark \
+            --text "Hello from the Bark engine. It sounds different!" \
+            --language en \
+            --output-file output/bark_en_default.wav
 
-    echo "▶️ Running XTTS with YouTube speaker..."
-    python -m montaigne.main synthesize \
-        --engine xtts \
-        --speaker-youtube-id "dQw4w9WgXcQ" \
-        --text "Testing YouTube download." \
-        --language en \
-        --output-file output/yt_test.wav
+        echo "▶️ Running XTTS with YouTube speaker..."
+        python -m montaigne.main synthesize \
+            --engine xtts \
+            --speaker-youtube-id "dQw4w9WgXcQ" \
+            --text "Testing YouTube download." \
+            --language en \
+            --output-file output/yt_test.wav
 
-    # Docker tasks
-    echo "=== Running Docker Tasks ==="
-    just prepare_docker_files || (echo "❌ Docker file preparation failed." && exit 1)
+        # Docker tasks
+        echo "=== Running Docker Tasks ==="
+        just prepare_docker_files || (echo "❌ Docker file preparation failed." && exit 1)
 
-    echo "Attempting Docker build with local model (using --no-cache)..."
-    just docker_build --no-cache --build-arg USE_LOCAL_MODEL=true || \
-      (echo "❌ Docker build failed with local model, trying without local model (using --no-cache)..." && \
-       just docker_build --no-cache) || \
-      (echo "❌ All Docker build attempts failed." && exit 1)
+        echo "Attempting Docker build with local model (using --no-cache)..."
+        just docker_build --no-cache --build-arg USE_LOCAL_MODEL=true || \
+          (echo "❌ Docker build failed with local model, trying without local model (using --no-cache)..." && \
+           just docker_build --no-cache) || \
+          (echo "❌ All Docker build attempts failed." && exit 1)
 
-    echo "🐳 Running Docker test command..."
-    just docker_run --cpu || (echo "❌ Docker test run failed." && exit 1)
-' || (echo "❌ Pipeline failed" && exit 1)
+        echo "🐳 Running Docker test command..."
+        just docker_run --cpu || (echo "❌ Docker test run failed." && exit 1)
+    ''' || (echo "❌ Pipeline failed" && exit 1)
 
     @echo "✅ All tasks completed successfully!"
 
@@ -398,18 +398,19 @@ workspace_add_pkg NAME:
     @echo "📦 Creating new package {{NAME}} in workspace..."
     @mkdir -p packages/{{NAME}}/src/{{NAME}}
     @touch packages/{{NAME}}/src/{{NAME}}/__init__.py
-    @echo '[project]' > packages/{{NAME}}/pyproject.toml
-    @echo 'name = "{{NAME}}"' >> packages/{{NAME}}/pyproject.toml
-    @echo 'version = "0.1.0"' >> packages/{{NAME}}/pyproject.toml
-    @echo 'description = "Add description here"' >> packages/{{NAME}}/pyproject.toml
-    @echo 'authors = [{ name = "Matheus Hoffmann", email = "hoffmann@poli.ufrj.br" }]' >> packages/{{NAME}}/pyproject.toml
-    @echo 'requires-python = ">=3.11,<3.12"' >> packages/{{NAME}}/pyproject.toml
-    @echo 'dependencies = []' >> packages/{{NAME}}/pyproject.toml
-    @echo '' >> packages/{{NAME}}/pyproject.toml
-    @echo '[build-system]' >> packages/{{NAME}}/pyproject.toml
-    @echo 'requires = ["setuptools>=61.0"]' >> packages/{{NAME}}/pyproject.toml
-    @echo 'build-backend = "setuptools.build_meta"' >> packages/{{NAME}}/pyproject.toml
-    @echo "✅ Package {{NAME}} created. Run 'uv pip install -e .' to update workspace."
+    @echo '''[project]
+name = "{{NAME}}"
+version = "0.1.0"
+description = "Add description here"
+authors = [{ name = "Matheus Hoffmann", email = "hoffmann@poli.ufrj.br" }]
+requires-python = ">=3.11,<3.12"
+dependencies = []
+
+[build-system]
+requires = ["setuptools>=61.0"]
+build-backend = "setuptools.build_meta"
+''' > packages/{{NAME}}/pyproject.toml
+    @echo "✅ Package {{NAME}} created. Run \"uv pip install -e .\" to update workspace."
 
 # === Ubuntu TTS Tasks (CPU-Only, No Nix/Flake required) ===
 run_tts_tasks_ubuntu_cpu:

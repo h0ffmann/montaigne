@@ -1,9 +1,10 @@
 # Temporary copy stage to make files available during RUN install step
 FROM ubuntu:22.04 as file_copier
 WORKDIR /tmp/project_files
-COPY pyproject.toml ./
-COPY uv.lock ./ 
-COPY packages/ ./packages/ 
+# Use absolute paths and ensure destination directories end with '/'
+COPY pyproject.toml /tmp/project_files/
+COPY uv.lock /tmp/project_files/
+COPY packages/ /tmp/project_files/packages/
 
 # Add build arg to control model source
 ARG USE_LOCAL_MODEL=false

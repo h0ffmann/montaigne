@@ -50,25 +50,31 @@ jobs:
 
       - name: Verify uv.lock consistency
         run: |
-          echo "Generating new lock file (--quiet) to compare..."
-          # Generate quietly into a temporary file
-          uv pip compile --quiet --python python3 -o uv.lock.generated || { echo "❌ Failed to generate lock file with uv"; exit 1; } # Added --quiet
-
+          echo "Generating new lock file to compare..."
+          # Make a backup of the original lock file
+          cp uv.lock uv.lock.backup
+          
+          # Generate a new lock file (overwrites uv.lock)
+          uv lock --python python3
+          
+          # Compare the new lock file with the backup
           echo "Comparing existing uv.lock with the generated lock file..."
-          # Compare quietly first (-q). If different (exit code != 0), show the diff and fail.
-          if diff -q uv.lock uv.lock.generated; then
+          if diff -q uv.lock.backup uv.lock; then
             echo "✅ uv.lock is consistent and up-to-date."
-            rm uv.lock.generated # Clean up on success
           else
             echo "❌ uv.lock is out-of-date or inconsistent!"
             echo "Differences (existing vs generated):"
-            diff -u uv.lock uv.lock.generated || true # Show diff
+            diff -u uv.lock.backup uv.lock || true # Show diff
             echo ""
-            echo "👉 Please run 'uv pip lock --python python3' locally and commit the updated uv.lock file."
-            rm uv.lock.generated # Clean up on failure
+            echo "👉 Please run 'uv lock --python python3' locally and commit the updated uv.lock file."
+            # Restore the original lock file
+            mv uv.lock.backup uv.lock
             exit 1
           fi
-      
+          
+          # Clean up the backup file
+          rm -f uv.lock.backup
+
       - name: Install linting dependencies
         run: |
           # Install using pip instead of uv to avoid dynamic linking issues

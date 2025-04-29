@@ -207,6 +207,10 @@
                    pydub'>=0.25.0' \
                    'suno-bark @ git+https://github.com/suno-ai/bark.git' \
                    yt-dlp'>=2023.0.0' \
+                   # Add dependencies for tts_live explicitly
+                   realtimetts'>=0.3.1' \
+                   sounddevice'>=0.4.5' \
+                   numpy'>=1.20.0' \
                    ; then
                  echo "❌ Fatal: Failed to install base dependencies with uv into venv '$VENV_DIR'." && return 1
                fi

@@ -295,9 +295,9 @@ all:
       { echo "❌ All Docker build attempts failed."; exit 1; }
     @echo "✅ Docker build successful."
 
-    # === Step 3: Run Docker test command on host ===
-    @echo "[Step 3/3] Running Docker test command (CPU) on host..."
-    @just docker_run --cpu || { echo "❌ Docker test run failed."; exit 1; }
+    # === Step 3: Run Docker test command (inside Nix env to ensure ffmpeg for prepare_dirs) ===
+    @echo "[Step 3/3] Running Docker test command (CPU) inside Nix env..."
+    @NIXPKGS_ALLOW_BROKEN=1 nix develop --impure --command bash -c "just docker_run --cpu" || { echo "❌ Docker test run failed."; exit 1; }
     @echo "✅ Docker test run successful."
 
     # Optional Cleanup

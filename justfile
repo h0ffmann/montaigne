@@ -316,43 +316,73 @@ lint_dockerfile: hadolint_check
     @echo "✅ Dockerfile linting completed"
 
 # === Main Pipeline ===
-# Run TTS tasks inside Nix shell for reliable environment
+# Run TTS tasks (assumes already in Nix shell)
 run_tts_tasks:
-    @echo "🚀 Running TTS tasks inside Nix shell..."
-    @echo "🐍 Provide edits in DIFF format, please." # Request for Gemini
-    @nix develop --impure --command bash -c 'set -e && \
-        set -e; \
-        echo "=== Install workspace packages ==="; \
-        echo "Installing all workspace packages at once..."; \
-        uv pip install --editable ./packages/montaigne --editable .; \
-        echo "Verifying montaigne module..."; \
-        python -c "import montaigne; print(f\"✅ Found montaigne module: {montaigne.__file__}\")"; \
-        echo "=== Refresh repomix.md (using config) ==="; \
-        repomix .; \
-        just prepare_dirs xtts bark yt; \
-        echo "=== Nix Shell Tasks Complete ==="; \
-    ' || (echo "❌ TTS tasks failed" && exit 1)
+    @echo "🚀 Running TTS tasks..."
+    @just prepare_dirs
+    @just xtts
+    @just bark
+    @just yt
+    @echo "=== TTS Tasks Complete ==="
 
 # Improved main pipeline with better error handling
 all:
     @echo "🚀 Starting Montaigne TTS pipeline..."
-    @echo "📦 Current Python environment packages:"
-    @nix develop --impure --command bash -c 'uv pip freeze'
+    @nix develop --impure --command bash -c '
+        set -e
+        echo "📦 Current Python environment packages:"
+        uv pip freeze
 
-    @just run_tts_tasks || (echo "❌ TTS tasks failed, aborting pipeline." && exit 1)
+        # Install workspace packages
+        echo "=== Install workspace packages ==="
+        echo "Installing all workspace packages at once..."
+        uv pip install --editable ./packages/montaigne --editable .
+        echo "Verifying montaigne module..."
+        python -c "import montaigne; print(f\"✅ Found montaigne module: {montaigne.__file__}\")"
 
-    @echo "=== Running Docker Tasks ==="
-    @just prepare_docker_files || (echo "❌ Docker file preparation failed." && exit 1)
-    @echo "Attempting Docker build with local model (using --no-cache)..."
-    @just docker_build --no-cache --build-arg USE_LOCAL_MODEL=true || \
-      (echo "❌ Docker build failed with local model, trying without local model (using --no-cache)..." && \
-       just docker_build --no-cache) || \
-      (echo "❌ All Docker build attempts failed." && exit 1) # Exit if all builds fail
+        # Run repomix
+        echo "=== Refresh repomix.md (using config) ==="
+        repomix .
 
-    # Step 3: Run Docker test with --cpu flag
-    @echo "🐳 Running Docker test command..."
-    @just docker_run --cpu || \
-      (echo "❌ Docker test run failed." && exit 1) # Exit on test failure
+        # Prepare directories and run TTS tasks
+        just prepare_dirs
+
+        # Run TTS synthesis tasks
+        echo "✨ Running XTTS synthesis..."
+        python -m montaigne.main synthesize \
+            --output-file output/xtts_output.wav \
+            --speaker-wav input/speaker.wav \
+            --language en \
+            --text "This is a test with XTTS. It supports [p=0.5] pauses and *emphasis*."
+
+        echo "🐾 Running Bark synthesis..."
+        python -m montaigne.main synthesize \
+            --engine bark \
+            --text "Hello from the Bark engine. It sounds different!" \
+            --language en \
+            --output-file output/bark_en_default.wav
+
+        echo "▶️ Running XTTS with YouTube speaker..."
+        python -m montaigne.main synthesize \
+            --engine xtts \
+            --speaker-youtube-id "dQw4w9WgXcQ" \
+            --text "Testing YouTube download." \
+            --language en \
+            --output-file output/yt_test.wav
+
+        # Docker tasks
+        echo "=== Running Docker Tasks ==="
+        just prepare_docker_files || (echo "❌ Docker file preparation failed." && exit 1)
+
+        echo "Attempting Docker build with local model (using --no-cache)..."
+        just docker_build --no-cache --build-arg USE_LOCAL_MODEL=true || \
+          (echo "❌ Docker build failed with local model, trying without local model (using --no-cache)..." && \
+           just docker_build --no-cache) || \
+          (echo "❌ All Docker build attempts failed." && exit 1)
+
+        echo "🐳 Running Docker test command..."
+        just docker_run --cpu || (echo "❌ Docker test run failed." && exit 1)
+    ' || (echo "❌ Pipeline failed" && exit 1)
 
     @echo "✅ All tasks completed successfully!"
 

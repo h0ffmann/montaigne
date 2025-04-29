@@ -85,9 +85,7 @@ class BaseTTSEngine(abc.ABC):
         selected_device = "cuda" if use_cuda_flag and is_available else "cpu"
         logger.info(f"Selected device: {selected_device}")
         if selected_device == "cpu":
-            logger.warning(
-                f"{self.__class__.__name__} will run on CPU. Inference may be slow."
-            )
+            logger.warning(f"{self.__class__.__name__} will run on CPU. Inference may be slow.")
         return selected_device
 
     @abc.abstractmethod
@@ -118,9 +116,7 @@ class XTTSv2Engine(BaseTTSEngine):
 
     def __init__(self, use_cuda: bool = True):
         if not TTS_AVAILABLE:
-            raise RuntimeError(
-                "Coqui TTS library not found. Please install it (`pip install TTS`)"
-            )
+            raise RuntimeError("Coqui TTS library not found. Please install it (`pip install TTS`)")
         super().__init__(use_cuda)
         self.model = self._load_model()
 
@@ -141,13 +137,9 @@ class XTTSv2Engine(BaseTTSEngine):
             with warnings.catch_warnings():  # Removido o contexto weights_only
                 warnings.simplefilter("ignore", UserWarning)
                 # TTS checks for CUDA itself, but passing the device is good practice
-                model = TTS(model_name=XTTS_MODEL_NAME, progress_bar=True).to(
-                    self.device
-                )
+                model = TTS(model_name=XTTS_MODEL_NAME, progress_bar=True).to(self.device)
             end_time = time.time()
-            logger.info(
-                f"TTS model '{XTTS_MODEL_NAME}' loaded in {end_time - start_time:.2f} seconds."
-            )
+            logger.info(f"TTS model '{XTTS_MODEL_NAME}' loaded in {end_time - start_time:.2f} seconds.")
             return model
         except Exception as e:
             logger.exception(f"Failed to load TTS model: {XTTS_MODEL_NAME}")
@@ -157,9 +149,7 @@ class XTTSv2Engine(BaseTTSEngine):
                 "Python version compatibility, network connection, "
                 "and ensure you have accepted the Coqui TTS license terms."
             )
-            raise RuntimeError(
-                f"Could not initialize TTS model '{XTTS_MODEL_NAME}'. {hint}"
-            ) from e
+            raise RuntimeError(f"Could not initialize TTS model '{XTTS_MODEL_NAME}'. {hint}") from e
 
     def synthesize(self, text: str, language: str, output_path: Path, **kwargs) -> bool:
         """Synthesizes using XTTSv2."""
@@ -174,9 +164,7 @@ class XTTSv2Engine(BaseTTSEngine):
             raise FileNotFoundError(f"Speaker reference file not found: {speaker_wav}")
 
         logger.info(f"Synthesizing audio to: {output_path.name} using XTTSv2")
-        logger.info(
-            f"Params: Lang={language}, Speed={speed}, Speaker={Path(speaker_wav).name}"
-        )
+        logger.info(f"Params: Lang={language}, Speed={speed}, Speaker={Path(speaker_wav).name}")
         logger.debug(f"Full Text Length: {len(text)} chars")
 
         if self.model is None:
@@ -194,9 +182,7 @@ class XTTSv2Engine(BaseTTSEngine):
                 split_sentences=True,
             )
             end_time = time.time()
-            logger.info(
-                f"XTTS Synthesis complete in {end_time - start_time:.2f} seconds."
-            )
+            logger.info(f"XTTS Synthesis complete in {end_time - start_time:.2f} seconds.")
             print(f"✅ Audio successfully saved to: {output_path}")
             return True
         except Exception as e:
@@ -216,9 +202,7 @@ class BarkEngine(BaseTTSEngine):
 
     def __init__(self, use_cuda: bool = True):
         if not BARK_AVAILABLE:
-            raise RuntimeError(
-                "Bark library not found. Please install it (`pip install bark`)"
-            )
+            raise RuntimeError("Bark library not found. Please install it (`pip install bark`)")
         if not SOUNDFILE_AVAILABLE:
             raise RuntimeError(
                 "SoundFile library not found. Please install it (`pip install soundfile`) for Bark output."
@@ -238,9 +222,7 @@ class BarkEngine(BaseTTSEngine):
         # Let's just ensure the check runs and preload the models.
         original_cuda_visible = os.environ.get("CUDA_VISIBLE_DEVICES")
         if self.device == "cpu":
-            logger.info(
-                "Attempting to force Bark to use CPU by setting CUDA_VISIBLE_DEVICES=-1"
-            )
+            logger.info("Attempting to force Bark to use CPU by setting CUDA_VISIBLE_DEVICES=-1")
             os.environ["CUDA_VISIBLE_DEVICES"] = "-1"
 
         try:
@@ -250,9 +232,7 @@ class BarkEngine(BaseTTSEngine):
             else:
                 raise RuntimeError("Bark's preload_models function not available.")
             end_time = time.time()
-            logger.info(
-                f"Bark models preloaded in {end_time - start_time:.2f} seconds."
-            )
+            logger.info(f"Bark models preloaded in {end_time - start_time:.2f} seconds.")
             # Restore env var if we changed it
             if self.device == "cpu":
                 if original_cuda_visible is None:
@@ -278,9 +258,7 @@ class BarkEngine(BaseTTSEngine):
         """Synthesizes using Bark."""
         # Bark doesn't use speaker wavs or speed in the same way.
         # Language is used via 'history prompts' typically. Let's check if provided lang is supported.
-        speaker_prompt = kwargs.get(
-            "speaker_prompt", None
-        )  # Allow passing specific bark prompt
+        speaker_prompt = kwargs.get("speaker_prompt", None)  # Allow passing specific bark prompt
         logger.info(f"Synthesizing audio to: {output_path.name} using Bark")
         logger.info(f"Params: Lang={language}")
         if speaker_prompt:
@@ -333,14 +311,10 @@ class BarkEngine(BaseTTSEngine):
             audio_array = generate_audio(text, history_prompt=history_prompt)
             end_time = time.time()
 
-            logger.info(
-                f"Bark Synthesis complete in {end_time - start_time:.2f} seconds."
-            )
+            logger.info(f"Bark Synthesis complete in {end_time - start_time:.2f} seconds.")
 
             # Save the audio array to a WAV file using soundfile
-            logger.info(
-                f"Saving Bark audio (sample rate: {BARK_SAMPLE_RATE}) to {output_path}..."
-            )
+            logger.info(f"Saving Bark audio (sample rate: {BARK_SAMPLE_RATE}) to {output_path}...")
             output_path.parent.mkdir(parents=True, exist_ok=True)
             sf.write(str(output_path), audio_array, BARK_SAMPLE_RATE)
 
@@ -363,7 +337,5 @@ class BarkEngine(BaseTTSEngine):
                         logger.debug("Removing CUDA_VISIBLE_DEVICES env var.")
                         del os.environ["CUDA_VISIBLE_DEVICES"]
                 else:
-                    logger.debug(
-                        f"Restoring CUDA_VISIBLE_DEVICES to '{original_cuda_visible}'"
-                    )
+                    logger.debug(f"Restoring CUDA_VISIBLE_DEVICES to '{original_cuda_visible}'")
                     os.environ["CUDA_VISIBLE_DEVICES"] = original_cuda_visible

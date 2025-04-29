@@ -12,9 +12,7 @@ import click
 import matplotlib.pyplot as plt
 
 # Set up logging
-logging.basicConfig(
-    level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s"
-)
+logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s")
 logger = logging.getLogger("aider_analytics")
 
 
@@ -121,9 +119,7 @@ def generate_analytics(repo_path: str, output_dir: str = None) -> dict:
 
 @click.command()
 @click.argument("repo_path", type=click.Path(exists=True), default=".")
-@click.option(
-    "--output-dir", "-o", type=click.Path(), help="Directory to save analytics outputs"
-)
+@click.option("--output-dir", "-o", type=click.Path(), help="Directory to save analytics outputs")
 def main(repo_path, output_dir):
     """Analyze Git commits to distinguish between AI and human contributions."""
     logger.info(f"Analyzing repository: {repo_path}")

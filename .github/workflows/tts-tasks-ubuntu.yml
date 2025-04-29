@@ -17,7 +17,7 @@ on:
 
 jobs:
   lint-and-check:
-    name: Lint and Check Code
+    name: Lint & Check
     runs-on: ubuntu-latest
     steps:
       - name: Checkout repository
@@ -78,7 +78,7 @@ jobs:
           /tmp/hadolint Dockerfile
 
   run-tts-on-ubuntu:
-    name: Run TTS Tasks
+    name: Run TTS Tasks (Ubuntu)
     needs: lint-and-check
     runs-on: ubuntu-latest
     env:

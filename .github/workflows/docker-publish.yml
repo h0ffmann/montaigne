@@ -25,6 +25,7 @@ env: # Define environment variables accessible by all jobs/steps
 
 jobs:
   build-and-push:
+    name: Build & Push (Docker)
     # Only run this job on push or workflow_dispatch events
     if: github.event_name == 'push' || github.event_name == 'workflow_dispatch'
     runs-on: ubuntu-latest

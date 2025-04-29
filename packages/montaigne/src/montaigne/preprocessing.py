@@ -14,9 +14,7 @@ def preprocess_text_for_tts(text: str) -> str:
         tone = match.group(1).lower()
         content = match.group(2)
         if tone not in SUPPORTED_TONES:
-            logger.warning(
-                f"Unsupported tone '{tone}'. Using neutral. Text: '{content[:50]}...'"
-            )
+            logger.warning(f"Unsupported tone '{tone}'. Using neutral. Text: '{content[:50]}...'")
             return content
         else:
             logger.info(f"Detected tone tag: [{tone}] for text: '{content[:50]}...'")
@@ -30,9 +28,7 @@ def preprocess_text_for_tts(text: str) -> str:
     )
 
     # 2. Ênfase: Adiciona vírgulas
-    processed_text = re.sub(
-        r"\*\*(.*?)\*\*", r", \1 ,", processed_text, flags=re.DOTALL
-    )
+    processed_text = re.sub(r"\*\*(.*?)\*\*", r", \1 ,", processed_text, flags=re.DOTALL)
     processed_text = re.sub(r"\*(.*?)\*", r", \1 ,", processed_text, flags=re.DOTALL)
 
     # 3. Pausas: Converte para pontuação
@@ -70,9 +66,7 @@ def preprocess_text_for_tts(text: str) -> str:
     return processed_text
 
 
-def chunk_text(
-    text: str, max_chunk_len: int = 250, strategy: str = "paragraph"
-) -> list[str]:
+def chunk_text(text: str, max_chunk_len: int = 250, strategy: str = "paragraph") -> list[str]:
     """
     Splits text into chunks suitable for TTS processing.
 
@@ -104,9 +98,7 @@ def chunk_text(
             chunks.append(para)
 
     else:
-        logger.warning(
-            f"Unsupported chunking strategy '{strategy}'. Defaulting to single chunk."
-        )
+        logger.warning(f"Unsupported chunking strategy '{strategy}'. Defaulting to single chunk.")
         chunks.append(text)  # Fallback
 
     logger.info(f"Split text into {len(chunks)} chunks using '{strategy}' strategy.")

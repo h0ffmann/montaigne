@@ -15,9 +15,7 @@ except ImportError:
 logger = logging.getLogger(__name__)
 
 
-def concatenate_audio_files(
-    file_paths: list[Path], output_path: Path, crossfade_ms: int = 20
-):
+def concatenate_audio_files(file_paths: list[Path], output_path: Path, crossfade_ms: int = 20):
     """Concatenates multiple WAV files into a single file using crossfade."""
     if not file_paths:
         logger.warning("No audio file paths provided for concatenation.")
@@ -30,23 +28,15 @@ def concatenate_audio_files(
         for file_path in file_paths[1:]:
             try:
                 next_segment = AudioSegment.from_wav(str(file_path))
-                logger.debug(
-                    f"Adding {file_path.name} (duration: {len(next_segment)}ms)"
-                )
+                logger.debug(f"Adding {file_path.name} (duration: {len(next_segment)}ms)")
                 # Use crossfade for smoother transitions
                 combined = combined.append(next_segment, crossfade=crossfade_ms)
             except Exception as e:
-                logger.error(
-                    f"Error processing segment {file_path.name}: {e}. Skipping this segment."
-                )
+                logger.error(f"Error processing segment {file_path.name}: {e}. Skipping this segment.")
                 # Decide whether to skip or abort - skipping for now
 
-        logger.info(
-            f"Exporting combined audio (total duration: {len(combined)}ms) to {output_path}..."
-        )
-        output_path.parent.mkdir(
-            parents=True, exist_ok=True
-        )  # Ensure output dir exists
+        logger.info(f"Exporting combined audio (total duration: {len(combined)}ms) to {output_path}...")
+        output_path.parent.mkdir(parents=True, exist_ok=True)  # Ensure output dir exists
         combined.export(str(output_path), format="wav")
         logger.info(f"✅ Concatenation complete: {output_path}")
         return True
@@ -55,9 +45,7 @@ def concatenate_audio_files(
         logger.error(f"Concatenation failed: Initial file {file_paths[0]} not found.")
         return False
     except Exception:
-        logger.exception(
-            f"An unexpected error occurred during audio concatenation for {output_path}"
-        )
+        logger.exception(f"An unexpected error occurred during audio concatenation for {output_path}")
         return False
 
 
@@ -80,9 +68,7 @@ def download_audio_from_youtube(
 ) -> Path | None:
     """Downloads audio from a YouTube video ID as WAV, caches results."""
     if not YTDLP_AVAILABLE:
-        logger.error(
-            "yt-dlp library not found. Cannot download from YouTube. Install it (`pip install yt-dlp`)."
-        )
+        logger.error("yt-dlp library not found. Cannot download from YouTube. Install it (`pip install yt-dlp`).")
         return None
 
     output_dir.mkdir(parents=True, exist_ok=True)
@@ -129,13 +115,9 @@ def download_audio_from_youtube(
             error_code = ydl.download([youtube_url])
             print()  # Newline after progress
             if error_code != 0:
-                logger.error(
-                    f"yt-dlp download failed with error code: {error_code} for ID {safe_id}"
-                )
+                logger.error(f"yt-dlp download failed with error code: {error_code} for ID {safe_id}")
                 return None
-        logger.info(
-            f"✅ Successfully downloaded and converted speaker audio: {expected_wav_path.name}"
-        )
+        logger.info(f"✅ Successfully downloaded and converted speaker audio: {expected_wav_path.name}")
         return expected_wav_path
     except Exception:
         print()  # Ensure newline after potential progress output on error

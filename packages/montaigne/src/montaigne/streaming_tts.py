@@ -50,19 +50,13 @@ class PiperStreamingTTS:
 
     def __init__(self, use_cuda: bool = True):
         if not SOUNDDEVICE_AVAILABLE:
-            raise RuntimeError(
-                "Sounddevice library is required for audio playback but not found."
-            )
+            raise RuntimeError("Sounddevice library is required for audio playback but not found.")
         if not HF_HUB_AVAILABLE:
-            raise RuntimeError(
-                "huggingface-hub library is required for model download but not found."
-            )
+            raise RuntimeError("huggingface-hub library is required for model download but not found.")
 
         self.device = "cuda" if use_cuda and torch.cuda.is_available() else "cpu"
         self.model_path: str | None = None
-        self.voice_model: PiperVoice | None = (
-            None  # Use forward reference if PiperVoice is imported later
-        )
+        self.voice_model: PiperVoice | None = None  # Use forward reference if PiperVoice is imported later
         self.sample_rate: int = 22050  # Default Piper sample rate, updated on load
         self.voice_name: str | None = None
         self.use_cuda = use_cuda  # Store cuda preference for model loading
@@ -80,9 +74,7 @@ class PiperStreamingTTS:
             )
             return False
 
-        logger.info(
-            f"Attempting to load Piper voice: {voice_name} (CUDA: {self.use_cuda})"
-        )
+        logger.info(f"Attempting to load Piper voice: {voice_name} (CUDA: {self.use_cuda})")
         # Basic structure assumption: lang/lang_REGION/speaker/quality/model.onnx
         # Example: en/en_US/amy/low/en_US-amy-low.onnx
         try:
@@ -111,17 +103,11 @@ class PiperStreamingTTS:
 
             # PiperVoice.load handles device selection internally based on onnxruntime providers
             # Pass use_cuda preference to it
-            self.voice_model = PiperVoice.load(
-                model_path_hf, config_path_hf, use_cuda=self.use_cuda
-            )
+            self.voice_model = PiperVoice.load(model_path_hf, config_path_hf, use_cuda=self.use_cuda)
             self.model_path = model_path_hf  # Store path to downloaded model
-            self.sample_rate = (
-                self.voice_model.config.sample_rate
-            )  # Get actual sample rate
+            self.sample_rate = self.voice_model.config.sample_rate  # Get actual sample rate
             self.voice_name = voice_name
-            logger.info(
-                f"Model loaded successfully: {self.voice_name} (Sample Rate: {self.sample_rate})"
-            )
+            logger.info(f"Model loaded successfully: {self.voice_name} (Sample Rate: {self.sample_rate})")
             return True
         except FileNotFoundError as e:
             logger.error(
@@ -169,9 +155,7 @@ class PiperStreamingTTS:
                 self.voice_model.synthesize(text, wav_file)
 
             synth_end_time = time.time()
-            logger.debug(
-                f"Chunk synthesized to {temp_path.name} in {synth_end_time - start_time:.2f}s"
-            )
+            logger.debug(f"Chunk synthesized to {temp_path.name} in {synth_end_time - start_time:.2f}s")
             return temp_path
 
         except wave.Error as e:
@@ -187,9 +171,7 @@ class PiperStreamingTTS:
                     pass
             return None
         except Exception:
-            logger.exception(
-                f"Error during chunk synthesis to temp file {temp_path.name if temp_path else 'N/A'}"
-            )
+            logger.exception(f"Error during chunk synthesis to temp file {temp_path.name if temp_path else 'N/A'}")
             # Clean up if temp file was created
             if temp_path and temp_path.exists():
                 try:
@@ -199,9 +181,7 @@ class PiperStreamingTTS:
             return None
         # Note: No finally block here to delete the file, caller (stream_speak) is responsible
 
-    def stream_speak(
-        self, text: str, session_id: uuid.UUID, output_dir: Path, prompt_count: int
-    ) -> bool:
+    def stream_speak(self, text: str, session_id: uuid.UUID, output_dir: Path, prompt_count: int) -> bool:
         """
         Stream speech by breaking text into chunks, synthesizing each to a temp file,
         concatenating them, saving the final output, playing it, and cleaning up temps.
@@ -213,9 +193,7 @@ class PiperStreamingTTS:
             logger.error("Sounddevice not available. Cannot play audio.")
             return False
 
-        logger.info(
-            f"Starting stream_speak for prompt {prompt_count} (Session: {session_id})"
-        )
+        logger.info(f"Starting stream_speak for prompt {prompt_count} (Session: {session_id})")
         logger.debug(f"Full text: '{text[:80]}...'")
 
         # Split text into chunks
@@ -241,47 +219,35 @@ class PiperStreamingTTS:
 
         # Synthesize each chunk to a temporary file
         for i, chunk in enumerate(chunks):
-            logger.info(
-                f"Synthesizing chunk {i + 1}/{len(chunks)} for prompt {prompt_count}..."
-            )
+            logger.info(f"Synthesizing chunk {i + 1}/{len(chunks)} for prompt {prompt_count}...")
             temp_path = self._synthesize_chunk_to_temp(chunk)
             if temp_path and temp_path.exists():
                 temp_chunk_files.append(temp_path)
             else:
-                logger.error(
-                    f"Failed to synthesize chunk {i + 1}. Aborting stream for this prompt."
-                )
+                logger.error(f"Failed to synthesize chunk {i + 1}. Aborting stream for this prompt.")
                 all_chunks_synthesized = False
                 break  # Stop processing chunks for this prompt if one fails
 
         # Proceed only if all chunks were synthesized and we have temp files
         # Construct the new filename including the voice name
         voice_name_part = self.voice_name if self.voice_name else "unknown_voice"
-        final_output_path = (
-            output_dir / f"live_piper_{voice_name_part}_{session_id}_{prompt_count}.wav"
-        )
+        final_output_path = output_dir / f"live_piper_{voice_name_part}_{session_id}_{prompt_count}.wav"
         concatenation_successful = False
         playback_successful = False
 
         if all_chunks_synthesized and temp_chunk_files:
-            logger.info(
-                f"Concatenating {len(temp_chunk_files)} chunks into {final_output_path.name}..."
-            )
+            logger.info(f"Concatenating {len(temp_chunk_files)} chunks into {final_output_path.name}...")
             # Import concatenation utils here
             import soundfile as sf  # Needed for reading final file for playback
 
             from .audio_utils import cleanup_files, concatenate_audio_files
 
-            concatenation_successful = concatenate_audio_files(
-                temp_chunk_files, final_output_path
-            )
+            concatenation_successful = concatenate_audio_files(temp_chunk_files, final_output_path)
 
             if concatenation_successful and final_output_path.exists():
                 logger.info(f"Playing concatenated audio: {final_output_path.name}")
                 try:
-                    audio_data, read_sr = sf.read(
-                        str(final_output_path), dtype="float32"
-                    )
+                    audio_data, read_sr = sf.read(str(final_output_path), dtype="float32")
                     if read_sr != self.sample_rate:
                         logger.warning(
                             f"Sample rate mismatch! Model: {self.sample_rate}, Final file: {read_sr}. Using file rate."
@@ -299,17 +265,11 @@ class PiperStreamingTTS:
                         exc_info=True,
                     )
                 except Exception:
-                    logger.exception(
-                        f"Error during playback of {final_output_path.name}"
-                    )
+                    logger.exception(f"Error during playback of {final_output_path.name}")
             else:
-                logger.error(
-                    f"Concatenation failed or final file missing: {final_output_path.name}"
-                )
+                logger.error(f"Concatenation failed or final file missing: {final_output_path.name}")
         else:
-            logger.error(
-                "Not all chunks were synthesized successfully, skipping concatenation and playback."
-            )
+            logger.error("Not all chunks were synthesized successfully, skipping concatenation and playback.")
 
         # Clean up temporary chunk files regardless of success/failure
         if temp_chunk_files:
@@ -336,9 +296,7 @@ class PiperStreamingTTS:
 # --- Interactive Prompt Functionality ---
 
 
-def run_interactive_prompt(
-    engine: PiperStreamingTTS, session_id: uuid.UUID, output_dir: Path
-):
+def run_interactive_prompt(engine: PiperStreamingTTS, session_id: uuid.UUID, output_dir: Path):
     """Run an interactive prompt that converts text to speech using Piper and saves output."""
 
     print("🎙️ Montaigne Real-time TTS (Piper Engine - HF Download)")

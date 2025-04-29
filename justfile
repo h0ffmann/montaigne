@@ -53,10 +53,10 @@ nix_shell:
 
 # === Linting & Formatting (Run inside Nix Shell) ===
 lint:
-    ruff check packages/
+    ruff check --force-exclude --config=ruff.toml packages/
 
 format:
-    ruff format packages/
+    ruff format --force-exclude --config=ruff.toml packages/
 
 check: format lint
     @echo "✅ Lint and format checks passed."

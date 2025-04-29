@@ -113,9 +113,7 @@ def cli():
 @click.option(
     "--speaker-wav",
     "-s",
-    type=click.Path(
-        exists=True, file_okay=True, dir_okay=False, readable=True, path_type=Path
-    ),
+    type=click.Path(exists=True, file_okay=True, dir_okay=False, readable=True, path_type=Path),
     help="Path to a reference WAV file for voice cloning (XTTS only).",
 )
 # Update help text to clarify youtube ID requires internet
@@ -126,9 +124,7 @@ def cli():
         "Mutually exclusive with --speaker-wav and --voice-profile."
     ),
 )
-@click.option(
-    "--speaker-prompt", help="Voice prompt for Bark engine (e.g., 'en_speaker_6')."
-)
+@click.option("--speaker-prompt", help="Voice prompt for Bark engine (e.g., 'en_speaker_6').")
 @click.option(
     "--text",
     "-t",
@@ -169,9 +165,7 @@ def cli():
     show_default=True,
     help="Adjust playback speed (XTTS only).",
 )
-@click.option(
-    "--evaluate", "-e", is_flag=True, help="Evaluate audio quality using Whisper STT."
-)
+@click.option("--evaluate", "-e", is_flag=True, help="Evaluate audio quality using Whisper STT.")
 @click.option("--cpu", is_flag=True, help="Force CPU for TTS and evaluation.")
 def synthesize(
     engine: str,
@@ -193,9 +187,7 @@ def synthesize(
     # --- Validation ---
     if selected_engine_type == EngineChoice.XTTS:
         # XTTS Speaker Input Validation
-        speaker_inputs = sum(
-            p is not None for p in [voice_profile, speaker_wav, speaker_youtube_id]
-        )
+        speaker_inputs = sum(p is not None for p in [voice_profile, speaker_wav, speaker_youtube_id])
         if speaker_inputs == 0:
             raise click.UsageError(
                 "XTTS engine requires one of: --voice-profile, --speaker-wav, or --speaker-youtube-id."
@@ -241,19 +233,13 @@ def synthesize(
         actual_speaker_wav: Path
 
         if speaker_youtube_id:
-            logger.info(
-                f"YouTube ID provided: {speaker_youtube_id}. Attempting to download/cache audio..."
-            )
+            logger.info(f"YouTube ID provided: {speaker_youtube_id}. Attempting to download/cache audio...")
             # Call the download function from audio_utils
             downloaded_path = download_audio_from_youtube(speaker_youtube_id)
             if downloaded_path and downloaded_path.exists():
                 actual_speaker_wav = downloaded_path
-                speaker_display_name = (
-                    f"YouTube: {speaker_youtube_id} ({actual_speaker_wav.name})"
-                )
-                logger.info(
-                    f"Using speaker audio from YouTube ID '{speaker_youtube_id}' -> {actual_speaker_wav.name}"
-                )
+                speaker_display_name = f"YouTube: {speaker_youtube_id} ({actual_speaker_wav.name})"
+                logger.info(f"Using speaker audio from YouTube ID '{speaker_youtube_id}' -> {actual_speaker_wav.name}")
             else:
                 # Error message already logged by download_audio_from_youtube
                 click.echo(
@@ -267,15 +253,13 @@ def synthesize(
                 sys.exit(1)  # get_voice_profile logs errors
             actual_speaker_wav = profile_path
             speaker_display_name = f"Profile: {voice_profile}"
-            logger.info(
-                f"Using voice profile '{voice_profile}' ({actual_speaker_wav.name})"
-            )
+            logger.info(f"Using voice profile '{voice_profile}' ({actual_speaker_wav.name})")
         else:
             # speaker_wav must be set if voice_profile is not (validated above)
             actual_speaker_wav = speaker_wav  # type: ignore [assignment] - Click ensures it exists
             speaker_display_name = (
-                f"File: {actual_speaker_wav.name if actual_speaker_wav else 'N/A'}"
-            )  # Check added for type safety
+                f"File: {actual_speaker_wav.name if actual_speaker_wav else 'N/A'}"  # Check added for type safety
+            )
             logger.info(f"Using speaker WAV file: {actual_speaker_wav.name}")
 
         # Common setup for XTTS once actual_speaker_wav is determined
@@ -283,9 +267,7 @@ def synthesize(
         engine_params["speed"] = speed
     elif selected_engine_type == EngineChoice.BARK:
         engine_params["speaker_prompt"] = speaker_prompt
-        speaker_display_name = (
-            f"Prompt: {speaker_prompt}" if speaker_prompt else "Generic/Default"
-        )
+        speaker_display_name = f"Prompt: {speaker_prompt}" if speaker_prompt else "Generic/Default"
         logger.info(f"Using Bark engine. Speaker selection: {speaker_display_name}")
 
     # --- Start Process ---
@@ -303,9 +285,7 @@ def synthesize(
             source_name = text_file.name
             logger.info(f"Read {len(input_content)} chars from file: {source_name}")
         except Exception as e:
-            click.echo(
-                f"❌ Error reading text file '{text_file}': {e}", err=True
-            )  # Updated error message
+            click.echo(f"❌ Error reading text file '{text_file}': {e}", err=True)  # Updated error message
             sys.exit(1)
     else:  # text must be provided if text_file is None (validated above)
         input_content = text
@@ -319,9 +299,7 @@ def synthesize(
     # --- Text Chunking & Preprocessing (Applied to both engines for now) ---
     text_chunks = chunk_text(input_content)
     if not text_chunks:
-        click.echo(
-            "❌ Error: Text content resulted in zero processable chunks.", err=True
-        )
+        click.echo("❌ Error: Text content resulted in zero processable chunks.", err=True)
         sys.exit(1)
 
     processed_chunks = []
@@ -335,9 +313,7 @@ def synthesize(
             logger.warning(f"Chunk {i + 1} became empty after preprocessing, skipping.")
 
     if not processed_chunks:
-        click.echo(
-            "❌ Error: All text chunks became empty after preprocessing.", err=True
-        )
+        click.echo("❌ Error: All text chunks became empty after preprocessing.", err=True)
         sys.exit(1)
 
     # --- Synthesis Loop ---
@@ -345,9 +321,7 @@ def synthesize(
     synthesis_failed = False
     output_dir = output_file.parent
     output_base_name = output_file.stem
-    output_suffix = (
-        output_file.suffix if output_file.suffix else ".wav"
-    )  # Ensure suffix
+    output_suffix = output_file.suffix if output_file.suffix else ".wav"  # Ensure suffix
 
     # Get the engine instance (lazy loaded)
     try:
@@ -364,9 +338,7 @@ def synthesize(
     for i, chunk_text_processed in enumerate(processed_chunks):
         chunk_output_path = output_dir / f"{output_base_name}_chunk_{i}{output_suffix}"
         chunk_output_files.append(chunk_output_path)
-        click.echo(
-            f"   Synthesizing chunk {i + 1}/{len(processed_chunks)} -> {chunk_output_path.name}"
-        )
+        click.echo(f"   Synthesizing chunk {i + 1}/{len(processed_chunks)} -> {chunk_output_path.name}")
 
         try:
             # Pass only relevant parameters for the selected engine
@@ -381,9 +353,7 @@ def synthesize(
                 logger.error(f"Synthesis failed for chunk {i + 1}. See previous logs.")
         except Exception as e:
             synthesis_failed = True
-            logger.exception(
-                f"Error synthesizing chunk {i + 1} with {engine_display_name}"
-            )
+            logger.exception(f"Error synthesizing chunk {i + 1} with {engine_display_name}")
             click.echo(f"❌ Error synthesizing chunk {i + 1}: {e}", err=True)
 
     # --- Concatenation, Cleanup, Evaluation (mostly unchanged) ---
@@ -391,13 +361,9 @@ def synthesize(
         click.echo("❌ Error: No audio chunks were successfully generated.", err=True)
         sys.exit(1)
 
-    click.echo(
-        f"\n🔗 Concatenating {len(chunk_output_files)} audio chunks into {output_file.name}..."
-    )
+    click.echo(f"\n🔗 Concatenating {len(chunk_output_files)} audio chunks into {output_file.name}...")
     # Ensure concatenation inputs actually exist before proceeding
-    valid_chunk_files = [
-        f for f in chunk_output_files if f.exists() and f.stat().st_size > 0
-    ]
+    valid_chunk_files = [f for f in chunk_output_files if f.exists() and f.stat().st_size > 0]
     if not valid_chunk_files:
         click.echo("❌ Error: No valid audio chunks found to concatenate.", err=True)
         if chunk_output_files:
@@ -423,22 +389,16 @@ def synthesize(
 
     # Evaluation
     if synthesis_successful and evaluate:
-        click.echo(
-            "\n" + "📊 Starting audio evaluation (Whisper STT) on final output..."
-        )
+        click.echo("\n" + "📊 Starting audio evaluation (Whisper STT) on final output...")
         try:
             # Rejoin processed chunks for evaluation target
             full_processed_text = " ".join(processed_chunks)
             evaluator = get_evaluator(use_cuda)  # Reuse evaluator instance
-            evaluation_result = evaluator.evaluate_audio(
-                output_file, full_processed_text
-            )
+            evaluation_result = evaluator.evaluate_audio(output_file, full_processed_text)
             if evaluation_result:
                 score, transcript = evaluation_result
                 click.echo(f"    Transcript Sample: '{transcript[:100].strip()}...'")
-                click.echo(
-                    f"    🎯 Similarity Score (vs processed input): {score:.2f}%"
-                )
+                click.echo(f"    🎯 Similarity Score (vs processed input): {score:.2f}%")
             else:
                 click.secho(
                     "    ⚠️ Evaluation incomplete (possible transcription error?).",
@@ -456,9 +416,7 @@ def synthesize(
         )
 
     total_duration = time.time() - start_total_time
-    print(
-        f"\n✨ Montaigne ({engine_display_name}) process finished in {total_duration:.2f} seconds."
-    )
+    print(f"\n✨ Montaigne ({engine_display_name}) process finished in {total_duration:.2f} seconds.")
     if not synthesis_successful:
         sys.exit(1)
 
@@ -497,12 +455,8 @@ def live(piper_voice: str, file: click.File | None, output_dir: Path, cpu: bool)
 
     # Checks for library availability are done inside PiperStreamingTTS constructor now
     use_cuda = not cpu
-    session_id = (
-        uuid.uuid4()
-    )  # Generate a random UUID (uuid7 not available in Python < 3.13)
-    click.echo(
-        f"🎙️ Starting Montaigne Live TTS Session (Piper Engine - HF, CUDA Pref: {use_cuda})"
-    )
+    session_id = uuid.uuid4()  # Generate a random UUID (uuid7 not available in Python < 3.13)
+    click.echo(f"🎙️ Starting Montaigne Live TTS Session (Piper Engine - HF, CUDA Pref: {use_cuda})")
     click.echo(f"   Session ID: {session_id}")
 
     # Ensure output directory exists
@@ -558,9 +512,7 @@ def live(piper_voice: str, file: click.File | None, output_dir: Path, cpu: bool)
         click.echo(f"❌ Initialization Error: {e}", err=True)
         sys.exit(1)
     except Exception as e:
-        logger.exception(
-            "Critical error during live TTS session initialization or runtime."
-        )
+        logger.exception("Critical error during live TTS session initialization or runtime.")
         click.echo(f"❌ An unexpected error occurred: {e}", err=True)
         if engine:
             engine.stop()  # Attempt cleanup if engine was initialized

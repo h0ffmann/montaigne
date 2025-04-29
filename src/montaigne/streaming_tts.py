@@ -108,7 +108,7 @@ class PiperStreamingTTS:
             return False
 
     def speak(self, text: str) -> bool:
-        """Synthesizes text using the loaded Piper model and plays it using sounddevice."""
+        """Synthesize and play speech using Piper TTS."""
         if not self.voice_model:
             logger.error("No voice model loaded. Call load_model() first.")
             return False
@@ -118,36 +118,76 @@ class PiperStreamingTTS:
 
         logger.debug(f"Synthesizing text with Piper ({self.voice_name}): '{text[:50]}...'")
         start_time = time.time()
+        temp_path = None # Initialize path for cleanup in finally block
+
         try:
-            # Use the correct method: synthesize, which returns a list of int16 samples
-            audio_int16_list = self.voice_model.synthesize(text)
+            # Import necessary modules locally for this method's logic
+            import wave
+            import tempfile
+            import soundfile as sf # Use soundfile for reading back
+            import os
 
-            if not audio_int16_list:
-                 logger.warning("Piper synthesis resulted in empty audio.")
-                 return True # Not an error, just nothing to play
+            # Create a temporary WAV file
+            # Using delete=False and manual cleanup is safer across platforms
+            with tempfile.NamedTemporaryFile(suffix=".wav", delete=False) as temp_file:
+                temp_path = temp_file.name
+            # temp_file is now closed, but the file persists at temp_path
 
-            # Convert the list of int16 samples to a NumPy array
-            audio_array_int16 = np.array(audio_int16_list, dtype=np.int16)
+            # Open the WAV file for writing using the wave module
+            with wave.open(temp_path, 'wb') as wav_file:
+                # Configure WAV parameters (16-bit mono at sample rate)
+                wav_file.setnchannels(1)  # Mono
+                wav_file.setsampwidth(2)  # 16-bit (2 bytes)
+                wav_file.setframerate(self.sample_rate)  # Sample rate from model
 
-            # Convert to float32 for sounddevice playback
-            # Normalize int16 range [-32768, 32767] to float32 [-1.0, 1.0]
-            audio_float32 = audio_array_int16.astype(np.float32) / 32768.0
+                # Now synthesize directly to the WAV file object
+                logger.info(f"Synthesizing text to temporary file: {temp_path}")
+                self.voice_model.synthesize(text, wav_file)
+                # wave file is automatically closed by 'with' statement
 
             synth_end_time = time.time()
-            logger.debug(f"Piper synthesis took {synth_end_time - start_time:.2f}s")
+            logger.debug(f"Piper synthesis to file took {synth_end_time - start_time:.2f}s")
 
-            # --- Playback ---
-            logger.debug(f"Playing audio ({len(audio_float32)/self.sample_rate:.2f}s) via sounddevice...")
-            sd.play(audio_float32, self.sample_rate)
+            # Read back the audio data from the temporary file using soundfile
+            logger.info(f"Reading audio from {temp_path} for playback...")
+            # soundfile automatically detects sample rate, but good to verify
+            audio_data, read_sr = sf.read(temp_path, dtype='float32') # Read as float32 for sounddevice
+            if read_sr != self.sample_rate:
+                 logger.warning(f"Sample rate mismatch! Model: {self.sample_rate}, Read file: {read_sr}. Using read rate.")
+                 play_rate = read_sr
+            else:
+                 play_rate = self.sample_rate
+
+            # Play audio using sounddevice
+            logger.debug(f"Playing audio ({len(audio_data)/play_rate:.2f}s) via sounddevice...")
+            sd.play(audio_data, play_rate)
             sd.wait() # Wait for playback to finish
             play_end_time = time.time()
             logger.debug(f"Playback finished (duration: {play_end_time - synth_end_time:.2f}s)")
+
             return True
 
+        except wave.Error as e:
+             logger.error(f"Error configuring or writing WAV file: {e}", exc_info=True)
+             print(f"❌ Error handling WAV file: {e}", file=sys.stderr)
+             return False
+        except sf.SoundFileError as e:
+             logger.error(f"Error reading back temporary WAV file: {e}", exc_info=True)
+             print(f"❌ Error reading audio file: {e}", file=sys.stderr)
+             return False
         except Exception as e:
             logger.exception(f"Error during Piper synthesis or playback")
             print(f"❌ Error generating or playing speech: {e}", file=sys.stderr)
             return False
+        finally:
+            # Clean up the temporary file
+            if temp_path and os.path.exists(temp_path):
+                try:
+                    logger.debug(f"Cleaning up temporary file: {temp_path}")
+                    os.unlink(temp_path)
+                except OSError as e:
+                    logger.error(f"Failed to delete temporary file {temp_path}: {e}")
+
 
     def stop(self):
         """Stops any ongoing audio playback via sounddevice."""

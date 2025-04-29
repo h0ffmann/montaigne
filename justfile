@@ -30,13 +30,15 @@ default:
 # === Environment & Dependencies (Managed by Nix Flake) ===
 install:
     @echo "🐍 Python dependencies are managed by the Nix flake."
+    @echo "📦 Installing workspace packages in development mode..."
+    @uv pip install -e .
     @echo "✅ Environment should be ready when inside 'nix develop'."
 
 setup: install
 
 nix:
     @nix flake update
-    @NIXPKGS_ALLOW_BROKEN=1 nix develop --impure
+    @NIXPKGS_ALLOW_BROKEN=1 nix develop --impure --command bash -c 'uv pip install -e . && exec bash'
 
 # === Linting & Formatting ===
 lint:
@@ -93,7 +95,7 @@ prepare_dirs:
 # Run XTTS synthesis (Must be run inside `nix develop`)
 xtts: prepare_dirs
     @echo "✨ Running XTTS synthesis..."
-    @montaigne synthesize \
+    @python -m montaigne.main synthesize \
         --output-file output/xtts_output.wav \
         --speaker-wav input/speaker.wav \
         --language en \
@@ -102,7 +104,7 @@ xtts: prepare_dirs
 # Run Bark synthesis (Must be run inside `nix develop`)
 bark: prepare_dirs
     @echo "🐾 Running Bark synthesis..."
-    @montaigne synthesize \
+    @python -m montaigne.main synthesize \
         --engine bark \
         --text "Hello from the Bark engine. It sounds different!" \
         --language en \
@@ -111,7 +113,7 @@ bark: prepare_dirs
 # Run YouTube speaker synthesis (Must be run inside `nix develop`)
 yt: prepare_dirs
     @echo "▶️ Running XTTS with YouTube speaker..."
-    @montaigne synthesize \
+    @python -m montaigne.main synthesize \
         --engine xtts \
         --speaker-youtube-id "dQw4w9WgXcQ" \
         --text "Testing YouTube download." \
@@ -122,7 +124,7 @@ yt: prepare_dirs
 # Simple XTTS synthesis test run (CPU)
 debug: prepare_dirs
     @echo "🐛 Running debug XTTS synthesis (CPU)..."
-    @montaigne synthesize \
+    @python -m montaigne.main synthesize \
         --output-file output/debug_output.wav \
         --speaker-wav input/speaker.wav \
         --language en \
@@ -288,7 +290,7 @@ docker_run *ARGS: prepare_dirs docker_check
         -v "${CURRENT_DIR}/input:/app/input:ro" \
         -v "${CURRENT_DIR}/output:/app/output:rw" \
         "{{DOCKER_IMAGE_NAME}}:{{DOCKER_TAG_LATEST}}" \
-        montaigne synthesize \
+        python -m montaigne.main synthesize \
         --text "This is a Docker container test." \
         --output-file /app/output/docker_output.wav \
         --speaker-wav /app/input/speaker.wav \
@@ -306,7 +308,7 @@ docker_run_gpu *ARGS: prepare_dirs docker_check
         -v "${CURRENT_DIR}/input:/app/input:ro" \
         -v "${CURRENT_DIR}/output:/app/output:rw" \
         "{{DOCKER_IMAGE_NAME}}:{{DOCKER_TAG_LATEST}}" \
-        montaigne \
+        python -m montaigne.main \
         {{ARGS}} || (echo "❌ Docker GPU run failed" && exit 1)
 
 # Lint Dockerfile without building
@@ -325,7 +327,7 @@ run_tts_tasks:
         echo "=== Inside Nix Shell ==="; \
         just prepare_dirs; \
         echo "✨ Running XTTS synthesis..."; \
-        montaigne synthesize \
+        python -m montaigne.main synthesize \
             --output-file output/debug_output.wav \
             --speaker-wav input/speaker.wav \
             --language en \
@@ -371,3 +373,72 @@ all:
 
 mix:
     @repomix .
+
+# === Workspace Management ===
+workspace_install:
+    @echo "📦 Installing all workspace packages in development mode..."
+    @uv pip install -e .
+
+workspace_add_pkg NAME:
+    @echo "📦 Creating new package {{NAME}} in workspace..."
+    @mkdir -p packages/{{NAME}}/src/{{NAME}}
+    @touch packages/{{NAME}}/src/{{NAME}}/__init__.py
+    @echo '[project]\nname = "{{NAME}}"\nversion = "0.1.0"\ndescription = "Add description here"\nauthors = [{ name = "Matheus Hoffmann", email = "hoffmann@poli.ufrj.br" }]\nrequires-python = ">=3.11,<3.12"\ndependencies = []\n\n[build-system]\nrequires = ["setuptools>=61.0"]\nbuild-backend = "setuptools.build_meta"\n' > packages/{{NAME}}/pyproject.toml
+    @echo "✅ Package {{NAME}} created. Run 'uv pip install -e .' to update workspace."
+
+# === Ubuntu TTS Tasks (CPU-Only, No Nix/Flake required) ===
+run_tts_tasks_ubuntu_cpu:
+    @echo "🚀 Running TTS tasks on Ubuntu (CPU-only, No Nix required)..."
+
+    # Ensure directories exist
+    @mkdir -p input output
+
+    # Create dummy speaker.wav if it doesn't exist
+    @if [ ! -f "input/speaker.wav" ]; then \
+        echo "🔊 Creating sample speaker.wav file..."; \
+        ffmpeg -f lavfi -i "sine=frequency=1000:duration=5" -ac 1 -ar 16000 input/speaker.wav; \
+    fi
+
+    # Create virtual environment
+    @echo "🐍 Setting up Python environment..."
+    @uv venv .venv
+
+    # Enforce CPU-only mode through environment variables
+    @export CUDA_VISIBLE_DEVICES="" && \
+    export USE_CUDA="0" && \
+    export FORCE_CPU="1" && \
+
+    # Install dependencies and workspace packages
+    @echo "📦 Installing dependencies (CPU-only PyTorch)..."
+    @. .venv/bin/activate && \
+        uv pip install \
+            torch==2.1.2 torchaudio==2.1.2 --index-url https://download.pytorch.org/whl/cpu \
+            numpy pandas scipy \
+            -e .
+
+    # Run TTS tasks with explicit CPU flag
+    @echo "✨ Running TTS synthesis with CPU..."
+    @. .venv/bin/activate && \
+        CUDA_VISIBLE_DEVICES="" USE_CUDA="0" \
+        python -m montaigne.main synthesize \
+            --cpu \
+            --output-file output/debug_output.wav \
+            --speaker-wav input/speaker.wav \
+            --language en \
+            --text "This is a debug test with emphasis."
+
+    @echo "✨ Running Bark synthesis with CPU..."
+    @. .venv/bin/activate && \
+        CUDA_VISIBLE_DEVICES="" USE_CUDA="0" \
+        python -m montaigne.main synthesize \
+            --engine bark \
+            --cpu \
+            --text "Hello from the Bark engine on Ubuntu." \
+            --language en \
+            --output-file output/bark_ubuntu_test.wav
+
+    # Generate repomix output
+    @echo "👾 Generate repomix output..."
+    @. .venv/bin/activate && repomix .
+
+    @echo "✅ TTS tasks completed successfully in CPU-only mode!"

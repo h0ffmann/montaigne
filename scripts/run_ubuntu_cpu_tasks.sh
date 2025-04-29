@@ -38,7 +38,7 @@ uv pip install --python .venv/bin/python \
 
 echo "✨ Running TTS synthesis with CPU using uv run..."
 # Force CPU mode via env vars and use 'uv run' to execute within the venv
-CUDA_VISIBLE_DEVICES="" USE_CUDA="0" FORCE_CPU="1" \
+COQUI_TOS_AGREED=1 CUDA_VISIBLE_DEVICES="" USE_CUDA="0" FORCE_CPU="1" \
 uv run python -m montaigne.main synthesize \
     --cpu \
     --output-file output/debug_output.wav \
@@ -46,8 +46,8 @@ uv run python -m montaigne.main synthesize \
     --language en \
     --text "This is a debug test with emphasis (Ubuntu CPU script)."
 
-echo "✨ Running Bark synthesis with CPU using uv run..."
-CUDA_VISIBLE_DEVICES="" USE_CUDA="0" FORCE_CPU="1" \
+echo "🐾 Running Bark synthesis with CPU using uv run..."
+COQUI_TOS_AGREED=1 CUDA_VISIBLE_DEVICES="" USE_CUDA="0" FORCE_CPU="1" \
 uv run python -m montaigne.main synthesize \
     --engine bark \
     --cpu \
@@ -55,18 +55,15 @@ uv run python -m montaigne.main synthesize \
     --language en \
     --output-file output/bark_ubuntu_test.wav
 
-echo "👾 Generate repomix output using uv run..."
-# Ensure repomix is installed. You might need to add it to dependencies or install separately.
-# For now, assuming it might be installed globally or handled elsewhere.
-# Example: uv pip install --python .venv/bin/python repomix
-# Check if command exists in venv before running (optional)
-# if uv run --quiet command -v repomix > /dev/null; then
-#    echo "   Running repomix..."
-#    uv run repomix . # Assuming repomix installed as module/script
-# else
-#    echo "   Skipping repomix generation (command not found in venv)."
-# fi
-echo "   (Skipping repomix generation for now)"
+
+echo "▶️ Running XTTS with YouTube speaker using uv run..."
+COQUI_TOS_AGREED=1 CUDA_VISIBLE_DEVICES="" USE_CUDA="0" FORCE_CPU="1" \
+uv run python -m montaigne.main synthesize \
+    --engine xtts \
+    --speaker-youtube-id "dQw4w9WgXcQ" \
+    --text "Testing YouTube download." \
+    --language en \
+    --output-file output/yt_test.wav
 
 
 echo "✅ TTS tasks completed successfully in CPU-only mode! Activate env with: source .venv/bin/activate"

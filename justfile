@@ -75,12 +75,13 @@ format:
 check: lint format
     @echo "✅ Lint and format checks passed."
 
-# === Analysis ===
+# === Analysis (Run inside Nix Shell) ===
 analytics:
+    @command -v aider-analytics > /dev/null 2>&1 || (echo "❌ 'aider-analytics' not found. Are you inside 'nix develop'?" && exit 1)
     @echo "📊 Running commit analysis..."
     @aider-analytics .
 
-# === Testing ===
+# === Testing (Run inside Nix Shell) ===
 test:
     @command -v pytest > /dev/null 2>&1 || (echo "❌ 'pytest' not found. Are you inside 'nix develop'?" && exit 1)
     @echo "🧪 Running tests with pytest..."
@@ -394,78 +395,73 @@ mix:
 
 
 # === Main Pipeline (Refactored) ===
-# Run TTS tasks (assumes already in Nix shell)
-run_tts_tasks:
-    @echo "🚀 Running TTS tasks..."
-    @just prepare_dirs
-    @just xtts
-    @just bark
-    @just yt
-    @echo "=== TTS Tasks Complete ==="
-
-# Improved main pipeline with better error handling
+# This task coordinates running other tasks inside and outside the Nix environment.
 all:
-    @echo "🚀 Starting Montaigne TTS pipeline..."
-    @nix develop --impure --command bash -c '''
-set -e
-echo "📦 Current Python environment packages:"
-uv pip freeze
+    @echo "🚀 Starting Montaigne TTS CI Pipeline..."
 
-# Install workspace packages
-echo "=== Install workspace packages ==="
-echo "Installing all workspace packages at once..."
-uv pip install --editable ./packages/montaigne --editable .
-echo "Verifying montaigne module..."
-python -c "import montaigne; print(f\"✅ Found montaigne module: {montaigne.__file__}\")"
+    # === Step 1: Run tasks requiring the Nix environment ===
+    @echo "[Step 1/3] Setting up Nix environment and running Python tasks..."
+    # Use NIXPKGS_ALLOW_BROKEN=1 if required by your flake.
+    @NIXPKGS_ALLOW_BROKEN=1 nix develop --impure --command bash -c '''
+set -e # Exit script on first error
 
-# Run repomix
-echo "=== Refresh repomix.md (using config) ==="
-repomix .
+echo "--- [Nix Env] Installing Workspace Packages ---"
+# Call the dedicated workspace install task (uses uv)
+just install_workspace
 
-# Prepare directories and run TTS tasks
+echo "--- [Nix Env] Running Linter and Formatter Checks ---"
+just check
+
+# Removed test task here, better run separately or if needed:
+# echo "--- [Nix Env] Running Pytests ---"
+# just test
+
+echo "--- [Nix Env] Generating Repomix ---"
+just mix
+
+echo "--- [Nix Env] Preparing Directories ---"
 just prepare_dirs
 
-# Run TTS synthesis tasks
-echo "✨ Running XTTS synthesis..."
-python -m montaigne.main synthesize \
-    --output-file output/xtts_output.wav \
-    --speaker-wav input/speaker.wav \
-    --language en \
-    --text "This is a test with XTTS. It supports [p=0.5] pauses and *emphasis*."
+echo "--- [Nix Env] Running TTS Synthesis Tasks ---"
+just xtts
+just bark
+just yt
 
-echo "🐾 Running Bark synthesis..."
-python -m montaigne.main synthesize \
-    --engine bark \
-    --text "Hello from the Bark engine. It sounds different!" \
-    --language en \
-    --output-file output/bark_en_default.wav
+echo "--- [Nix Env] Tasks Completed Successfully ---"
+''' || (echo "❌ Pipeline failed during Nix environment tasks." && exit 1)
 
-echo "▶️ Running XTTS with YouTube speaker..."
-python -m montaigne.main synthesize \
-    --engine xtts \
-    --speaker-youtube-id "dQw4w9WgXcQ" \
-    --text "Testing YouTube download." \
-    --language en \
-    --output-file output/yt_test.wav
+    # === Step 2: Run Docker build tasks (outside Nix env) ===
+    @echo "[Step 2/3] Running Docker build tasks..."
+    # Ensure docker is ready
+    @just docker_check || exit 1
+    # Lint Dockerfile
+    @just lint_dockerfile || exit 1
+    # Prepare Docker files (includes local model copy if found)
+    @just prepare_docker_files || exit 1
+    # Attempt build with local model, then fallback (pass --no-cache if desired for CI)
+    @echo "   Attempting Docker build (trying with local model first)..."
+    @just docker_build USE_LOCAL_MODEL=true --no-cache || \
+      (echo "   ⚠️ Build with local model failed, retrying without USE_LOCAL_MODEL=true..."; \
+       just docker_build --no-cache ) || \
+      (echo "❌ All Docker build attempts failed." && exit 1)
+    @echo "✅ Docker build successful."
 
-# Docker tasks
-echo "=== Running Docker Tasks ==="
-just prepare_docker_files || (echo "❌ Docker file preparation failed." && exit 1)
+    # === Step 3: Run Docker test command (outside Nix env) ===
+    @echo "[Step 3/3] Running Docker test command (CPU)..."
+    # Uses docker_run which calls prepare_dirs again (harmless) and docker_check
+    @just docker_run --cpu || (echo "❌ Docker test run failed." && exit 1)
+    @echo "✅ Docker test run successful."
 
-echo "Attempting Docker build with local model (using --no-cache)..."
-just docker_build --no-cache --build-arg USE_LOCAL_MODEL=true || \
-  (echo "❌ Docker build failed with local model, trying without local model (using --no-cache)..." && \
-   just docker_build --no-cache) || \
-  (echo "❌ All Docker build attempts failed." && exit 1)
+    # Optional Cleanup after successful pipeline
+    # @echo "🧹 Cleaning up build artifacts (optional)..."
+    # @rm -rf ./model_files ./entrypoint.sh
 
-echo "🐳 Running Docker test command..."
-just docker_run --cpu || (echo "❌ Docker test run failed." && exit 1)
-''' || (echo "❌ Pipeline failed" && exit 1)
+    @echo ""
+    @echo "✅✅✅ Montaigne TTS pipeline ('just all') completed successfully! ✅✅✅"
 
-    @echo "✅ All tasks completed successfully!"
 
-mix:
-    @repomix .
+# Workspace commands removed as they are complex and often better handled manually
+# or via dedicated project scaffolding tools. Keeping focus on uv install.
 
 # === Workspace Management ===
 #workspace_install:

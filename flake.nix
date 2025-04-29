@@ -200,9 +200,9 @@
             if command -v uv &> /dev/null; then
                echo "📦 Installing/Verifying workspace packages via uv..."
                # Install all workspace members defined in the root pyproject.toml
-               # This will install montaigne, aider-analytics, and their dependencies
-               # respecting the shared uv.lock file.
-               if ! uv pip install --no-cache-dir .; then
+               # Explicitly use -e . to ensure editable installs for workspace members
+               # This helps Python find the modules correctly via the generated entry points.
+               if ! uv pip install --no-cache-dir -e .; then
                  echo "❌ Fatal: Failed to install workspace packages with uv into venv '$VENV_DIR'." && return 1
                fi
 

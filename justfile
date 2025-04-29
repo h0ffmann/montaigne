@@ -503,39 +503,34 @@ echo "--- [Nix Env] Tasks Completed ---"
 
 # === Main Pipeline (Refactored - Recommended) ===
 # Separates Nix environment tasks from host (Docker) tasks.
-all: # Renamed from all_refactored to become the default 'all'
-    @echo "🚀 Starting Montaigne TTS CI Pipeline (Refactored Flow)..."
+all:
+    @echo "🚀 Starting Montaigne TTS CI Pipeline..."
+
+    # Create a temporary script for Nix environment tasks to avoid complex quoting issues
+    @echo "Creating temporary Nix script..."
+    @printf '%s\n' '#!/bin/bash' \
+        'set -e # Exit script on first error' \
+        '' \
+        'echo "--- [Nix Env] Installing Workspace Packages ---"' \
+        'just install_workspace' \
+        'echo "--- [Nix Env] Running Linter and Formatter Checks ---"' \
+        'just check' \
+        'echo "--- [Nix Env] Generating Repomix ---"' \
+        'just mix' \
+        'echo "--- [Nix Env] Preparing Directories ---"' \
+        'just prepare_dirs' \
+        'echo "--- [Nix Env] Running TTS Synthesis Tasks ---"' \
+        'just xtts; just bark; just yt' \
+        'echo "--- [Nix Env] Tasks Completed Successfully ---"' \
+        > _nix_ci_script.sh
+    @chmod +x _nix_ci_script.sh
 
     # === Step 1: Run tasks requiring the Nix environment ===
     @echo "[Step 1/3] Setting up Nix environment and running Python tasks..."
     # Use NIXPKGS_ALLOW_BROKEN=1 if required by your flake.
-    @NIXPKGS_ALLOW_BROKEN=1 nix develop --impure --command bash -c '''
-set -e # Exit script on first error
-
-echo "--- [Nix Env] Installing Workspace Packages ---"
-# Call the dedicated workspace install task (uses uv)
-just install_workspace
-
-echo "--- [Nix Env] Running Linter and Formatter Checks ---"
-just check
-
-# Run tests (Optional, can be slow - uncomment if needed in main pipeline)
-# echo "--- [Nix Env] Running Pytests ---"
-# just test || { echo "❌ Tests failed"; exit 1; }
-
-echo "--- [Nix Env] Generating Repomix ---"
-just mix
-
-echo "--- [Nix Env] Preparing Directories ---"
-just prepare_dirs
-
-echo "--- [Nix Env] Running TTS Synthesis Tasks ---"
-just xtts
-just bark
-just yt
-
-echo "--- [Nix Env] Tasks Completed Successfully ---"
-''' || (echo "❌ Pipeline failed during Nix environment tasks." && exit 1)
+    @NIXPKGS_ALLOW_BROKEN=1 nix develop --impure --command bash -c 'bash ./_nix_ci_script.sh' \
+        || (echo "❌ Pipeline failed during Nix environment tasks." && rm -f _nix_ci_script.sh && exit 1)
+    @rm -f _nix_ci_script.sh # Clean up the temporary script
 
     # === Step 2: Run Docker build tasks (outside Nix env, interacting with host Docker) ===
     @echo "[Step 2/3] Running Docker build tasks on host..."

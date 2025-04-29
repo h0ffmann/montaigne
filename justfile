@@ -54,12 +54,12 @@ nix_shell:
 # === Linting & Formatting (Run inside Nix Shell) ===
 # Use `uv tool run` assuming ruff is in pyproject.toml (dev-)dependencies
 lint:
-    @command -v {{UV}} > /dev/null 2>&1 || (echo "❌ '{{UV}}' command not found. Are you inside 'nix develop'?" && exit 1)
+    @command -v ruff > /dev/null 2>&1 || (echo "❌ 'ruff' command not found. Are you inside 'nix develop'?" && exit 1)
     @echo "✨ Running Ruff linter via uv..."
     @{{UV}} tool run ruff -- check .
 
 format:
-    @command -v {{UV}} > /dev/null 2>&1 || (echo "❌ '{{UV}}' command not found. Are you inside 'nix develop'?" && exit 1)
+    @command -v ruff > /dev/null 2>&1 || (echo "❌ 'ruff' command not found. Are you inside 'nix develop'?" && exit 1)
     @echo "🎨 Running Ruff formatter via uv..."
     @{{UV}} tool run ruff -- format .
 

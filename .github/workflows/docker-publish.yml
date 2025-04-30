@@ -1,4 +1,4 @@
-name: Docker Build, Push, and Cleanup
+name: Docker CI
 
 on:
   push:
@@ -25,7 +25,7 @@ env: # Define environment variables accessible by all jobs/steps
 
 jobs:
   build-and-push:
-    name: Build & Push (Docker)
+    name: Build & Push
     # Only run this job on push or workflow_dispatch events
     if: github.event_name == 'push' || github.event_name == 'workflow_dispatch'
     runs-on: ubuntu-latest
@@ -71,6 +71,7 @@ jobs:
           MANUAL_TAG: ${{ github.event.inputs.manual_tag || '' }}
 
   cleanup-ghcr:
+    name: Clean
     # Only run this job on scheduled events
     if: github.event_name == 'schedule'
     runs-on: ubuntu-latest

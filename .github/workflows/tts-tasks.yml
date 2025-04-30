@@ -1,59 +1,60 @@
-name: Run TTS Tasks (Nix Environment)
-
-on: {}
-  #push:
-  #  branches:
-  #    - master # Or your main branch
-  #    - feat/ci-tts-tasks-nixos
-  #pull_request:
-  #  branches:
-  #    - master # Or your main branch
-  #workflow_dispatch: # Allows manual triggering
-  #  inputs:
-  #    debug_enabled:
-  #      description: 'Run with tmate debugging enabled (bool)'
-  #      required: false
-  #      default: false
-  #      type: boolean
-
-
-jobs:
-  run-tts-on-nix:
-    runs-on: ubuntu-latest # Use a standard GitHub runner
-    steps:
-      - name: Checkout repository
-        uses: actions/checkout@v4
-
-      - name: Install Nix with Flakes
-        uses: cachix/install-nix-action@v27 # Use a recent version
-        with:
-          # Enable flakes and nix-command experimental features required by flake.nix
-          extra_nix_config: |
-            experimental-features = nix-command flakes
-            access-tokens = github.com=${{ secrets.GITHUB_TOKEN }}
-            # Optional: Add substitutes for potentially faster builds
-            substituters = https://cache.nixos.org/ https://nix-community.cachix.org
-            trusted-public-keys = cache.nixos.org-1:6NCHdD59X431o0gWypbMrAURkbJ16ZPMQFGspcDShjY= nix-community.cachix.org-1:mB9FSh9qf2dCimDSUo8Zy7bkq5CX+/rkCWyvRCYg3Fs=
-
-      # Optional but recommended: Cache Nix store to speed up subsequent runs
-      # Requires setting up a Cachix cache (https://cachix.org/)
-      # - name: Setup Cachix Cache
-      #   uses: cachix/cachix-action@v15
-      #   with:
-      #     name: your-cache-name # Replace with your Cachix cache name
-      #     signingKey: '${{ secrets.CACHIX_SIGNING_KEY }}' # Add secret in GitHub repo settings
-
-      - name: Install Just
-        uses: extractions/setup-just@v2
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }} # Optional: needed for private Just releases
-
-      - name: Run Nix TTS Tasks via Just
-        # This task assumes it's already inside the Nix environment set up by previous steps
-        run: just run_nix_tts_tasks
-
-      # Useful step for debugging CI failures
-      - name: Setup tmate session for debugging
-        if: failure() && github.event.inputs.debug_enabled == 'true'
-        uses: mxschmitt/action-tmate@v3
-        timeout-minutes: 15 # Limit the debugging session time
+#name: Run TTS Tasks (Nix Environment)
+#
+#on: {}
+#  #push:
+#  #  branches:
+#  #    - master # Or your main branch
+#  #    - feat/ci-tts-tasks-nixos
+#  #pull_request:
+#  #  branches:
+#  #    - master # Or your main branch
+#  #workflow_dispatch: # Allows manual triggering
+#  #  inputs:
+#  #    debug_enabled:
+#  #      description: 'Run with tmate debugging enabled (bool)'
+#  #      required: false
+#  #      default: false
+#  #      type: boolean
+#
+#
+#jobs:
+#  run-tts-on-nix:
+#    runs-on: ubuntu-latest # Use a standard GitHub runner
+#    steps:
+#      - name: Checkout repository
+#        uses: actions/checkout@v4
+#
+#      - name: Install Nix with Flakes
+#        uses: cachix/install-nix-action@v27 # Use a recent version
+#        with:
+#          # Enable flakes and nix-command experimental features required by flake.nix
+#          extra_nix_config: |
+#            experimental-features = nix-command flakes
+#            access-tokens = github.com=${{ secrets.GITHUB_TOKEN }}
+#            # Optional: Add substitutes for potentially faster builds
+#            substituters = https://cache.nixos.org/ https://nix-community.cachix.org
+#            trusted-public-keys = cache.nixos.org-1:6NCHdD59X431o0gWypbMrAURkbJ16ZPMQFGspcDShjY= nix-community.cachix.org-1:mB9FSh9qf2dCimDSUo8Zy7bkq5CX+/rkCWyvRCYg3Fs=
+#
+#      # Optional but recommended: Cache Nix store to speed up subsequent runs
+#      # Requires setting up a Cachix cache (https://cachix.org/)
+#      # - name: Setup Cachix Cache
+#      #   uses: cachix/cachix-action@v15
+#      #   with:
+#      #     name: your-cache-name # Replace with your Cachix cache name
+#      #     signingKey: '${{ secrets.CACHIX_SIGNING_KEY }}' # Add secret in GitHub repo settings
+#
+#      - name: Install Just
+#        uses: extractions/setup-just@v2
+#        env:
+#          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }} # Optional: needed for private Just releases
+#
+#      - name: Run Nix TTS Tasks via Just
+#        # This task assumes it's already inside the Nix environment set up by previous steps
+#        run: just run_nix_tts_tasks
+#
+#      # Useful step for debugging CI failures
+#      - name: Setup tmate session for debugging
+#        if: failure() && github.event.inputs.debug_enabled == 'true'
+#        uses: mxschmitt/action-tmate@v3
+#        timeout-minutes: 15 # Limit the debugging session time
+#

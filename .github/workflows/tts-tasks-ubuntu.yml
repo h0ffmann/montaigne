@@ -1,10 +1,9 @@
-name: TTS-Ubuntu
+name: Python CI
 
 on:
   push:
     branches:
       - master
-      - feat/ci-tts-ubuntu
   workflow_dispatch:
     inputs:
       debug_enabled:

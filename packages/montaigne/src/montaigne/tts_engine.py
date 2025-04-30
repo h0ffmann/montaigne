@@ -238,6 +238,12 @@ class XTTSv2Engine(BaseTTSEngine):
 class BarkEngine(BaseTTSEngine):
     """TTS Engine using Suno AI's Bark."""
 
+    def __init__(self, use_cuda: bool = True):
+        """Initialize the Bark engine."""
+        super().__init__(use_cuda=use_cuda) # Call base class init
+        # Load models during initialization and store success status
+        self.model = self._load_model()
+
     def _load_model(self):
         """Load Bark models."""
         if not BARK_AVAILABLE:

@@ -22,12 +22,18 @@
               owner = "astral-sh";
               repo = "uv";
               rev = "0.7.0"; # <-- Use the tag/release name 0.7.0
-              # Use the actual source tarball hash for tag 0.7.0
-              hash = "sha256-D/3YqhIjXhvH7hn/dmJ2Xmf1riGjVc9jqbqVJSD5EyA="; # <-- Source hash
+              # Verify this source hash corresponds to the 0.7.0 tag/release
+              hash = "sha256-D/3YqhIjXhvH7hn/dmJ2Xmf1riGjVc9jqbqVJSD5EyA="; # <-- Double-check this Source hash
             };
-            cargoDeps = prev.rustPlatform.fetchCargoTarball {
-              inherit (oldAttrs) src;
-              hash = "sha256-XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX=";
+            # Use fetchCargoVendor and the sha256 attribute
+            cargoDeps = prev.rustPlatform.fetchCargoVendor {
+              # Inherit the 'src' defined just above in this scope
+              inherit src;
+              # !! IMPORTANT STEP REMAINS !!
+              # 1. Set this to empty string: sha256 = "";
+              # 2. Run `nix develop` or `just nix_shell`. Note the failure and the 'got: sha256-...' hash.
+              # 3. Paste the correct hash here. (Replace the placeholder below)
+              sha256 = "sha256-XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX="; # <-- Replace this
             };
           });
         };

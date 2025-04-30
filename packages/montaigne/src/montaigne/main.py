@@ -4,6 +4,7 @@ import time
 import uuid  # For generating session IDs
 from enum import Enum
 from pathlib import Path
+from typing import Optional # Add this import
 
 import click
 

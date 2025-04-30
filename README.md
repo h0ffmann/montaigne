@@ -484,4 +484,4 @@ Contributions are welcome! Please follow standard Git workflow (fork, branch, pu
 
 ## License
 
-(Specify License - e.g., MIT License, Apache 2.0). Currently not specified in the project files. Assuming a standard open-source license like MIT unless otherwise stated.
+MIT License

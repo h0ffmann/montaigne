@@ -270,7 +270,7 @@ def synthesize(
                 )
                 sys.exit(1)
         elif voice_profile:
-            profile_path = get_voice_profile(voice_profile)
+            # profile_path = get_voice_profile(voice_profile) # This was unused, get_voice_profile now returns list
             profile_paths = get_voice_profile(voice_profile) # Now returns a list
             if not profile_paths:
                 logger.error(f"Failed to retrieve any valid voice samples for profile '{voice_profile}'.")

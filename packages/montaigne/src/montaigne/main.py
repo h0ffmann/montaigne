@@ -38,7 +38,9 @@ try:
 
     # from .evaluation import AudioEvaluator # Keep evaluation for batch mode TODO
     from .voice_profiles import (  # Keep profile import
+        get_engine_params as get_profile_engine_params, # Renamed import
         get_voice_profile,
+        get_voice_profile_config, # Import config getter
         list_voice_profiles,
     )
 except ImportError as e:
@@ -242,7 +244,7 @@ def synthesize(
 
     # Get engine parameters based on mode for XTTS
     if selected_engine_type == EngineChoice.XTTS:
-        from .voice_profiles import get_engine_params as get_profile_engine_params # Avoid name clash
+        # Use the renamed import get_profile_engine_params
         # Fetch parameters based on the selected mode (or default from config)
         xtts_mode_params = get_profile_engine_params("xtts", mode)
         logger.info(f"Using XTTS mode '{mode or 'default'}'. Parameters: {xtts_mode_params}")
@@ -280,7 +282,18 @@ def synthesize(
                 sys.exit(1)  # get_voice_profile logs errors
             actual_speaker_wav = profile_path
             speaker_display_name = f"Profile: {voice_profile}"
-            logger.info(f"Using voice profile '{voice_profile}' ({actual_speaker_wav.name})")
+            # Log details about the profile samples
+            profile_config = get_voice_profile_config(voice_profile)
+            if profile_config and profile_config.get("youtube_ids"):
+                num_samples = len(profile_config["youtube_ids"])
+                logger.info(
+                    f"Using voice profile '{voice_profile}' ({actual_speaker_wav.name}). "
+                    f"Profile defines {num_samples} sample(s). Using the first sample: "
+                    f"YouTube ID '{profile_config['youtube_ids'][0]}'."
+                )
+            else:
+                 # Fallback log if config details aren't available for some reason
+                 logger.info(f"Using voice profile '{voice_profile}' ({actual_speaker_wav.name})")
         else:
             # speaker_wav must be set if voice_profile is not (validated above)
             actual_speaker_wav = speaker_wav  # type: ignore [assignment] - Click ensures it exists

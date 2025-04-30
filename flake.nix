@@ -133,7 +133,7 @@
           openssl.dev
           ncurses5.dev
           pkgs.portaudio
-          pkgs.libfftw.dev # Added for librosa/noisereduce
+          pkgs.fftw.dev # Added for librosa/noisereduce (Use 'fftw' instead of 'libfftw')
         ];
 
       in

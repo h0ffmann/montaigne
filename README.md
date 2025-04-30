@@ -1,14 +1,5 @@
 # Montaigne TTS
 
-Montaigne is a command-line tool for generating Text-to-Speech (TTS) audio using different engines. It supports:
-
-*   **Batch Synthesis:** Generate audio files using **Coqui XTTSv2** (with voice cloning) or **Suno AI Bark**.
-*   **Live Synthesis:** Real-time text-to-speech playback using **Piper TTS** (downloads models from Hugging Face).
-*   **Text Preprocessing:** Enhance expressiveness with simple markup (pauses, emphasis).
-*   **Audio Evaluation:** Optionally evaluate generated audio quality using **OpenAI Whisper**.
-
-The project uses Python 3.11+, `uv` + Nix for environment management, `just` for tasks, and includes Docker support.
-
 <!-- Badges -->
 [![Docker CI](https://github.com/h0ffmann/montaigne/actions/workflows/docker-publish.yml/badge.svg)](https://github.com/h0ffmann/montaigne/actions/workflows/docker-publish.yml)
 [![Python CI](https://github.com/h0ffmann/montaigne/actions/workflows/tts-tasks-ubuntu.yml/badge.svg)](https://github.com/h0ffmann/montaigne/actions/workflows/tts-tasks-ubuntu.yml)
@@ -16,286 +7,483 @@ The project uses Python 3.11+, `uv` + Nix for environment management, `just` for
 ![Python Version](https://img.shields.io/badge/python-3.11-blue.svg)
 ![Code Style](https://img.shields.io/badge/code%20style-ruff-blue.svg)
 
-## Prerequisites
+Montaigne TTS is a command-line interface (CLI) tool designed for flexible Text-to-Speech (TTS) synthesis. It supports multiple TTS engines (XTTSv2, Bark, Piper), various speaker voice input methods (audio file, YouTube URL, predefined profiles), text preprocessing capabilities, and both batch and interactive/streaming synthesis modes. The project is containerized using Docker for ease of deployment and dependency management, with optional Nix support for development environments.
 
-Before you begin, ensure you have the following installed on your system:
+## Features
 
-1.  **Git:** For cloning the repository.
-2.  **Nix:** The package manager with Flakes enabled. ([Installation Guide](https://nixos.org/download.html)).
-3.  **`just`:** A handy command runner. ([Installation Guide](https://github.com/casey/just#installation)).
-4.  **Docker Engine:** Required for building and running the Docker container. ([Installation Guide](https://docs.docker.com/engine/install/)).
-5.  **(Highly Recommended for Performance)** **NVIDIA GPU & CUDA:** TTS (especially XTTS) and Whisper run *significantly* faster on a CUDA-enabled NVIDIA GPU.
-    *   Ensure you have the appropriate NVIDIA drivers installed on your host.
-    *   For Docker GPU support, you'll also need the **NVIDIA Container Toolkit**. ([Installation Guide](https://docs.nvidia.com/datacenter/cloud-native/container-toolkit/latest/install-guide.html)).
-    *   **FFmpeg:** Required for audio processing (`yt-dlp`, `pydub`). Included in Nix env/Docker. Install manually otherwise (`sudo apt install ffmpeg`, `brew install ffmpeg`).
+* **Multiple TTS Engines:**
+  * **XTTSv2 (Coqui TTS):** High-quality, multilingual, voice-cloning TTS. (Batch mode)
+  * **Bark (Suno AI):** Multilingual model capable of generating speech, music, and sound effects, often with more expressive or varied outputs. (Batch mode)
+  * **Piper:** Fast, efficient, local TTS engine suitable for streaming/interactive use.
+* **Flexible Speaker Input (XTTSv2):**
+  * Use a local WAV file as a voice reference.
+  * Provide a YouTube video URL (audio will be downloaded and used).
+  * Select from predefined voice profiles (requires configuration and hosting).
+* **Text Preprocessing:**
+  * Handles custom tags for pauses (`[pause:0.5]`).
+  * Adds emphasis via commas around text surrounded by `*` or `**`.
+  * Basic text cleaning and normalization.
+  * (Note: Tone tags `[tone]...[/tone]` are parsed but currently only logged, not affecting synthesis).
+* **Synthesis Modes:**
+  * **Batch (`synthesize`):** Process text from a string or file, outputting a single audio file. Handles long texts by chunking.
+  * **Live/Streaming (`live`):** Interactive mode using Piper TTS for real-time synthesis and playback.
+* **Containerization:** Dockerfile provided for building CUDA-enabled or CPU-only images, ensuring reproducibility.
+* **Development Environment:** Optional Nix Flake for managing development dependencies. `justfile` provides common development tasks.
+* **Workspace Structure:** Uses `uv` workspaces to manage the `montaigne` package and potentially other related tools (like `aider-analytics`).
 
-## Installation & Environment Setup
+## System Architecture
 
-This project uses **Nix Flakes** to manage the development environment, ensuring reproducible builds and handling complex dependencies like PyTorch with CUDA.
+### 1. High-Level Overview
 
-1.  **Clone the Repository:**
-    ```bash
-    git clone <your-repo-url> # Replace with your repo URL
-    cd montaigne
-    ```
+Montaigne acts as an orchestrator and interface for various underlying TTS technologies. The user interacts with the system via the `montaigne` CLI. The CLI parses commands and arguments, preprocesses the input text, selects and initializes the appropriate TTS engine, manages speaker voice data, performs synthesis (either in batches or streaming), handles audio post-processing (concatenation), and outputs the final audio to a file or plays it directly. Docker provides the runtime environment, managing complex dependencies like PyTorch, CUDA, and specific TTS libraries.
 
-2.  **Enter the Development Environment:**
-    Use `just nix` (or `nix develop --impure`) to enter the Nix shell. This command will:
-    *   Download and build all Nix-managed dependencies (Python, PyTorch+CUDA, core libraries, etc.) based on `flake.nix`.
-    *   Automatically create/activate a Python virtual environment (`.venv/`) using `uv`.
-    *   Install remaining Python dependencies (like `TTS`, `bark`, `openai-whisper`, `yt-dlp`) into the venv using `uv`.
-    *   Install the `montaigne` package itself in editable mode.
-    ```bash
-    just nix
-    ```
-    *The first time you run this, it might take a significant amount of time.* Subsequent runs are faster due to caching.
+```mermaid
+graph LR
+    subgraph User Interaction
+        CLI[CLI (montaigne command)]
+    end
 
-## Usage
+    subgraph Core Logic (Python Modules)
+        Main[main.py (Click CLI)]
+        Preprocessing[preprocessing.py]
+        TTSEngine[tts_engine.py (XTTS/Bark)]
+        StreamingTTS[streaming_tts.py (Piper)]
+        AudioUtils[audio_utils.py]
+        VoiceProfiles[voice_profiles.py]
+    end
 
-Once inside the Nix development shell (`just nix`), you can use the `montaigne` CLI.
+    subgraph External Dependencies/Services
+        XTTSModel[XTTSv2 Model]
+        BarkModel[Bark Model]
+        PiperModel[Piper Model (HF Hub)]
+        PyTorch[PyTorch (CPU/CUDA)]
+        SoundDevice[SoundDevice Lib]
+        YTDLP[yt-dlp]
+        Docker[Docker Runtime]
+        Nix[Nix Environment (Optional)]
+    end
 
-The main commands are `synthesize` (for batch file generation) and `live` (for real-time playback).
+    UserInteraction -- Input Text/Args --> Main
+    Main -- Text --> Preprocessing
+    Main -- Select Engine --> TTSEngine
+    Main -- Select Engine --> StreamingTTS
+    Main -- Speaker Info --> VoiceProfiles
+    Main -- Speaker Info --> AudioUtils
 
-### Batch Synthesis (`synthesize`)
+    Preprocessing -- Processed Text --> TTSEngine
+    Preprocessing -- Processed Text --> StreamingTTS
 
-```bash
-# Basic structure
-montaigne synthesize --engine [xtts|bark] [ENGINE-ARGS] -o OUTPUT.WAV (-t "INPUT TEXT" | -f INPUT.TXT) [OTHER-ARGS]
+    VoiceProfiles -- Profile Path --> TTSEngine
+    AudioUtils -- Speaker Path/Download --> TTSEngine
+    AudioUtils -- Concatenate/Save --> Main
+
+    TTSEngine -- Uses --> PyTorch
+    TTSEngine -- Uses --> XTTSModel
+    TTSEngine -- Uses --> BarkModel
+    TTSEngine -- Synthesize Batch --> AudioUtils
+
+    StreamingTTS -- Uses --> PiperModel
+    StreamingTTS -- Uses --> SoundDevice
+    StreamingTTS -- Synthesize Stream --> SoundDevice
+
+    AudioUtils -- Download --> YTDLP
+
+    CoreLogic -- Runs Within --> Docker
+    CoreLogic -- Runs Within --> Nix
 ```
 
-**Common Arguments:**
+### 2. Component Interactions
 
-*   `--engine {xtts|bark}`: TTS engine (default: `xtts`).
-*   `--output-file PATH` / `-o PATH` (**Required**): Output WAV file path.
-*   `--text TEXT` / `-t TEXT`: Input text string.
-*   `--text-file PATH` / `-f PATH`: Input text file path.
-*   `--language CODE` / `-l CODE`: Language code (default: `en`).
-*   `--evaluate` / `-e`: Evaluate audio quality using Whisper STT.
-*   `--cpu`: Force CPU use for TTS and evaluation.
+- **User -> CLI (main.py)**: The user executes `montaigne synthesize ...` or `montaigne live ...`. Click handles argument parsing and validation.
 
-**Engine-Specific Arguments (`synthesize`):**
+- **main.py -> Input Handling**: Reads text from `--text` argument or `--text-file`. Validates mutually exclusive speaker inputs (`--speaker-wav`, `--speaker-youtube-id`, `--voice-profile`) for XTTS or `--speaker-prompt` for Bark.
 
-*   **XTTS (`--engine xtts`):** (Requires one speaker input)
-    *   `--speaker-wav PATH` / `-s PATH`: Path to reference WAV for voice cloning.
-    *   `--voice-profile NAME`: Use a prebuilt voice profile (see list below).
-    *   `--speaker-youtube-id ID`: YouTube video ID for voice cloning (downloads audio).
-    *   `--speed FLOAT`: Adjust playback speed (default: 1.0).
+- **main.py -> audio_utils.py / voice_profiles.py (Speaker Prep)**:
+  - If `--speaker-youtube-id`, `audio_utils.download_audio_from_youtube` is called (using yt-dlp).
+  - If `--voice-profile`, `voice_profiles.get_voice_profile` is called to potentially download the profile WAV.
+  - The path to the final speaker WAV is determined.
 
-*   **Bark (`--engine bark`):**
-    *   `--speaker-prompt PROMPT`: Optional Bark speaker prompt (e.g., `en_speaker_1`).
+- **main.py -> preprocessing.py**: Input text is passed to `preprocess_text_for_tts` for cleaning and tag processing, then to `chunk_text` to split long inputs for batch processing.
 
-**Prebuilt Voice Profiles (XTTS `synthesize` only):**
+- **main.py -> Engine Selection & Initialization**:
+  - Based on the `--engine` choice (xtts or bark) and `--cpu` flag, the appropriate engine (`XTTSv2Engine` or `BarkEngine`) is instantiated via `get_tts_engine` (from tts_engine.py). Models are loaded (potentially triggering downloads if not cached/provided).
+  - For the `live` command, `PiperStreamingTTS` (from streaming_tts.py) is instantiated, potentially downloading the Piper model from Hugging Face Hub via `hf_hub_download`.
 
-*   `bolsonaro`: Jair Bolsonaro - strong, authoritative tone
-*   `lula`: Luiz Inácio Lula da Silva - charismatic, raspy voice  
-- `supla`: Supla - distinctive rock voice
-- `serginho`: Serginho Malandro - playful, energetic tone
-- `bonner`: William Bonner - clear, professional news anchor
-- `marilia`: Marília Gabriela - sophisticated, articulate
-- `bk`: BK (Rapper) - urban, rhythmic speech pattern
-- `maria_rita`: Maria Rita - smooth, melodic singing voice
-- `clarice`: Clarice Lispector - thoughtful, philosophical tone
-- `abujamra`: Luiz Fernando Abujamra - deep, dramatic voice
-- `ponde`: L.F. Ponde - slow, reflective philosophical tone
-- `paulo_francis`: Paulo Francis - sophisticated, critical journalist
-- `millor`: Millôr Fernandes - witty, ironic humorist
-- `djavan`: Djavan - smooth, melodic musical voice
-- `trump`: Donald Trump - distinctive, assertive tone
-- `obama`: Barack Obama - calm, measured, charismatic tone
-- `snowden`: Edward Snowden - clear, deliberate, slightly nasal tone
-- `cillian`: Cillian Murphy - soft-spoken, intense Irish actor
-- `rust_cohle`: Matthew McConaughey (Rust Cohle) - Southern drawl, philosophical
+- **Synthesis Loop (synthesize command)**:
+  - main.py iterates through processed text chunks.
+  - For each chunk, `engine_instance.synthesize()` is called, passing the chunk, language, output path for the chunk, and engine-specific params (like speaker_wav).
+  - tts_engine.py uses the underlying library (TTS or Bark) and PyTorch (CPU/GPU) to generate audio data.
+  - The audio chunk is saved to a temporary file.
 
-**`synthesize` Examples:**
+- **Streaming Loop (live command)**:
+  - main.py reads input (from file or REPL).
+  - Input is passed to `engine.stream_speak()` in streaming_tts.py.
+  - `stream_speak` may further chunk the input (e.g., by sentence), synthesizes each small chunk using Piper (`_synthesize_chunk_to_temp`), and potentially plays it back immediately or after accumulating chunks (implementation detail - current code synthesizes chunks then concatenates before playing). It uses sounddevice for playback.
 
-1.  **Synthesize using XTTS with a speaker file:**
-    ```bash
-    # Ensure input/referencia_voz.wav exists
-    montaigne synthesize --engine xtts -s input/referencia_voz.wav -t "Olá mundo!" -l pt -o output/xtts_pt.wav
-    ```
+- **main.py -> audio_utils.py (Concatenation)**: After the batch synthesis loop, `concatenate_audio_files` is called to merge all temporary audio chunks into the final output file specified by `--output-file`. Temporary files are deleted.
 
-2.  **Synthesize using XTTS with a voice profile and evaluate:**
-    ```bash
-    # Ensure input/trump_speech.txt exists
-    montaigne synthesize --engine xtts --voice-profile trump -f input/trump_speech.txt -l en -o output/xtts_trump.wav --evaluate
-    ```
+- **Output**: The final WAV file is saved (synthesize) or audio is played directly (live).
 
-3.  **Synthesize using Bark with English default voice:**
-    ```bash
-    montaigne synthesize --engine bark -t "Hello from the Bark engine. It sounds different!" -l en -o output/bark_en_default.wav
-    ```
+### 3. Data Flow Diagrams
 
-4.  **Synthesize using Bark with a specific French speaker prompt:**
-    ```bash
-    montaigne synthesize --engine bark --speaker-prompt fr_speaker_5 -t "Bonjour, ceci est un test avec Bark." -l fr -o output/bark_fr_speaker5.wav
-    ```
+#### A. synthesize Command Flow:
 
-5.  **Synthesize using XTTS with a YouTube video as speaker:**
-    ```bash
-    montaigne synthesize --engine xtts --speaker-youtube-id "dQw4w9WgXcQ" -t "Never gonna give you up." -l en -o output/xtts_youtube_rick.wav
-    ```
-
-### Live Synthesis (`live`)
-
-This command uses the **Piper TTS** engine for real-time playback. It downloads voice models from Hugging Face Hub.
-
-```bash
-# Basic structure
-montaigne live --piper-voice VOICE_NAME [--file INPUT_TXT | INTERACTIVE] [--cpu]
+```
++-------------+      +-----------------+      +-----------------+      +-----------------+      +---------------+      +----------------+      +-------------+      +-----------------+      +-------------+
+| User Input  |----->|   main.py       |----->| preprocessing.py|----->|   main.py       |----->| tts_engine.py |----->| PyTorch / Libs |----->| Audio Chunk |----->| audio_utils.py  |----->| Output File |
+| (CLI Args,  |      | (Parse, Validate|      | (Preprocess,    |      | (Loop Chunks)   |      | (Synthesize   |      | (XTTS/Bark)    |      | (Temp File) |      | (Concatenate)   |      | (.wav)      |
+| Text/File)  |      | Speaker Prep)   |      | Chunk Text)     |      +-----------------+      | Chunk)        |      +----------------+      +-------------+      +-----------------+      +-------------+
++-------------+      +-----------------+      +-----------------+             ^                +---------------+             |                       |
+                               |                                             |                       |                       |
+                               +---------------------------------------------+-----------------------+-----------------------+
+                                                    (Iteration over Chunks)
 ```
 
-**Arguments:**
+#### B. live Command Flow:
 
-*   `--piper-voice VOICE_NAME` / `-v VOICE_NAME`: Piper voice model name from Hugging Face (e.g., `en_US-amy-low`, `pt_BR-faber-low`). Default: `en_US-amy-low`.
-*   `--file PATH` / `-f PATH`: Read text line-by-line from a file instead of interactive input. Use `-` for stdin.
-*   `--cpu`: Prefer CPU for Piper TTS.
+```
++-------------+      +-----------------+      +-----------------+      +-----------------+      +-----------------+      +-------------+      +---------------+
+| User Input  |----->|   main.py       |----->| streaming_tts.py|----->| Piper Model/Lib |----->|  Audio Data     |----->| sounddevice |----->| Audio Output  |
+| (CLI Args,  |      | (Parse, Init    |      | (Chunk, Synth,  |      | (Synthesize     |      |  (In Memory)    |      | (Play Audio)|      | (Speaker/HW)  |
+| REPL/File)  |      | Piper Engine)   |      | Playback Loop)  |      |   Chunk)        |      +-----------------+      +-------------+      +---------------+
++-------------+      +-----------------+      +-----------------+      +-----------------+                                     |
+                                                     |                                                                         |
+                                                     +-------------------------------------------------------------------------+
+                                                                            (Synthesize & Playback)
+```
 
-**`live` Examples:**
+### 4. Design Decisions and Rationale
 
-1.  **Interactive session with default English voice:**
-    ```bash
-    montaigne live
-    ```
+- **CLI Interface (Click)**: Chosen for its ease of creating user-friendly command-line interfaces with argument parsing, validation, and help generation.
 
-2.  **Interactive session with a specific Portuguese voice:**
-    ```bash
-    montaigne live --piper-voice pt_BR-faber-medium
-    ```
+- **Modular Python Structure**: Code is separated into modules based on functionality (CLI, engines, utils, preprocessing) to improve maintainability and testability.
 
-3.  **Read from a file:**
-    ```bash
-    echo "Hello from Piper." | montaigne live --file -
-    # or
-    montaigne live --file input/my_lines.txt
-    ```
+- **Engine Abstraction (BaseTTSEngine)**: While simple, it provides a basic structure for adding new batch TTS engines in the future.
 
-### Text Preprocessing Markup
+- **Separate Streaming Engine (PiperStreamingTTS)**: Streaming has different requirements (low latency, chunked processing, audio playback integration) necessitating a distinct implementation. Piper was likely chosen for its speed and local execution capabilities suitable for streaming.
 
-You can embed simple tags in your input text (`--text` or in the `--text-file`) to influence the TTS output:
+- **Workspace (uv)**: Allows managing the core montaigne library alongside potential future tools (like aider-analytics) within the same project structure and dependency management context.
 
-*   **Pauses:** `[p=FLOAT]` or `[pause=FLOAT]`
+- **Containerization (Docker)**: Essential for managing the complex and often conflicting dependencies of ML/TTS libraries (PyTorch, CUDA, system libraries). Provides a consistent runtime environment. Includes multi-stage builds to separate build tools and optimize image size, and handles model caching/injection.
 
-Adds a pause of approximately FLOAT seconds.
+- **Nix Flake (Optional)**: Offers a declarative and reproducible way to manage the development environment, pinning exact versions of Python, libraries, and system tools. Useful for developers contributing to the project.
 
-Example: Wait for it... [p=1.5] Done.
+- **Task Runner (justfile)**: Simplifies common development workflows (installation, linting, building, running, testing) into easy-to-remember commands. Delegates complex logic to shell scripts.
 
-Implementation: Approximated by converting to punctuation (,, ., ...) which XTTS uses for rhythm.
+- **Speaker Input Flexibility**: Offering multiple ways to provide a voice reference (file, URL, profile) enhances usability for different scenarios. yt-dlp integration is a convenient feature.
 
-Emphasis: *word* or **phrase**
+- **Text Preprocessing**: Basic tag handling ([pause], *emphasis*) aims to give users some control over the synthesized speech rhythm and emphasis, although limited.
 
-Provides subtle emphasis.
+### 5. System Constraints and Limitations
 
-Example: This is **really** important.
+- **Dependencies**: Requires significant dependencies (PyTorch, TTS models, CUDA toolkit if using GPU) leading to large installation sizes and potentially complex setup outside of Docker/Nix.
 
-Implementation: Adds commas around the emphasized text (, really , important ,) to slightly alter rhythm.
+- **Hardware**: GPU (NVIDIA with CUDA) is highly recommended for acceptable performance with XTTSv2 and Bark. CPU synthesis can be very slow. Streaming mode requires audio playback capabilities (sounddevice and underlying OS libraries like ALSA/PulseAudio/CoreAudio).
 
-*   **Tone Placeholders:** `[tone=NAME]text[/tone]`
-    *   Marks sections for different tones (e.g., `gold`, `velvet`).
-    *   **Limitation:** Currently logged but does not alter the synthesized voice.
+- **Model Quality**: Output quality is inherently limited by the chosen TTS model (XTTSv2, Bark, Piper) and the quality/length/characteristics of the provided speaker reference audio (for XTTSv2).
 
-## Task Runner (Justfile)
+- **Preprocessing**: The current text preprocessing is basic (regex-based). It doesn't perform complex Natural Language Processing (NLP) for tasks like automatic emphasis, intonation detection, or advanced punctuation handling. Tone tags are parsed but not implemented in synthesis.
 
-The `Justfile` provides convenient shortcuts for common development tasks. Ensure `just` is installed. Run these commands *after* entering the Nix shell (`just nix`).
+- **Chunking**: Text chunking for batch mode is based on simple strategies (paragraphs, max length). It might split sentences awkwardly in some cases, potentially affecting the flow of the final concatenated audio.
 
-*   `just --list`: Show all available commands.
-*   `just run -- [ARGS...]`: Runs the `montaigne` CLI. Pass arguments after `--`.
-    *   Example: `just run -- synthesize --engine bark -t "Hello" -o output/out.wav`
-*   `just lint`: Checks code style using Ruff.
-*   `just format`: Formats code using Ruff.
-*   `just check`: Runs both lint and format.
-*   `just test`: Runs tests using pytest (assumes tests are in `tests/`).
-*   `just build_package`: Builds the Python package (wheel and sdist) into `dist/`.
-*   `just clean`: Removes build artifacts and `__pycache__`.
-*   `just clean_all`: Runs `clean`.
-*   `just debug`: Performs a simple XTTS synthesis test run (CPU).
-*   `just debug_gpu`: Checks PyTorch CUDA availability.
-*   `just docker_build`: Builds the Docker image.
-*   `just docker_run -- [ARGS...]`: Runs a default XTTS synthesis task inside Docker (CPU).
-*   `just docker_run_gpu -- [ARGS...]`: Runs the application inside Docker with GPU support.
-*   `just docker_check`: Checks Docker daemon status and NVIDIA runtime availability.
+- **Error Handling**: While present, error handling for external issues (network errors during downloads, invalid audio files, model loading failures) could be more granular and provide more user-friendly feedback.
 
-## Docker Usage
+- **Concurrency**: The application currently processes synthesis tasks sequentially.
 
-You can build and run Montaigne within a Docker container. Build the image first (requires Docker):
+- **Python Version**: Strictly requires Python 3.11 (>=3.11,<3.12).
+
+- **Voice Profiles**: Requires manual setup and hosting of voice profile WAV files; the example URLs are placeholders.
+
+## Installation
+
+There are several ways to install and run Montaigne TTS:
+
+### 1. Docker (Recommended)
+
+This is the easiest way to get started, especially if you need GPU support. It ensures all dependencies are correctly installed.
+
+**Prerequisites**: Docker, NVIDIA Container Toolkit (for GPU support).
+
+**Build the image**:
 
 ```bash
+# Build with GPU support (will download model if not found locally)
 just docker_build
-```
-This builds an image tagged `montaigne:latest` and `montaigne:<git-short-hash>`.
 
-**2. Prepare Input/Output Directories:**
-Create `./input` and `./output` directories on your host. Place necessary input files (like speaker WAVs for XTTS) in `./input`.
+# Build with GPU support, using a local XTTS model if available
+# (Assumes model files are in ~/.local/share/tts/...)
+# This first copies the local model into ./model_files for the build context
+just docker_dev
+
+# Build for CPU only (add relevant build args if needed)
+# Example: Force CPU build if Docker defaults to GPU otherwise
+# (Check your Docker setup - often CPU is default if no GPU args)
+# The runtime '--cpu' flag is separate from the build itself.
+just docker_build # (Check Dockerfile for CPU-specific build logic if needed)
+```
+
+**Run**: See Usage section below for docker run commands.
+
+### 2. Nix (Development)
+
+If you have Nix installed with Flakes enabled, you can get a development shell with all dependencies.
+
+**Prerequisites**: Nix (with Flakes enabled: `experimental-features = nix-command flakes`).
+
+**Enter Development Shell & Install**:
+
 ```bash
-mkdir -p input output
-# Example: cp /path/to/your/speaker.wav ./input/
+# Update flake inputs and enter shell, then install packages
+just nix_setup
+
+# Or, enter the shell manually and install
+nix develop --impure # Allow access to non-Nix resources if needed
+just install_workspace
 ```
 
-**3. Running the Container:**
-Map your host directories to `/app/input` (read-only) and `/app/output` (read-write) inside the container. **Use container paths** (e.g., `/app/input/speaker.wav`) in your command arguments.
+**Run**: Execute montaigne commands directly within the Nix shell.
 
-*   **Default XTTS Test (CPU):**
-    ```bash
-    just docker_run
-    # Creates output/docker_default_run_output.wav on host.
-    # Uses a dummy speaker file if input/speaker.wav is missing.
-    ```
-*   **Custom Synthesis (CPU):**
-    ```bash
-    # Example: Run Bark engine via docker run directly
-    docker run --rm \
-        -v "$(pwd)/input:/app/input:ro" \
-        -v "$(pwd)/output:/app/output:rw" \
-        montaigne:latest \
-        synthesize --engine bark \
-          --text "Hello from Docker and Bark." \
-          --output-file /app/output/bark_docker_output.wav \
-          --language en --cpu
-    ```
-*   **Running with GPU Support:** (Requires NVIDIA Container Toolkit on host)
-    ```bash
-    # Example: Synthesize using XTTS with GPU via just
-    just docker_run_gpu -- synthesize --engine xtts \
-        --text "Running faster with the GPU!" \
-        --output-file /app/output/gpu_xtts_output.wav \
-        --speaker-wav /app/input/my_speaker.wav \
-        --language en
-    ```
-    Or use `docker run --gpus all ...` directly.
+### 3. Manual / Ubuntu (CPU Only Example)
+
+This uses uv to create a virtual environment and install dependencies. Primarily for CPU usage. Requires Python 3.11 and uv installed.
+
+**Prerequisites**: Python 3.11, uv, ffmpeg, libsndfile1, potentially others (see scripts/run_ubuntu_cpu_tasks.sh or Dockerfile for hints).
+
+**Run the setup script**:
+
+```bash
+# This script creates a .venv, installs dependencies (CPU PyTorch),
+# and runs sample TTS commands. Adapt as needed.
+bash scripts/run_ubuntu_cpu_tasks.sh
+```
+
+**Activate venv**: `source .venv/bin/activate`
+
+**Run**: `montaigne --cpu ...`
+
+## Usage (CLI Commands)
+
+The primary interface is the `montaigne` command.
+
+**Common Options**:
+
+- `--cpu`: Force CPU usage, even if CUDA is available.
+- `-h, --help`: Show help message.
+
+### montaigne synthesize [OPTIONS] (Batch Mode)
+
+Synthesizes speech from text input (string or file) and saves it to an output audio file.
+
+**Options**:
+
+- `--engine [xtts|bark]` (Default: xtts)
+- `--text TEXT`: Text to synthesize (if not using --text-file).
+- `--text-file FILE`: Path to a text file to synthesize.
+- `--language TEXT`: Language code (e.g., en, pt, es). Required.
+- `--output-file FILE`: Path to save the output WAV file. Required.
+- `--speed FLOAT`: Playback speed for XTTSv2 (Default: 1.0).
+
+**XTTS Speaker Options** (Mutually Exclusive):
+- `--speaker-wav FILE`: Path to a WAV file for voice cloning.
+- `--speaker-youtube-id TEXT`: YouTube video ID for voice cloning.
+- `--voice-profile TEXT`: Name of a predefined voice profile.
+
+**Bark Speaker Option**:
+- `--speaker-prompt TEXT`: Bark history prompt (e.g., en_speaker_1, zh_speaker_5). If omitted, Bark might use a default or generic prompt.
+
+**Examples**:
+
+```bash
+# XTTS: Synthesize text using a speaker WAV file
+montaigne synthesize \
+  --text "Hello world, this is a test using a local speaker file." \
+  --language en \
+  --speaker-wav ./input/speaker.wav \
+  --output-file ./output/xtts_local_speaker.wav
+
+# XTTS: Synthesize text from a file using a YouTube video voice
+montaigne synthesize \
+  --text-file ./input/my_script.txt \
+  --language en \
+  --speaker-youtube-id "dQw4w9WgXcQ" \
+  --output-file ./output/xtts_youtube_speaker.wav
+
+# XTTS: Synthesize using a predefined voice profile (CPU forced)
+montaigne synthesize \
+  --text "Using a voice profile." \
+  --language pt \
+  --voice-profile "my-profile-name" \
+  --output-file ./output/xtts_profile_cpu.wav \
+  --cpu
+
+# Bark: Synthesize text using a specific Bark speaker prompt
+montaigne synthesize \
+  --engine bark \
+  --text "こんにちは、バークです。" \
+  --language ja \
+  --speaker-prompt "ja_speaker_2" \
+  --output-file ./output/bark_japanese.wav
+
+# --- Running via Docker ---
+
+# Build the image first (e.g., `just docker_build`)
+# Ensure input/output directories exist on the host: mkdir -p input output
+# Place speaker.wav in ./input
+
+# Docker: XTTS synthesis mapping local input/output dirs (GPU)
+docker run --rm --gpus all \
+  -v "$(pwd)/input:/app/input:ro" \
+  -v "$(pwd)/output:/app/output:rw" \
+  montaigne:latest \
+  synthesize \
+  --text "Synthesized inside a Docker container with GPU." \
+  --language en \
+  --speaker-wav /app/input/speaker.wav \
+  --output-file /app/output/docker_gpu_xtts.wav
+
+# Docker: Bark synthesis mapping local input/output dirs (CPU)
+docker run --rm \
+  -v "$(pwd)/input:/app/input:ro" \
+  -v "$(pwd)/output:/app/output:rw" \
+  montaigne:latest \
+  synthesize \
+  --engine bark \
+  --text "Bark synthesis in Docker using CPU." \
+  --language en \
+  --output-file /app/output/docker_cpu_bark.wav \
+  --cpu # Add --cpu flag inside the container command
+```
+
+### montaigne live [OPTIONS] (Interactive/Streaming Mode)
+
+Starts an interactive TTS session using Piper TTS. Reads input from stdin (REPL) or a file and plays back synthesized audio.
+
+**Options**:
+
+- `--piper-voice TEXT`: Name of the Piper voice model to use (e.g., en_US-amy-low). Default: en_US-amy-low. Models are downloaded from Hugging Face Hub (rhasspy/piper-voices).
+- `--file FILE`: Read text input from a file instead of the interactive prompt.
+- `--output-dir PATH`: Directory to save the generated audio segments (Default: ./output).
+- `--cpu`: Force CPU usage.
+
+**Examples**:
+
+```bash
+# Start interactive live session with default English voice
+montaigne live
+
+# Start live session using a German voice
+montaigne live --piper-voice de_DE-thorsten-medium
+
+# Process text from a file and speak it using Piper (CPU forced)
+montaigne live --file ./input/my_script.txt --output-dir ./live_audio_output --cpu
+```
+
+## API Documentation (CLI Options)
+
+The primary API for Montaigne TTS is its command-line interface detailed in the Usage section. Below is a more structured breakdown of the options for each command.
+
+### synthesize Command API
+
+**Endpoint**: `montaigne synthesize`
+
+**Method**: Command Line Execution
+
+**Input Arguments**:
+
+| Option | Type | Required | Default | Description |
+|--------|------|----------|---------|-------------|
+| `--engine` | [xtts\|bark] | No | xtts | Selects the TTS engine to use for synthesis. |
+| `--text` | TEXT | Conditional¹ | - | The text string to synthesize. |
+| `--text-file` | FILE (Path) | Conditional¹ | - | Path to a text file containing the text to synthesize. |
+| `--language` | TEXT | Yes | - | Language code for the synthesis (e.g., en, pt, es). |
+| `--output-file` | FILE (Path) | Yes | - | Path where the resulting WAV audio file will be saved. |
+| `--cpu` | Flag | No | False | Force the use of CPU even if a CUDA-compatible GPU is detected. |
+| `--speed` | FLOAT | No | 1.0 | (XTTS Only) Controls the speed of the synthesized speech. |
+| `--speaker-wav` | FILE (Path) | Conditional² | - | (XTTS Only) Path to a local WAV file to use for voice cloning. |
+| `--speaker-youtube-id` | TEXT | Conditional² | - | (XTTS Only) YouTube video ID whose audio will be used for voice cloning. |
+| `--voice-profile` | TEXT | Conditional² | - | (XTTS Only) Name of a configured, predefined voice profile to use. |
+| `--speaker-prompt` | TEXT | No | - | (Bark Only) History prompt name for selecting speaker/style (e.g., en_speaker_0). |
+
+¹: Either `--text` or `--text-file` must be provided.
+²: For `--engine xtts`, exactly one of `--speaker-wav`, `--speaker-youtube-id`, or `--voice-profile` must be provided. These are mutually exclusive. Not used for `--engine bark`.
+
+**Output**:
+
+- A WAV audio file saved to the path specified by `--output-file`.
+- Console logs indicating progress, warnings, and errors.
+
+**Usage Example**:
+
+```bash
+montaigne synthesize --engine xtts --text "API example for synthesis." --language en --speaker-wav ./input/speaker.wav --output-file ./output/api_example.wav
+```
+
+**Constraints**:
+
+- Requires appropriate TTS models to be available (either downloaded automatically or provided locally in Docker context).
+- Speaker options are engine-specific and mutually exclusive for XTTS.
+- Performance heavily depends on hardware (CPU/GPU) and text length.
+
+### live Command API
+
+**Endpoint**: `montaigne live`
+
+**Method**: Command Line Execution
+
+**Input Arguments**:
+
+| Option | Type | Required | Default | Description |
+|--------|------|----------|---------|-------------|
+| `--piper-voice` | TEXT | No | en_US-amy-low | Name of the Piper voice model to download/use from Hugging Face Hub (rhasspy/piper-voices). |
+| `--file` | FILE (Path) | No | - | Path to a text file to read input from (otherwise uses interactive REPL). |
+| `--output-dir` | PATH | No | ./output | Directory where generated audio segments for the session will be saved. |
+| `--cpu` | Flag | No | False | Force the use of CPU for Piper synthesis. |
+
+**Input (Runtime)**:
+
+- If `--file` is not used: Text entered line-by-line at the interactive prompt (`>`).
+- If `--file` is used: Reads text content from the specified file.
+
+**Output**:
+
+- Synthesized audio played directly through the system's default audio output device.
+- Audio segments saved as WAV files within the specified `--output-dir`.
+- Console logs.
+
+**Usage Example**:
+
+```bash
+montaigne live --piper-voice fr_FR-siwis-medium --output-dir ./live_french_output
+```
+
+**Constraints**:
+
+- Requires sounddevice library and its system dependencies (e.g., libportaudio2, ALSA/PulseAudio libs on Linux) to be installed correctly for audio playback.
+- Requires internet access to download Piper models from Hugging Face Hub on first use (or if not cached).
+- Audio quality is dependent on the chosen Piper voice model.
 
 ## Development
 
-*   **Activate Environment:** Run `just nix` to enter the configured shell.
-*   **Linting/Formatting:** Use `just check` or `just format`/`just lint`.
-*   **Testing:** Add tests to `tests/` and run with `just test`.
+**Environment**: Use Nix (`just nix_setup` or `nix develop --impure`) or Docker for a consistent environment.
 
-## Limitations & Caveats
+**Tasks**: The justfile provides common tasks:
 
-*   **Tone Tags:** `[tone=...]` tags are placeholders and do not currently affect the synthesized voice for either XTTS or Bark.
-*   **Speaker WAV Quality (XTTS):** Voice quality heavily depends on the `--speaker-wav` quality. Use clear, noise-free recordings.
-*   **Bark Speaker Prompts:** Finding effective `--speaker-prompt` values for Bark might require experimentation. See Bark documentation/examples.
-*   **Performance:** TTS and Whisper evaluation are computationally intensive. Use a CUDA GPU for significant speedup.
-*   **Evaluation Accuracy:** Whisper STT is accurate but not perfect. Scores indicate similarity but may not capture all nuances.
-*   **Dependencies:** The Nix flake aims for reproducibility, but complex ML dependencies can have subtle issues.
-*   **YouTube Download:** Dependent on `yt-dlp` and `ffmpeg`. Quality limited by source. Audio saved in `output-youtube/`.
-*   **Piper Live Mode:** Requires `sounddevice` for playback and `huggingface-hub` for model downloads. Sentence splitting (`stream_speak`) is basic.
+- `just install_workspace`: Install/update Python packages using uv.
+- `just check`: Run linters (ruff check) and formatters (ruff format --check).
+- `just format`: Apply formatting (ruff format).
+- `just test`: Run tests using pytest (ensure tests are written in packages/montaigne/tests/).
+- `just clean`: Remove build artifacts and caches.
+- `just docker_build`: Build the Docker image.
+- `just docker_dev`: Build Docker image using local models.
+- `just docker_run`: Run a test synthesis inside Docker.
+- `just docker_run_gpu`: Run a command inside Docker with GPU access.
+
+**Dependencies**: Managed via pyproject.toml (for Python packages using uv) and flake.nix (for Nix environment).
+
+## Contributing
+
+Contributions are welcome! Please follow standard Git workflow (fork, branch, pull request). Ensure code is formatted (`just format`) and passes checks (`just check`).
 
 ## License
 
-This project itself is licensed under the **MIT License**.
-
-**Component Licenses:**
-
-*   **Coqui TTS (XTTSv2 Model):** Licensed under **MPL 2.0**. Requires accepting terms on first use. Review MPL 2.0 for commercial/distribution details.
-*   **Suno AI Bark:** MIT License.
-*   **OpenAI Whisper:** MIT License.
-*   **Piper TTS:** Apache 2.0 License (check specific voice model licenses on HF Hub).
-*   **yt-dlp:** Unlicense.
-*   Other dependencies have their own licenses (check `uv.lock`).
-
-## Acknowledgements
-
-*   **Coqui TTS (XTTSv2):** For the powerful multilingual TTS model. ([Coqui TTS GitHub](https://github.com/coqui-ai/TTS))
-*   **Suno AI Bark:** For the innovative generative TTS model. ([Bark GitHub](https://github.com/suno-ai/bark))
-*   **OpenAI Whisper:** For the state-of-the-art STT model. ([Whisper GitHub](https://github.com/openai/whisper))
-*   **Piper TTS / Rhasspy:** For the efficient local TTS engine. ([Piper GitHub](https://github.com/rhasspy/piper))
-*   The creators of Nix, Just, uv, Ruff, Click, and other libraries used.
+(Specify License - e.g., MIT License, Apache 2.0). Currently not specified in the project files. Assuming a standard open-source license like MIT unless otherwise stated.

@@ -29,12 +29,15 @@ default:
     @just --list
 
 # === Environment & Dependencies (Managed by Nix Flake) ===
-# Installs workspace packages using uv within the current (presumably nix) environment
+# Installs/Synchronizes workspace packages using uv within the current (presumably nix) environment
 install_workspace:
-    @echo "📦 Installing/Updating workspace packages using UV..."
+    @echo "🔄 Synchronizing workspace packages using UV and uv.lock..."
     @command -v {{UV}} > /dev/null 2>&1 || (echo "❌ '{{UV}}' command not found. Are you inside 'nix develop'?" && exit 1)
-    @{{UV}} pip install -e . --verbose
-    @echo "✅ Workspace packages installed."
+    @{{UV}} pip sync uv.lock # Sync base dependencies first
+    # Re-install workspace packages editably AFTER syncing base dependencies
+    @echo "📦 Installing local workspace packages editably..."
+    @{{UV}} pip install -e ./packages/montaigne -e ./packages/aider_analytics --no-deps
+    @echo "✅ Workspace environment synchronized and packages installed editably."
 
 setup: install_workspace # Alias
 

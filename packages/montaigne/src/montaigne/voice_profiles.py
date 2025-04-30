@@ -308,7 +308,6 @@ class VoiceProfileManager:
 
             # --- Start Processing ---
             current_input_path = raw_path
-            processing_step_succeeded = True # Track if any step fails
 
             # Get effective preprocessing config from profile, used by both steps if they run
             profile_preprocessing_config = profile.preprocessing if profile.preprocessing is not None else {}

@@ -37,13 +37,14 @@ except ImportError:
     librosa = None  # type: ignore
     scipy = None # type: ignore
 
-# Attempt Spleeter import
-try:
-    from spleeter.separator import Separator
-    SPLEETER_AVAILABLE = True
-except ImportError:
-    Separator = None # type: ignore
-    SPLEETER_AVAILABLE = False
+# Attempt Spleeter import - Temporarily commented out due to numpy conflict
+# try:
+#     from spleeter.separator import Separator
+#     SPLEETER_AVAILABLE = True
+# except ImportError:
+#     Separator = None # type: ignore
+#     SPLEETER_AVAILABLE = False
+SPLEETER_AVAILABLE = False # Assume not available
 
 
 # Import the audio_utils for YouTube download functionality
@@ -90,8 +91,9 @@ class VoiceProfileManager:
         # Log library availability
         if not LIBROSA_AVAILABLE:
             logger.warning("Librosa/Soundfile/Noisereduce not available. Audio preprocessing will be limited.")
-        if not SPLEETER_AVAILABLE:
-            logger.warning("Spleeter not available. Voice isolation will be skipped.")
+        # if not SPLEETER_AVAILABLE: # Spleeter temporarily disabled
+        #     logger.warning("Spleeter not available. Voice isolation will be skipped.")
+        logger.info("Spleeter-based voice isolation is currently disabled due to dependency issues.")
 
     def _load_profiles(self):
         """Load profiles from TOML file."""
@@ -320,32 +322,34 @@ class VoiceProfileManager:
             # Merge profile settings over defaults
             effective_step_config = {**default_processing_steps, **profile_preprocessing_config}
 
-            # 3. Isolate main voice if not skipped and possible
+            # 3. Isolate main voice if not skipped and possible - DISABLED
             isolated_path = None
             if not skip_isolation and effective_step_config.get("isolate_voice", True):
-                if SPLEETER_AVAILABLE:
-                    isolated_dir = self.get_cache_dir() / "isolated"
-                    isolated_dir.mkdir(parents=True, exist_ok=True)
-                    isolated_path = isolated_dir / f"{raw_path.stem}_isolated.wav"
+                 logger.warning("Voice isolation requested but Spleeter is disabled due to dependency issues. Skipping isolation.")
+            # if not skip_isolation and effective_step_config.get("isolate_voice", True):
+            #     if SPLEETER_AVAILABLE:
+            #         isolated_dir = self.get_cache_dir() / "isolated"
+            #         isolated_dir.mkdir(parents=True, exist_ok=True)
+            #         isolated_path = isolated_dir / f"{raw_path.stem}_isolated.wav"
 
-                    if not isolated_path.exists() or force_redownload:
-                        logger.info(f"Isolating main voice from {current_input_path.name}...")
-                        loop = asyncio.get_event_loop()
-                        with ThreadPoolExecutor() as pool:
-                            success = await loop.run_in_executor(
-                                pool, self._isolate_main_voice, current_input_path, isolated_path
-                            )
-                        if success:
-                            logger.info(f"Voice isolation successful: {isolated_path.name}")
-                            current_input_path = isolated_path # Use isolated audio for next steps
-                        else:
-                            logger.warning(f"Voice isolation failed for {raw_path.name}, using original audio for further processing.")
-                            isolated_path = None # Ensure isolated_path is None if failed
-                    else:
-                        logger.info(f"Using existing isolated voice: {isolated_path.name}")
-                        current_input_path = isolated_path
-                else:
-                    logger.warning("Voice isolation requested but Spleeter is not available. Skipping.")
+            #         if not isolated_path.exists() or force_redownload:
+            #             logger.info(f"Isolating main voice from {current_input_path.name}...")
+            #             loop = asyncio.get_event_loop()
+            #             with ThreadPoolExecutor() as pool:
+            #                 success = await loop.run_in_executor(
+            #                     pool, self._isolate_main_voice, current_input_path, isolated_path
+            #                 )
+            #             if success:
+            #                 logger.info(f"Voice isolation successful: {isolated_path.name}")
+            #                 current_input_path = isolated_path # Use isolated audio for next steps
+            #             else:
+            #                 logger.warning(f"Voice isolation failed for {raw_path.name}, using original audio for further processing.")
+            #                 isolated_path = None # Ensure isolated_path is None if failed
+            #         else:
+            #             logger.info(f"Using existing isolated voice: {isolated_path.name}")
+            #             current_input_path = isolated_path
+            #     else:
+            #         logger.warning("Voice isolation requested but Spleeter is not available. Skipping.")
             elif skip_isolation:
                  logger.info("Voice isolation skipped due to --skip-voice-isol flag.")
 
@@ -542,56 +546,56 @@ class VoiceProfileManager:
             return False
 
 
-    def _isolate_main_voice(self, input_path: Path, output_path: Path) -> bool:
-        """
-        Isolate the main voice using Spleeter.
-
-        Returns:
-            True on success, False otherwise.
-        """
-        if not SPLEETER_AVAILABLE or Separator is None:
-            logger.warning("Spleeter not available. Skipping voice isolation.")
-            return False
-
-        try:
-            logger.info(f"Isolating main voice from {input_path.name} -> {output_path.name}")
-            output_path.parent.mkdir(parents=True, exist_ok=True) # Ensure output dir
-
-            # Use a temporary directory for Spleeter's output structure
-            with tempfile.TemporaryDirectory() as temp_dir:
-                temp_dir_path = Path(temp_dir)
-                logger.debug(f"Using temporary directory for Spleeter: {temp_dir_path}")
-
-                # Initialize the separator (2stems separates vocals from accompaniment)
-                # Consider 'spleeter:4stems' or 'spleeter:5stems' for more control if needed
-                separator = Separator('spleeter:2stems', multiprocess=False) # Disable multiprocess for stability in threads
-
-                # Separate vocals from other sounds
-                separator.separate_to_file(
-                    str(input_path),
-                    str(temp_dir_path),
-                    filename_format='{instrument}.{codec}', # Ensure predictable output names
-                    codec='wav'
-                )
-
-                # Spleeter creates a subdirectory named after the input file stem
-                spleeter_output_dir = temp_dir_path / input_path.stem
-                vocals_file = spleeter_output_dir / "vocals.wav"
-
-                if not vocals_file.exists():
-                    logger.error(f"Spleeter processing completed but vocals file not found at expected path: {vocals_file}")
-                    # Log contents of temp dir for debugging
-                    logger.debug(f"Contents of Spleeter temp dir ({spleeter_output_dir}): {list(spleeter_output_dir.glob('*')) if spleeter_output_dir.exists() else 'Dir not found'}")
-                    return False
-
-                # Copy the vocals file to the final output path
-                shutil.copy2(str(vocals_file), str(output_path))
-                logger.info(f"Main voice isolated and saved to {output_path.name}")
-                return True
-
-        except Exception as e:
-            logger.error(f"Error during voice isolation for {input_path.name}: {e}", exc_info=True)
-            return False
+    # def _isolate_main_voice(self, input_path: Path, output_path: Path) -> bool:
+    #     """
+    #     Isolate the main voice using Spleeter. - DISABLED
+    #
+    #     Returns:
+    #         True on success, False otherwise.
+    #     """
+    #     if not SPLEETER_AVAILABLE or Separator is None:
+    #         logger.warning("Spleeter not available. Skipping voice isolation.")
+    #         return False
+    #
+    #     try:
+    #         logger.info(f"Isolating main voice from {input_path.name} -> {output_path.name}")
+    #         output_path.parent.mkdir(parents=True, exist_ok=True) # Ensure output dir
+    #
+    #         # Use a temporary directory for Spleeter's output structure
+    #         with tempfile.TemporaryDirectory() as temp_dir:
+    #             temp_dir_path = Path(temp_dir)
+    #             logger.debug(f"Using temporary directory for Spleeter: {temp_dir_path}")
+    #
+    #             # Initialize the separator (2stems separates vocals from accompaniment)
+    #             # Consider 'spleeter:4stems' or 'spleeter:5stems' for more control if needed
+    #             separator = Separator('spleeter:2stems', multiprocess=False) # Disable multiprocess for stability in threads
+    #
+    #             # Separate vocals from other sounds
+    #             separator.separate_to_file(
+    #                 str(input_path),
+    #                 str(temp_dir_path),
+    #                 filename_format='{instrument}.{codec}', # Ensure predictable output names
+    #                 codec='wav'
+    #             )
+    #
+    #             # Spleeter creates a subdirectory named after the input file stem
+    #             spleeter_output_dir = temp_dir_path / input_path.stem
+    #             vocals_file = spleeter_output_dir / "vocals.wav"
+    #
+    #             if not vocals_file.exists():
+    #                 logger.error(f"Spleeter processing completed but vocals file not found at expected path: {vocals_file}")
+    #                 # Log contents of temp dir for debugging
+    #                 logger.debug(f"Contents of Spleeter temp dir ({spleeter_output_dir}): {list(spleeter_output_dir.glob('*')) if spleeter_output_dir.exists() else 'Dir not found'}")
+    #                 return False
+    #
+    #             # Copy the vocals file to the final output path
+    #             shutil.copy2(str(vocals_file), str(output_path))
+    #             logger.info(f"Main voice isolated and saved to {output_path.name}")
+    #             return True
+    #
+    #     except Exception as e:
+    #         logger.error(f"Error during voice isolation for {input_path.name}: {e}", exc_info=True)
+    #         return False
 
 
 # Create a singleton instance

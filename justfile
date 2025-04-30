@@ -53,14 +53,16 @@ nix_shell:
 
 # === Linting & Formatting (Run inside Nix Shell) ===
 lint:
-    @command -v ruff > /dev/null 2>&1 || (echo "❌ 'ruff' command not found. Are you inside 'nix develop'?" && exit 1)
+    ruff check --force-exclude --config=ruff.toml packages/
 
 format:
-    @command -v ruff > /dev/null 2>&1 || (echo "❌ 'ruff' command not found. Are you inside 'nix develop'?" && exit 1)
-    @echo "🎨 Running Ruff formatter via uv..."
+    ruff format --force-exclude --config=ruff.toml packages/
 
-check: lint format
+check: format lint
     @echo "✅ Lint and format checks passed."
+
+fix:
+    ruff check packages/ --fix
 
 # === Analysis (Run inside Nix Shell) ===
 # Assuming aider-analytics is installed in the venv and runnable via `python`

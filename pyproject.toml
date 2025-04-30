@@ -20,11 +20,6 @@ members = ["packages/*"]
 requires = ["setuptools>=61.0"]
 build-backend = "setuptools.build_meta"
 
-[tool.ruff]
-line-length = 88
-select = ["E", "F", "W", "I", "N", "C4", "UP", "ARG", "B"]
-ignore = ["B008"]
-
 [tool.ruff.format]
 quote-style = "double"
 

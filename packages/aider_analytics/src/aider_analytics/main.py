@@ -3,20 +3,20 @@
 Analytics tool for distinguishing between human and AI commit patterns.
 """
 
+import logging
 import os
 import subprocess
-import logging
+from pathlib import Path
+
 import click
 import matplotlib.pyplot as plt
-from pathlib import Path
-from typing import List, Tuple, Dict
 
 # Set up logging
 logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s")
 logger = logging.getLogger("aider_analytics")
 
 
-def get_git_commits(repo_path: str) -> List[str]:
+def get_git_commits(repo_path: str) -> list[str]:
     """Get all commit messages from the Git repository."""
     try:
         # Change to the repository directory
@@ -28,7 +28,7 @@ def get_git_commits(repo_path: str) -> List[str]:
             ["git", "log", "--pretty=format:%s"],
             capture_output=True,
             text=True,
-            check=True
+            check=True,
         )
 
         # Return to the original directory
@@ -44,7 +44,7 @@ def get_git_commits(repo_path: str) -> List[str]:
         return []
 
 
-def classify_commits(commit_messages: List[str]) -> Tuple[List[str], List[str]]:
+def classify_commits(commit_messages: list[str]) -> tuple[list[str], list[str]]:
     """
     Classify commit messages as aider (AI) or human based ONLY on the presence of a colon.
 
@@ -63,7 +63,7 @@ def classify_commits(commit_messages: List[str]) -> Tuple[List[str], List[str]]:
     return aider_commits, human_commits
 
 
-def generate_analytics(repo_path: str, output_dir: str = None) -> Dict:
+def generate_analytics(repo_path: str, output_dir: str = None) -> dict:
     """Generate analytics on commit patterns."""
     # Get commit messages
     commits = get_git_commits(repo_path)
@@ -88,7 +88,7 @@ def generate_analytics(repo_path: str, output_dir: str = None) -> Dict:
         "total": total_commits,
         "aider": aider_count,
         "human": human_count,
-        "ratio": aider_ratio
+        "ratio": aider_ratio,
     }
 
     # Generate and save visualization if output_dir is provided
@@ -129,8 +129,8 @@ def main(repo_path, output_dir):
     # Print results
     print("\n===== Commit Analysis Results =====")
     print(f"Total commits: {results['total']}")
-    print(f"AI commits: {results['aider']} ({results['ratio']*100:.1f}%)")
-    print(f"Human commits: {results['human']} ({(1-results['ratio'])*100:.1f}%)")
+    print(f"AI commits: {results['aider']} ({results['ratio'] * 100:.1f}%)")
+    print(f"Human commits: {results['human']} ({(1 - results['ratio']) * 100:.1f}%)")
     print("==================================\n")
 
     if output_dir:

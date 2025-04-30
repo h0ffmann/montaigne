@@ -172,109 +172,151 @@ class VoiceProfileManager:
 
         return params
 
-    async def get_voice_path_async(self, profile_id: str, preprocess: bool = True) -> Optional[Path]:
-        """Get path to voice profile WAV file, downloading if needed (async version).
+    async def get_voice_paths_async(self, profile_id: str, preprocess: bool = True) -> List[Path]:
+        """
+        Get paths to voice profile WAV files, downloading and preprocessing if needed.
+
+        Downloads audio for multiple YouTube IDs specified in the profile.
 
         Args:
-            profile_id: The profile ID to retrieve
-            preprocess: Whether to preprocess the voice sample for quality improvement
+            profile_id: The profile ID to retrieve.
+            preprocess: Whether to preprocess the voice samples for quality improvement.
 
         Returns:
-            Path to the voice profile WAV file, or None if not found
+            List of Paths to the voice profile WAV files, or an empty list if none could be processed.
         """
         profile = self.get_profile_by_id(profile_id)
         if not profile:
             logger.error(f"Voice profile '{profile_id}' not found. Available profiles: {self.get_profile_ids()}")
-            return None
+            return []
+        if not profile.youtube_ids:
+            logger.error(f"No YouTube IDs defined for profile '{profile_id}'")
+            return []
 
-        # Check if preprocessed version exists and should be used
-        preprocessed_path = self.get_preprocessed_dir() / f"{profile_id}.wav"
-        if preprocess and preprocessed_path.exists() and not self.config.get("force_redownload", False):
-            logger.info(f"Using preprocessed voice profile for {profile_id} from {preprocessed_path}")
+        download_dir = self.get_download_dir()
+        preprocessed_dir = self.get_preprocessed_dir()
+        force_redownload = self.config.get("force_redownload", False)
+        max_videos = self.config.get("max_videos_per_profile", 5)
+        youtube_ids_to_process = profile.youtube_ids[:max_videos]
+
+        logger.info(
+            f"Processing up to {len(youtube_ids_to_process)} voice samples for profile '{profile_id}' "
+            f"(Max allowed: {max_videos})."
+        )
+
+        tasks = []
+        for i, youtube_id in enumerate(youtube_ids_to_process):
+            # Define paths for this specific sample
+            sample_suffix = f"{profile_id}_{i}" # Unique suffix for each sample
+            raw_path = download_dir / f"{sample_suffix}.wav"
+            prep_path = preprocessed_dir / f"{sample_suffix}.wav"
+            tasks.append(
+                self._process_single_sample(
+                    youtube_id=youtube_id,
+                    raw_path=raw_path,
+                    preprocessed_path=prep_path,
+                    preprocess=preprocess,
+                    force_redownload=force_redownload,
+                    profile_preprocessing_config=profile.preprocessing,
+                )
+            )
+
+        # Run all download/preprocessing tasks concurrently
+        results = await asyncio.gather(*tasks, return_exceptions=True)
+
+        # Filter out None results (failures) and exceptions
+        successful_paths: List[Path] = []
+        for i, result in enumerate(results):
+            if isinstance(result, Path):
+                successful_paths.append(result)
+            elif isinstance(result, Exception):
+                logger.error(
+                    f"Error processing sample {i} (YouTube ID: {youtube_ids_to_process[i]}) "
+                    f"for profile '{profile_id}': {result}",
+                    exc_info=False, # Don't log full trace for gather errors unless needed
+                )
+            # else: result is None (logged within _process_single_sample)
+
+        if not successful_paths:
+            logger.error(f"Failed to process any voice samples for profile '{profile_id}'.")
+        else:
+            logger.info(f"Successfully processed {len(successful_paths)} voice samples for profile '{profile_id}'.")
+
+        return successful_paths
+
+    async def _process_single_sample(
+        self,
+        youtube_id: str,
+        raw_path: Path,
+        preprocessed_path: Path,
+        preprocess: bool,
+        force_redownload: bool,
+        profile_preprocessing_config: Optional[Dict[str, bool]],
+    ) -> Optional[Path]:
+        """Handles download and preprocessing for a single YouTube ID."""
+
+        # 1. Check for existing preprocessed file
+        if preprocess and preprocessed_path.exists() and not force_redownload:
+            logger.info(f"Using existing preprocessed sample: {preprocessed_path.name}")
             return preprocessed_path
 
-        # Check if raw download exists
-        voice_path = self.get_download_dir() / f"{profile_id}.wav"
-        force_redownload = self.config.get("force_redownload", False)
-
-        if not voice_path.exists() or force_redownload:
-            # Download the voice profile from YouTube
-            if not profile.youtube_ids:
-                logger.error(f"No YouTube IDs defined for profile '{profile_id}'")
-                return None
-
-            # For simplicity, we'll just use the first YouTube ID for now.
-            # A more robust implementation would download and potentially combine audio from multiple IDs.
-            youtube_id_to_download = profile.youtube_ids[0]
-            logger.info(f"Downloading voice for profile '{profile_id}' using YouTube ID: {youtube_id_to_download}")
-
+        # 2. Check for existing raw file or download
+        if not raw_path.exists() or force_redownload:
+            logger.info(f"Downloading sample for YouTube ID: {youtube_id} -> {raw_path.name}")
             try:
-                # Ensure download directory exists
-                voice_path.parent.mkdir(parents=True, exist_ok=True)
-
-                # Use the YouTube download function
-                downloaded_path = await self._download_youtube_async(youtube_id_to_download, voice_path.parent)
+                raw_path.parent.mkdir(parents=True, exist_ok=True)
+                downloaded_path = await self._download_youtube_async(youtube_id, raw_path.parent)
                 if not downloaded_path:
-                    logger.error(f"Failed to download voice profile {profile_id} from YouTube")
+                    logger.error(f"Failed to download sample for YouTube ID {youtube_id}")
                     return None
 
-                # Rename the downloaded file to match the profile ID
-                # The download function creates a name like speaker-<youtube_id>.wav
-                expected_download_name = f"speaker-{youtube_id_to_download}.wav"
+                # Rename downloaded file (e.g., speaker-<id>.wav) to our target raw_path name
+                expected_download_name = f"speaker-{youtube_id}.wav"
                 if downloaded_path.name == expected_download_name:
-                    downloaded_path.rename(voice_path)
-                    logger.info(f"Downloaded and renamed to {voice_path}")
-                elif downloaded_path.name == voice_path.name:
-                    # Already named correctly (e.g., if cached and renamed previously)
-                    logger.info(f"Using existing downloaded file: {voice_path}")
+                    if raw_path.exists(): # Avoid error if file exists due to race condition or previous run
+                        raw_path.unlink()
+                    downloaded_path.rename(raw_path)
+                    logger.info(f"Downloaded and renamed to {raw_path.name}")
+                elif downloaded_path == raw_path:
+                     logger.info(f"Using existing downloaded file: {raw_path.name}")
                 else:
-                    logger.warning(
-                        f"Downloaded file name '{downloaded_path.name}' doesn't match expected '{expected_download_name}' or '{voice_path.name}'. Using as is."
-                    )
-                    # If the name is unexpected, we might have an issue. For now, proceed but log.
-                    # A better approach might be to force rename or handle errors.
-                    # For now, assume it's okay or the download function returned the correct final path.
-                    voice_path = downloaded_path # Use the path returned by download function
+                    # This case might happen if download_audio_from_youtube has complex caching/naming
+                    logger.warning(f"Downloaded path '{downloaded_path}' differs from expected raw path '{raw_path}'. Attempting to use downloaded path.")
+                    # If the downloaded path isn't the raw_path, we need to decide strategy.
+                    # For now, let's assume the download function gave us the correct final path to use.
+                    raw_path = downloaded_path # Use the path returned by download function
 
             except Exception as e:
-                logger.error(f"Error downloading voice profile {profile_id}: {e}")
+                logger.error(f"Error downloading sample for YouTube ID {youtube_id}: {e}")
                 return None
         else:
-             logger.info(f"Using existing raw voice file for {profile_id} from {voice_path}")
+            logger.info(f"Using existing raw sample: {raw_path.name}")
 
-
-        # Apply preprocessing if needed
+        # 3. Preprocess if required
         if preprocess and LIBROSA_AVAILABLE:
-            logger.info(f"Preprocessing voice file for {profile_id}...")
+            logger.info(f"Preprocessing sample: {raw_path.name} -> {preprocessed_path.name}")
             try:
                 preprocessed_path.parent.mkdir(parents=True, exist_ok=True)
-
-                # Get profile-specific preprocessing config or default to True for all steps if not specified
-                preprocessing_config = profile.preprocessing if profile.preprocessing is not None else {}
+                # Get effective preprocessing config
+                preprocessing_config = profile_preprocessing_config if profile_preprocessing_config is not None else {}
                 default_preprocessing = {
-                    "noise_reduction": True,
-                    "normalize": True,
-                    "trim_silence": True,
-                    "emphasize_bass": False, # Default off unless specified
-                    "equalize": False # Default off unless specified
+                    "noise_reduction": True, "normalize": True, "trim_silence": True,
+                    "emphasize_bass": False, "equalize": False
                 }
-                # Merge defaults with profile specifics
                 final_prep_config = {**default_preprocessing, **preprocessing_config}
 
-
-                # Do preprocessing
-                self._preprocess_audio(voice_path, preprocessed_path, final_prep_config)
-
+                self._preprocess_audio(raw_path, preprocessed_path, final_prep_config)
                 return preprocessed_path
             except Exception as e:
-                logger.warning(f"Error during preprocessing for {profile_id}, using original file: {e}", exc_info=True)
-                return voice_path # Fallback to original if preprocessing fails
+                logger.warning(f"Preprocessing failed for {raw_path.name}, returning raw path instead: {e}", exc_info=True)
+                return raw_path # Fallback to raw path if preprocessing fails
         elif preprocess and not LIBROSA_AVAILABLE:
-             logger.warning("Librosa/Soundfile/Noisereduce not available. Skipping preprocessing.")
-             return voice_path # Return original path if preprocessing requested but libs missing
+            logger.warning(f"Librosa/Soundfile/Noisereduce not available. Skipping preprocessing for {raw_path.name}.")
+            return raw_path # Return raw path if preprocessing requested but libs missing
         else:
-            # Return original path if preprocessing not requested
-            return voice_path
+            # Preprocessing not requested, return raw path
+            return raw_path
+
 
     async def _download_youtube_async(self, youtube_id: str, output_dir: Path) -> Optional[Path]:
         """Download audio from YouTube asynchronously.
@@ -401,10 +443,10 @@ class VoiceProfileManager:
 voice_profile_manager = VoiceProfileManager()
 
 
-def get_voice_profile(profile_name: str, download_dir: Optional[str] = None) -> Optional[Path]:
-    """Get path to voice profile WAV file, downloading if needed.
+def get_voice_profile(profile_name: str, download_dir: Optional[str] = None) -> List[Path]:
+    """Get paths to voice profile WAV files, downloading if needed.
 
-    This is a synchronous wrapper around the async version for backward compatibility.
+    This is a synchronous wrapper around the async version.
 
     Args:
         profile_name: The profile ID to retrieve
@@ -412,7 +454,7 @@ def get_voice_profile(profile_name: str, download_dir: Optional[str] = None) -> 
                       it temporarily overrides the config for this call.
 
     Returns:
-        Path to the voice profile WAV file, or None if not found
+        List of Paths to the voice profile WAV files, or an empty list on failure.
     """
     # Create a new event loop for async operations if one isn't running
     try:
@@ -436,7 +478,7 @@ def get_voice_profile(profile_name: str, download_dir: Optional[str] = None) -> 
 
         # Run the async function in the event loop
         # Use preprocess=True by default when called this way
-        result = loop.run_until_complete(voice_profile_manager.get_voice_path_async(profile_name, preprocess=True))
+        result = loop.run_until_complete(voice_profile_manager.get_voice_paths_async(profile_name, preprocess=True))
 
         # Restore original download directory if needed
         if original_dir is not None:

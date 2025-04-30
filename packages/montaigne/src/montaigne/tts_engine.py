@@ -154,18 +154,44 @@ class XTTSv2Engine(BaseTTSEngine):
 
     def synthesize(self, text: str, language: str, output_path: Path, **kwargs) -> bool:
         """Synthesizes using XTTSv2."""
-        speaker_wav = kwargs.get("speaker_wav")
+        # speaker_wav can now be a string path or a list of string paths
+        speaker_wav_input = kwargs.get("speaker_wav")
         speed = kwargs.get("speed", 1.0)
 
-        if not speaker_wav:
-            logger.error("XTTSv2Engine requires 'speaker_wav' parameter.")
+        if not speaker_wav_input:
+            logger.error("XTTSv2Engine requires 'speaker_wav' parameter (path or list of paths).")
             return False
-        if not Path(speaker_wav).is_file():
-            logger.error(f"Speaker reference file not found: {speaker_wav}")
-            raise FileNotFoundError(f"Speaker reference file not found: {speaker_wav}")
+
+        # Validate input speaker paths
+        speaker_paths_str: Union[str, List[str]]
+        speaker_display: str
+        if isinstance(speaker_wav_input, list):
+            valid_paths = []
+            for p_str in speaker_wav_input:
+                p = Path(p_str)
+                if p.is_file():
+                    valid_paths.append(str(p)) # Keep as string for TTS lib
+                else:
+                    logger.error(f"Speaker reference file not found in list: {p_str}")
+            if not valid_paths:
+                 logger.error("No valid speaker reference files found in the provided list.")
+                 return False
+            speaker_paths_str = valid_paths
+            speaker_display = f"{len(valid_paths)} files: {[Path(p).name for p in valid_paths]}"
+        elif isinstance(speaker_wav_input, str):
+            p = Path(speaker_wav_input)
+            if not p.is_file():
+                logger.error(f"Speaker reference file not found: {speaker_wav_input}")
+                raise FileNotFoundError(f"Speaker reference file not found: {speaker_wav_input}")
+            speaker_paths_str = str(p)
+            speaker_display = p.name
+        else:
+            logger.error(f"Invalid type for speaker_wav: {type(speaker_wav_input)}. Expected str or list.")
+            return False
+
 
         logger.info(f"Synthesizing audio to: {output_path.name} using XTTSv2")
-        logger.info(f"Params: Lang={language}, Speed={speed}, Speaker={Path(speaker_wav).name}")
+        logger.info(f"Params: Lang={language}, Speed={speed}, Speaker(s)={speaker_display}")
         logger.debug(f"Full Text Length: {len(text)} chars")
 
         if self.model is None:
@@ -174,9 +200,10 @@ class XTTSv2Engine(BaseTTSEngine):
 
         try:
             start_time = time.time()
+            # Pass the validated speaker_paths_str (str or list[str]) directly
             self.model.tts_to_file(
                 text=text,
-                speaker_wav=str(speaker_wav),
+                speaker_wav=speaker_paths_str,
                 language=language,
                 file_path=str(output_path),
                 speed=speed,

@@ -278,34 +278,31 @@ def synthesize(
                 sys.exit(1)
         elif voice_profile:
             profile_path = get_voice_profile(voice_profile)
-            if not profile_path:
-                sys.exit(1)  # get_voice_profile logs errors
-            actual_speaker_wav = profile_path
-            speaker_display_name = f"Profile: {voice_profile}"
-            # Log details about the profile samples
-            profile_config = get_voice_profile_config(voice_profile)
-            if profile_config and profile_config.get("youtube_ids"):
-                num_samples = len(profile_config["youtube_ids"])
-                logger.info(
-                    f"Using voice profile '{voice_profile}' ({actual_speaker_wav.name}). "
-                    f"Profile defines {num_samples} sample(s). Using the first sample: "
-                    f"YouTube ID '{profile_config['youtube_ids'][0]}'."
-                )
-            else:
-                 # Fallback log if config details aren't available for some reason
-                 logger.info(f"Using voice profile '{voice_profile}' ({actual_speaker_wav.name})")
-        else:
-            # speaker_wav must be set if voice_profile is not (validated above)
-            actual_speaker_wav = speaker_wav  # type: ignore [assignment] - Click ensures it exists
-            speaker_display_name = (
-                f"File: {actual_speaker_wav.name if actual_speaker_wav else 'N/A'}"  # Check added for type safety
+            profile_paths = get_voice_profile(voice_profile) # Now returns a list
+            if not profile_paths:
+                logger.error(f"Failed to retrieve any valid voice samples for profile '{voice_profile}'.")
+                sys.exit(1)
+            # Use the list of paths
+            actual_speaker_wavs = profile_paths # Keep the list
+            speaker_display_name = f"Profile: {voice_profile} ({len(actual_speaker_wavs)} samples)"
+            logger.info(
+                f"Using voice profile '{voice_profile}' with {len(actual_speaker_wavs)} samples: "
+                f"{[p.name for p in actual_speaker_wavs]}"
             )
-            logger.info(f"Using speaker WAV file: {actual_speaker_wav.name}")
+            # Pass the list of paths (as strings) to engine_params
+            engine_params["speaker_wav"] = [str(p) for p in actual_speaker_wavs]
+        else:
+            # Single speaker_wav file provided
+            actual_speaker_wav = speaker_wav # type: ignore [assignment] - Click ensures it exists
+            speaker_display_name = f"File: {actual_speaker_wav.name}"
+            logger.info(f"Using single speaker WAV file: {actual_speaker_wav.name}")
+            engine_params["speaker_wav"] = str(actual_speaker_wav) # Pass single path string
 
-        # Common setup for XTTS once actual_speaker_wav is determined
-        engine_params["speaker_wav"] = str(actual_speaker_wav)
+        # Common setup for XTTS speed parameter
         engine_params["speed"] = speed
+
     elif selected_engine_type == EngineChoice.BARK:
+        # Bark specific setup
         engine_params["speaker_prompt"] = speaker_prompt
         speaker_display_name = f"Prompt: {speaker_prompt}" if speaker_prompt else "Generic/Default"
         logger.info(f"Using Bark engine. Speaker selection: {speaker_display_name}")

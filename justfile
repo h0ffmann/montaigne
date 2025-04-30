@@ -62,7 +62,7 @@ check: format lint
     @echo "✅ Lint and format checks passed."
 
 fix:
-    ruff check packages/ --fix
+    ruff check packages/ --fix --unsafe-fixes
 
 # === Analysis (Run inside Nix Shell) ===
 # Assuming aider-analytics is installed in the venv and runnable via `python`

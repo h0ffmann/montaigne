@@ -349,6 +349,8 @@ def synthesize(
     # --- Synthesis Loop ---
     chunk_output_files: list[Path] = []
     synthesis_failed = False
+    # Ensure output_file is a Path object before accessing attributes
+    output_file = Path(output_file)
     output_dir = output_file.parent
     output_base_name = output_file.stem
     output_suffix = output_file.suffix if output_file.suffix else ".wav"  # Ensure suffix

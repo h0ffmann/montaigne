@@ -290,7 +290,8 @@ class VoiceProfileManager:
                 if downloaded_path.name == expected_download_name and downloaded_path != raw_path:
                      # Rename only if names differ but ID matches
                     try:
-                        if raw_path.exists(): raw_path.unlink(missing_ok=True) # Avoid error if exists
+                        if raw_path.exists():
+                            raw_path.unlink(missing_ok=True) # Avoid error if exists
                         shutil.move(str(downloaded_path), str(raw_path)) # Use shutil.move for robustness
                         logger.info(f"Downloaded and moved to {raw_path.name}")
                     except Exception as e:
@@ -391,7 +392,8 @@ class VoiceProfileManager:
 
 
     async def _download_youtube_async(self, youtube_id: str, output_dir: Path, force_download: bool) -> Optional[Path]:
-        """Download audio from YouTube asynchronously."""
+        """
+        Download audio from YouTube asynchronously.
 
         This uses the existing download_audio_from_youtube function but wraps it
         to be callable asynchronously.
@@ -540,7 +542,12 @@ class VoiceProfileManager:
 
 
     def _isolate_main_voice(self, input_path: Path, output_path: Path) -> bool:
-        """Isolate the main voice using Spleeter. Returns True on success."""
+        """
+        Isolate the main voice using Spleeter.
+
+        Returns:
+            True on success, False otherwise.
+        """
         if not SPLEETER_AVAILABLE or Separator is None:
             logger.warning("Spleeter not available. Skipping voice isolation.")
             return False
@@ -594,14 +601,17 @@ def get_voice_profile(
     profile_name: str,
     skip_preprocessing: bool = False, # Add flag
     skip_isolation: bool = False,     # Add flag
-    download_dir: Optional[str] = None # Keep deprecated arg for now
+    download_dir: Optional[str] = None, # Keep deprecated arg for now
 ) -> List[Path]:
-    """Get paths to voice profile WAV files, downloading and optionally processing.
+    """
+    Get paths to voice profile WAV files, downloading and optionally processing.
 
     This is a synchronous wrapper around the async version.
 
     Args:
-        profile_name: The profile ID to retrieve
+        profile_name: The profile ID to retrieve.
+        skip_preprocessing: If True, skips all preprocessing steps.
+        skip_isolation: If True, skips the voice isolation step.
         download_dir: Deprecated, use profiles.toml config instead. If provided,
                       it temporarily overrides the config for this call.
 
@@ -649,13 +659,14 @@ def get_voice_profile(
             loop.close()
 
 
-def list_voice_profiles() -> list[str]:
+def list_voice_profiles() -> List[str]:
     """Return list of available voice profile names."""
     return voice_profile_manager.get_profile_ids()
 
 
 def get_voice_profile_config(profile_name: str) -> Optional[Dict[str, Any]]:
-    """Get configuration for a voice profile.
+    """
+    Get configuration for a voice profile.
 
     Args:
         profile_name: The profile ID to retrieve

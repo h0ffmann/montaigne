@@ -111,68 +111,14 @@ class BaseTTSEngine(abc.ABC):
 
 
 # --- XTTS Engine Implementation ---
+# --- XTTS Engine Implementation ---
 class XTTSv2Engine(BaseTTSEngine):
     """TTS Engine using Coqui XTTSv2."""
 
     def __init__(self, use_cuda: bool = True):
         """Initialize the TTS engine."""
-        self.use_cuda = use_cuda # Store cuda preference
-        self.device = self._check_device(use_cuda)
+        super().__init__(use_cuda=use_cuda) # Call base class init
         self.model = self._load_model()
-
-    def _check_device(self, use_cuda_flag: bool) -> str:
-        """Checks CUDA availability and returns the appropriate device."""
-        # Default to CPU
-        is_available = False
-        selected_device = "cpu"
-
-        if use_cuda_flag:
-            logger.info("Checking CUDA availability...")
-            try:
-                is_available = torch.cuda.is_available()
-                if is_available:
-                    # Try to get device count as a further check
-                    count = torch.cuda.device_count()
-                    logger.info(f"CUDA is available. Detected {count} CUDA device(s).")
-                    selected_device = "cuda"
-                else:
-                    logger.info("CUDA is not available according to PyTorch.")
-            except Exception as e:
-                logger.warning(f"Error checking CUDA availability: {e}. Falling back to CPU.")
-                is_available = False
-        else:
-            logger.info("CPU mode requested via flag, not checking CUDA.")
-
-        logger.info(f"Selected device: {selected_device}")
-        if selected_device == "cpu":
-             logger.warning(f"{self.__class__.__name__} will run on CPU. Inference may be slow.")
-        return selected_device
-
-    @abc.abstractmethod
-    def _load_model(self):
-        """Loads the specific TTS model."""
-        pass
-
-    @abc.abstractmethod
-    def synthesize(self, text: str, language: str, output_path: Path, **kwargs) -> bool:
-        """
-        Synthesizes speech from text and saves it to output_path.
-
-        Args:
-            text: The text to synthesize.
-            language: Language code (engine-specific handling).
-            output_path: Path to save the output audio file.
-            **kwargs: Engine-specific parameters (e.g., speaker_wav, speed).
-
-        Returns:
-            True if synthesis was successful, False otherwise.
-        """
-        pass
-
-
-# --- XTTS Engine Implementation ---
-class XTTSv2Engine(BaseTTSEngine):
-    """TTS Engine using Coqui XTTSv2."""
 
     def _load_model(self):
         """Load XTTS model."""

@@ -37,9 +37,8 @@ try:
 
     # from .evaluation import AudioEvaluator # Keep evaluation for batch mode TODO
     from .voice_profiles import (  # Keep profile import
-        get_engine_params as get_profile_engine_params, # Renamed import
         get_voice_profile,
-        get_voice_profile_config, # Import config getter
+        # get_voice_profile_config, # Not used in main.py
         list_voice_profiles,
     )
 except ImportError as e:

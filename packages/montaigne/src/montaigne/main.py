@@ -350,6 +350,10 @@ def synthesize(
     chunk_output_files: list[Path] = []
     synthesis_failed = False
     # Ensure output_file is a Path object before accessing attributes
+    # Explicitly decode if it's bytes, then convert to Path
+    if isinstance(output_file, bytes):
+        logger.debug("Decoding output_file from bytes to string (UTF-8 assumed).")
+        output_file = output_file.decode('utf-8')
     output_file = Path(output_file)
     output_dir = output_file.parent
     output_base_name = output_file.stem

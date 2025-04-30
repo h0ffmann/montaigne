@@ -202,12 +202,21 @@
 
             # --- venv setup ---
             VENV_DIR=".venv"
+            # Ensure Nix Python path is captured
+            if ! PYTHON_BIN_NIX=$(command -v python); then
+                echo "❌ Fatal: Could not determine Nix Python path using 'command -v python'."
+                exit 1
+            fi
+            PYTHON_BIN_DIR_NIX="${PYTHON_BIN_NIX%/*}" # Get directory
+
             # Check if venv exists and is based on the correct Nix Python
+            # Use printf for safer pattern generation and handle potential spaces in paths
+            EXPECTED_HOME_LINE=$(printf 'home = %s' "$PYTHON_BIN_DIR_NIX")
             if [ -d "$VENV_DIR" ] && [ -f "$VENV_DIR/pyvenv.cfg" ] && \
-               grep -q "home = ${PYTHON_BIN_NIX%/*}" "$VENV_DIR/pyvenv.cfg"; then
+               grep -q -F -x "$EXPECTED_HOME_LINE" "$VENV_DIR/pyvenv.cfg"; then
                 echo "🐍 Re-using existing virtual environment '$VENV_DIR'."
             else
-                echo "🐍 Creating new virtual environment '$VENV_DIR' based on Nix Python..."
+                echo "🐍 Creating new virtual environment '$VENV_DIR' based on Nix Python ($PYTHON_BIN_NIX)..."
                 rm -rf "$VENV_DIR" # Remove old venv if incompatible
                 # Create venv using the Python from Nix env
                 $PYTHON_BIN_NIX -m venv "$VENV_DIR" || { echo "❌ Failed to create venv."; exit 1; }

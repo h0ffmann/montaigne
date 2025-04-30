@@ -14,59 +14,30 @@
   outputs = { self, nixpkgs, flake-utils, ... }:
     flake-utils.lib.eachDefaultSystem (system:
       let
-        # --- Function to get uv 0.7.0 binary URL and hash per system ---
-        getUvBinaryInfo = sys:
-          if sys == "x86_64-linux" then {
-            url = "https://github.com/astral-sh/uv/releases/download/0.7.0/uv-x86_64-unknown-linux-gnu.tar.gz";
-            hash = "sha256-yh6Blmcr8EzLkmUZ8gcSCKjWwM4C+2W8fQqFvhtoSw8="; # Hash for x86_64 binary v0.7.0
-            target = "x86_64-unknown-linux-gnu";
-          } else if sys == "aarch64-linux" then {
-            url = "https://github.com/astral-sh/uv/releases/download/0.7.0/uv-aarch64-unknown-linux-gnu.tar.gz";
-            hash = "sha256-5yB0pXvB7sQkR6W2nZk1vYnF+H7c9Z3c9GvV1P3jL/U="; # Hash for aarch64 binary v0.7.0
-            target = "aarch64-unknown-linux-gnu";
-            # Add other systems like macos if needed, e.g.:
-            # } else if sys == "x86_64-darwin" then { ... }
-            # } else if sys == "aarch64-darwin" then { ... }
-          } else throw "Unsupported system for pre-built uv binary: ${sys}";
-
-        uvInfo = getUvBinaryInfo system;
-
-        # --- Define the overlay using mkDerivation to install the binary ---
+        # --- Define the overlay to override uv source to 0.7.0 ---
         uv-overlay = final: prev: {
-          uv = final.stdenv.mkDerivation {
-            pname = "uv-bin";
-            version = "0.7.0";
-            src = final.fetchurl {
-              inherit (uvInfo) url hash;
+          uv = prev.uv.overrideAttrs (oldAttrs: {
+            version = "0.7.0"; # <-- Ensure version is 0.7.0
+            src = final.fetchFromGitHub {
+              owner = "astral-sh";
+              repo = "uv";
+              rev = "0.7.0";   # <-- Use the tag/release name 0.7.0
+              # Use the actual source tarball hash for tag 0.7.0
+              hash = "sha256-d9h1m/Hwz99k+Jp8c8HhQc8Wp9L8t7HwZ0s5g6H7s9s="; # <-- Source hash
             };
-
-            dontConfigure = true;
-            dontBuild = true;
-            dontCheck = true;
-
-            unpackPhase = ''
-              tar -xzf $src
-              # Source root will be like uv-x86_64-unknown-linux-gnu
-              sourceRoot=$(ls -d uv-*)
-            '';
-
-            installPhase = ''
-              install -Dm755 uv $out/bin/uv
-            '';
-
-            meta = with final.lib; {
-              description = "uv binary ${version}";
-              homepage = "https://github.com/astral-sh/uv";
-              license = licenses.mit; # Assuming MIT license for uv
-              platforms = [ "x86_64-linux" "aarch64-linux" ]; # Add other supported platforms here
-            };
-          };
+            # Optional: If the build fails, you might need cargoDeps or buildInputs overrides here
+            # cargoDeps = prev.rustPlatform.fetchCargoTarball {
+            #   inherit (oldAttrs) src;
+            #   # You might need the Cargo.lock hash for 0.7.0 if the default fetch doesn't work
+            #   hash = "<HASH_FOR_0.7.0_Cargo.lock>";
+            # };
+          });
         };
 
         # --- Apply the overlay ---
         pkgs = import nixpkgs {
           inherit system;
-          overlays = [ uv-overlay ]; # Apply the uv overlay
+          overlays = [ uv-overlay ]; # Apply the source overlay
           config = {
             allowUnfree = true; # Required for NVIDIA CUDA components
             cudaSupport = true; # Enable CUDA support globally for pkgs
@@ -226,103 +197,47 @@
 
           # --- Shell Hook ---
           shellHook = ''
-            unset SOURCE_DATE_EPOCH
             echo "👋 Entering Montaigne Dev Env (Nix managing Python core + PyTorch/CUDA)..."
+            PYTHON_BIN_NIX=$(command -v python) # Get nix python path
 
-            # --- Venv Setup ---
-            # Use the python provided in `packages` which should be the correct one
-            _NIX_PYTHON_INTERPRETER=$(command -v python)
-            if ! command -v "$_NIX_PYTHON_INTERPRETER" &> /dev/null; then echo "❌ Fatal: Nix Python interpreter not found in PATH." && return 1; fi
-            echo "🐍 Using Nix Python for venv base: $_NIX_PYTHON_INTERPRETER ($($_NIX_PYTHON_INTERPRETER --version))"
-            _PROJECT_DIR="$(pwd)"; VENV_DIR="$_PROJECT_DIR/.venv"; export VIRTUAL_ENV="$VENV_DIR"; export PATH="$VENV_DIR/bin:$PATH"
-
-            echo "   Resolved VIRTUAL_ENV='$VIRTUAL_ENV'"; echo "   Prepended venv bin to PATH."
-            if [ ! -f "$VENV_DIR/bin/activate" ]; then
-              echo "🐍 Creating Python virtual environment using uv in '$VENV_DIR'..."
-              if ! uv venv "$VENV_DIR" --python "$_NIX_PYTHON_INTERPRETER"; then echo "❌ Fatal: Failed to create uv virtual environment." && return 1; fi
-              echo "✅ Virtual environment created."
-            else echo "🐍 Re-using existing virtual environment '$VENV_DIR'."; fi
-
-            # --- Venv Activation ---
-            if [ -f "$VENV_DIR/bin/activate" ]; then
-               echo "🐍 Activating Python virtual environment..."; source "$VENV_DIR/bin/activate"; echo "   VIRTUAL_ENV is: $VIRTUAL_ENV"
-               _VENV_PYTHON_PATH=$(command -v python); echo "   Python interpreter path (venv): $_VENV_PYTHON_PATH"; echo "   Python version (venv): $(python --version)"
-               if ! [[ "$_VENV_PYTHON_PATH" == "$VENV_DIR/bin/python" ]]; then echo "⚠️ Warning: 'command -v python' found '$_VENV_PYTHON_PATH' not expected '$VENV_DIR/bin/python'."; fi
-            else echo "❌ Fatal: Failed to find activate script in '$VENV_DIR/bin/activate'." && return 1; fi
-
-            # --- uv Workspace Installation ---
-            if command -v uv &> /dev/null; then
-               echo "📦 Installing/Verifying workspace packages via uv..."
-               # Install all workspace members defined in the root pyproject.toml
-               # Explicitly use -e . to ensure editable installs for workspace members
-               # This helps Python find the modules correctly via the generated entry points.
-               if ! uv pip install --no-cache-dir -e .; then
-                 echo "❌ Fatal: Failed to install workspace packages with uv into venv '$VENV_DIR'." && return 1
-               fi
-
-               # Add PortAudio library path to LD_LIBRARY_PATH for sounddevice (still needed at runtime)
-               echo "🔊 Adding PortAudio to LD_LIBRARY_PATH for audio playback..."
-               export LD_LIBRARY_PATH="${pkgs.portaudio}/lib''${LD_LIBRARY_PATH:+:''$LD_LIBRARY_PATH}"
-               echo "   Current LD_LIBRARY_PATH includes:"
-               echo "   - ${pkgs.portaudio}/lib"
-               echo "   This enables runtime loading of libportaudio.so.2 by sounddevice"
-
-               echo "✅ uv workspace installation complete."
+            # --- venv setup ---
+            VENV_DIR=".venv"
+            # Check if venv exists and is based on the correct Nix Python
+            if [ -d "$VENV_DIR" ] && [ -f "$VENV_DIR/pyvenv.cfg" ] && \
+               grep -q "home = ${PYTHON_BIN_NIX%/*}" "$VENV_DIR/pyvenv.cfg"; then
+                echo "🐍 Re-using existing virtual environment '$VENV_DIR'."
             else
-               echo "❌ Fatal: uv command not found. Cannot install workspace packages." && return 1
+                echo "🐍 Creating new virtual environment '$VENV_DIR' based on Nix Python..."
+                rm -rf "$VENV_DIR" # Remove old venv if incompatible
+                # Create venv using the Python from Nix env
+                $PYTHON_BIN_NIX -m venv "$VENV_DIR" || { echo "❌ Failed to create venv."; exit 1; }
+                echo "🐍 Virtual environment created."
+                # Activate temporarily just to run the sync/install
+                source "$VENV_DIR/bin/activate"
+                echo "📦 Initial sync/install of workspace packages into new venv via uv..."
+                # Use the 'uv' from Nix path (which is the correct one)
+                uv pip sync uv.lock && \
+                uv pip install -e ./packages/montaigne -e ./packages/aider_analytics --no-deps || \
+                  { echo "❌ Fatal: Failed initial workspace package install into venv '$VENV_DIR'."; deactivate; exit 1; }
+                deactivate
+                echo "✅ Initial package installation complete."
             fi
-            # --- Sanity Checks ---
-            echo "" && echo "=== Sanity Checks ==="
-            # --- PyTorch/Torchaudio Check ---
-            echo "🔍 Checking PyTorch & Torchaudio (managed by Nix, accessed via venv Python)..."
-            python -c "import torch; print(f'---> Torch Version: {torch.__version__}'); print(f'---> CUDA Available: {torch.cuda.is_available()}'); print(f'---> Device Count: {torch.cuda.device_count()}')"
 
-            # --- Docker Check ---
-            echo "🐳 Checking Docker status..."
-            if command -v docker &> /dev/null; then
-              if timeout 5 docker info >/dev/null 2>&1; then
-                 echo "✅ Docker daemon is running and accessible."
-                 if timeout 5 docker info 2>/dev/null | grep -qE 'Runtimes:.* nvidia( |$)'; then echo "✅ NVIDIA Docker runtime detected in docker info."
-                 elif command -v nvidia-container-runtime &>/dev/null || command -v nvidia-container-runtime-hook &>/dev/null ; then echo "ℹ️ NVIDIA container runtime binary found, but not listed in 'docker info Runtimes'."
-                 else echo "⚠️ NVIDIA Docker runtime not detected."; fi
-              else echo "⚠️ Docker daemon not running, not responsive within 5s, or permission error."; fi
-            else echo "❌ Docker command not found \(is 'docker' included in 'packages'?\)."; fi
+            # --- Activation ---
+            # Standard venv activation for the shell session
+            if [ -f "$VENV_DIR/bin/activate" ]; then
+                source "$VENV_DIR/bin/activate"
+                echo "🐍 Python virtual environment activated."
+                echo "   VIRTUAL_ENV is: $VIRTUAL_ENV"
+                echo "   Python interpreter path (venv): $(command -v python)"
+                echo "   Python version (venv): $(python --version)"
+            else
+                echo "⚠️ Failed to activate venv '$VENV_DIR'."
+            fi
 
-            # --- Host NVIDIA Driver Check ---
-            echo "💻 Checking Host NVIDIA driver via nvidia-smi wrapper..."
-            if command -v nvidia-smi &> /dev/null; then
-              nvidia_smi_output=""; nvidia_smi_status=1
-              if nvidia_smi_output=$(timeout 5 nvidia-smi --query-gpu=driver_version --format=csv,noheader 2>&1); nvidia_smi_status=$?; then
-                 if [ $nvidia_smi_status -eq 0 ] && [ -n "$nvidia_smi_output" ]; then echo "✅ nvidia-smi query successful. Host Driver Version: $nvidia_smi_output"
-                 else
-                   echo "   ℹ️ nvidia-smi query failed (Status: $nvidia_smi_status)/empty. Trying generic 'nvidia-smi'..."
-                   if nvidia_smi_output=$(timeout 5 nvidia-smi 2>&1); nvidia_smi_status=$?; then
-                      if [ $nvidia_smi_status -eq 0 ] && echo "$nvidia_smi_output" | grep -q "Driver Version:"; then echo "✅ nvidia-smi generic command successful. Host drivers okay."; echo "$nvidia_smi_output" | grep "Driver Version:" | sed 's/ *|//'
-                      else echo "⚠️ nvidia-smi generic command issue (Status: $nvidia_smi_status). Output:"; echo "--- START ---"; echo "$nvidia_smi_output"; echo "--- END ---"; fi
-                   else echo "⚠️ nvidia-smi generic command failed/timed out (Status: $nvidia_smi_status). Output:"; echo "--- START ---"; echo "$nvidia_smi_output"; echo "--- END ---"; fi
-                 fi
-              else echo "⚠️ Error running/capturing nvidia-smi status."; fi
-            else echo "❌ nvidia-smi command (wrapper) not found in PATH."; fi
-
-            # --- Final Message ---
-            echo "================================"; echo ""
-            echo "✅ Montaigne environment ready!"
-            # Use the nixpkgsRev variable defined in the Nix 'let' block
-            # This uses Nix interpolation.
-            echo "   Nix manages: Python ${python.version}, PyTorch+CUDA, Torchaudio, Core libs (from Nixpkgs commit ${nixpkgsRev})"
-            echo "   uv manages other Python packages in: $VENV_DIR" # Use shell variable $VENV_DIR
-            echo ""
-            echo "📌 Quick Start:"
-            echo "   just --list          # Show available commands"
-            echo "   just run -- --help   # Run the Montaigne CLI"
-            echo "   python --version     # Verify venv Python ($(python --version))"
-            echo "   which python         # Verify venv Python path ($(command -v python))"
-            echo "   uv pip list          # List venv packages"
-            echo ""
-            # --- Final LD_LIBRARY_PATH Check ---
-            echo "🔧 Final LD_LIBRARY_PATH value:"
-            echo "   $LD_LIBRARY_PATH"
-            echo "================================"; echo ""
+            export PYTHONDONTWRITEBYTECODE=1
+            export PYTHONUNBUFFERED=1
+            # Add any other exports you need
           ''; # End of shellHook definition
         }; # End of mkShell definition
 

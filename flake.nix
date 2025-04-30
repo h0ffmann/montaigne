@@ -16,26 +16,34 @@
       let
         # --- Define the overlay to override uv source to 0.7.0 ---
         uv-overlay = final: prev: {
-          uv = prev.uv.overrideAttrs (oldAttrs: {
-            version = "0.7.0"; # <-- Ensure version is 0.7.0
-            src = final.fetchFromGitHub {
-              owner = "astral-sh";
-              repo = "uv";
-              rev = "0.7.0"; # <-- Use the tag/release name 0.7.0
-              # Verify this source hash corresponds to the 0.7.0 tag/release
-              hash = "sha256-D/3YqhIjXhvH7hn/dmJ2Xmf1riGjVc9jqbqVJSD5EyA="; # <-- Double-check this Source hash
-            };
-            # Use fetchCargoVendor and the sha256 attribute
-            cargoDeps = prev.rustPlatform.fetchCargoVendor {
-              # Inherit the 'src' defined just above in this scope
-              inherit src;
-              # !! IMPORTANT STEP REMAINS !!
-              # 1. Set this to empty string: sha256 = "";
-              # 2. Run `nix develop` or `just nix_shell`. Note the failure and the 'got: sha256-...' hash.
-              # 3. Paste the correct hash here. (Replace the placeholder below)
-              sha256 = "sha256-XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX="; # <-- Replace this
-            };
-          });
+          uv = prev.uv.overrideAttrs (oldAttrs:
+            let
+              # Define the source in a 'let' binding for clear scope
+              drv_src = final.fetchFromGitHub {
+                owner = "astral-sh";
+                repo = "uv";
+                rev = "0.7.0"; # <-- Use the tag/release name 0.7.0
+                # Verify this source hash corresponds to the 0.7.0 tag/release
+                hash = "sha256-D/3YqhIjXhvH7hn/dmJ2Xmf1riGjVc9jqbqVJSD5EyA="; # <-- Double-check this Source hash
+              };
+            in
+            { # Start the attribute set returned by overrideAttrs
+              version = "0.7.0"; # <-- Ensure version is 0.7.0
+              # Use the let-bound variable for the derivation's source
+              src = drv_src;
+
+              # Use fetchCargoVendor and the sha256 attribute
+              cargoDeps = prev.rustPlatform.fetchCargoVendor {
+                # Explicitly pass the let-bound variable here
+                src = drv_src;
+                # !! IMPORTANT STEP REMAINS !!
+                # 1. Set this to empty string: sha256 = "";
+                # 2. Run `nix develop` or `just nix_shell`. Note the failure and the 'got: sha256-...' hash.
+                # 3. Paste the correct hash here. (Replace the placeholder below)
+                sha256 = "sha256-XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX="; # <-- Replace this
+              };
+            } # End the attribute set returned by overrideAttrs
+          ); # End overrideAttrs call
         };
 
         # --- Apply the overlay ---

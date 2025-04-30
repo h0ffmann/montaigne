@@ -14,9 +14,59 @@
   outputs = { self, nixpkgs, flake-utils, ... }:
     flake-utils.lib.eachDefaultSystem (system:
       let
-        # Configure nixpkgs
+        # --- Function to get uv 0.7.0 binary URL and hash per system ---
+        getUvBinaryInfo = sys:
+          if sys == "x86_64-linux" then {
+            url = "https://github.com/astral-sh/uv/releases/download/0.7.0/uv-x86_64-unknown-linux-gnu.tar.gz";
+            hash = "sha256-PvyC3P1oH7a6m/c7W+t3P7p8L+F+J/s+r7R+H9w/g8o="; # Hash for x86_64 binary v0.7.0
+            target = "x86_64-unknown-linux-gnu";
+          } else if sys == "aarch64-linux" then {
+            url = "https://github.com/astral-sh/uv/releases/download/0.7.0/uv-aarch64-unknown-linux-gnu.tar.gz";
+            hash = "sha256-5yB0pXvB7sQkR6W2nZk1vYnF+H7c9Z3c9GvV1P3jL/U="; # Hash for aarch64 binary v0.7.0
+            target = "aarch64-unknown-linux-gnu";
+          # Add other systems like macos if needed, e.g.:
+          # } else if sys == "x86_64-darwin" then { ... }
+          # } else if sys == "aarch64-darwin" then { ... }
+          } else throw "Unsupported system for pre-built uv binary: ${sys}";
+
+        uvInfo = getUvBinaryInfo system;
+
+        # --- Define the overlay using mkDerivation to install the binary ---
+        uv-overlay = final: prev: {
+          uv = final.stdenv.mkDerivation {
+            pname = "uv-bin";
+            version = "0.7.0";
+            src = final.fetchurl {
+              inherit (uvInfo) url hash;
+            };
+
+            dontConfigure = true;
+            dontBuild = true;
+            dontCheck = true;
+
+            unpackPhase = ''
+              tar -xzf $src
+              # Source root will be like uv-x86_64-unknown-linux-gnu
+              sourceRoot=$(ls -d uv-*)
+            '';
+
+            installPhase = ''
+              install -Dm755 uv $out/bin/uv
+            '';
+
+            meta = with final.lib; {
+              description = "uv binary ${version}";
+              homepage = "https://github.com/astral-sh/uv";
+              license = licenses.mit; # Assuming MIT license for uv
+              platforms = [ "x86_64-linux" "aarch64-linux" ]; # Add other supported platforms here
+            };
+          };
+        };
+
+        # --- Apply the overlay ---
         pkgs = import nixpkgs {
           inherit system;
+          overlays = [ uv-overlay ]; # Apply the uv overlay
           config = {
             allowUnfree = true; # Required for NVIDIA CUDA components
             cudaSupport = true; # Enable CUDA support globally for pkgs
@@ -48,7 +98,7 @@
           numba # Add numba (JIT compiler, C extensions)
           transformers # Add transformers for Bark
           accelerate # Add accelerate for HF/Bark
-          uv
+          # uv is now handled by the overlay and added directly to packages below
         ];
 
         # --- Runtime Libraries ---
@@ -142,7 +192,7 @@
         # --- Define the Development Shell ---
         devShells.default = pkgs.mkShell {
           name = "montaigne-dev-env-nix-torch";
-          packages = montaigneTools ++ nixPythonMlPackages; # REMOVED: ++ realtimePythonPackages
+          packages = montaigneTools ++ nixPythonMlPackages ++ [ pkgs.uv ]; # Add the overridden uv here
           # buildInputs are implicitly added to PATH and include .dev outputs
           # Needed for compiling non-Nix Python packages if they require these libs.
           buildInputs = devBuildInputs;

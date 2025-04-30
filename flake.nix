@@ -207,7 +207,8 @@
                 echo "❌ Fatal: Could not determine Nix Python path using 'command -v python'."
                 exit 1
             fi
-            PYTHON_BIN_DIR_NIX="${PYTHON_BIN_NIX%/*}" # Get directory
+            # Use dirname for robustness instead of shell expansion
+            PYTHON_BIN_DIR_NIX=$(dirname "$PYTHON_BIN_NIX")
 
             # Check if venv exists and is based on the correct Nix Python
             # Use printf for safer pattern generation and handle potential spaces in paths

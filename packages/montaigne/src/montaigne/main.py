@@ -262,6 +262,8 @@ def synthesize(
                 actual_speaker_wav = downloaded_path
                 speaker_display_name = f"YouTube: {speaker_youtube_id} ({actual_speaker_wav.name})"
                 logger.info(f"Using speaker audio from YouTube ID '{speaker_youtube_id}' -> {actual_speaker_wav.name}")
+                # Add the downloaded path to engine_params
+                engine_params["speaker_wav"] = str(actual_speaker_wav)
             else:
                 # Error message already logged by download_audio_from_youtube
                 click.echo(

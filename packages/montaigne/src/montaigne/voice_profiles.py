@@ -427,104 +427,179 @@ class VoiceProfileManager:
             output_path: Path to output audio file
             config: Dictionary of preprocessing options
         """
-        if not LIBROSA_AVAILABLE:
-            # This check is redundant if called from get_voice_path_async, but safe to keep
-            logger.warning("Librosa/Soundfile/Noisereduce not available, cannot preprocess.")
-            raise RuntimeError("Audio preprocessing libraries not available.")
+        if not LIBROSA_AVAILABLE or not scipy: # Check scipy too
+            logger.warning("Librosa/Soundfile/Noisereduce/Scipy not available. Skipping preprocessing.")
+            return False
 
-        # Load audio
         try:
-            y, sr = librosa.load(str(input_path), sr=None) # Use str() for older librosa versions
-            logger.info(f"Loaded audio {input_path.name} with sr={sr}, duration={len(y)/sr:.2f}s")
-        except Exception as e:
-            logger.error(f"Failed to load audio file {input_path}: {e}")
-            raise
+            # Load audio
+            logger.debug(f"Loading audio for preprocessing: {input_path}")
+            y, sr = librosa.load(str(input_path), sr=None) # Use original sample rate
+            output_path.parent.mkdir(parents=True, exist_ok=True) # Ensure output dir
 
-        y_processed = y.copy() # Work on a copy
+            y_processed = y.copy() # Work on a copy
+            original_duration = librosa.get_duration(y=y, sr=sr)
+            logger.debug(f"Original audio duration: {original_duration:.2f}s, Sample rate: {sr}Hz")
 
-        # Apply preprocessing steps
-        noise_sample = y_processed[: int(sr * 0.5)] if len(y_processed) > sr * 0.5 else y_processed
+            # --- Preprocessing Steps ---
+            noise_sample = None # Define noise_sample before potential use
 
-        if config.get("noise_reduction", False):
-            logger.debug("Applying noise reduction...")
-            try:
-                # Use noisereduce to remove background noise
-                y_processed = nr.reduce_noise(y=y_processed, sr=sr, y_noise=noise_sample, prop_decrease=1.0, stationary=False)
-                logger.debug("Noise reduction applied.")
-            except Exception as e:
-                 logger.warning(f"Noise reduction failed: {e}. Skipping.")
+            # 1. Trim silence
+            if config.get('trim_silence', True):
+                logger.debug("Trimming silence...")
+                y_trimmed, index = librosa.effects.trim(y_processed, top_db=30)
+                if len(y_trimmed) > 0: y_processed = y_trimmed
+                else: logger.warning("Trim silence resulted in empty audio. Skipping trim.")
 
+            # 2. Noise reduction
+            if config.get('noise_reduction', True) and nr:
+                logger.debug("Applying noise reduction...")
+                noise_sample_length = min(int(sr * 0.5), int(len(y_processed) * 0.1))
+                if noise_sample_length > 0:
+                    noise_sample = y_processed[:noise_sample_length]
+                    try:
+                        y_processed = nr.reduce_noise(
+                            y=y_processed, sr=sr, y_noise=noise_sample,
+                            stationary=False, prop_decrease=0.8
+                        )
+                    except Exception as nr_err:
+                         logger.warning(f"Noisereduce failed: {nr_err}. Skipping noise reduction.")
+                else:
+                     logger.warning("Audio too short for noise sample estimation. Skipping noise reduction.")
 
-        if config.get("normalize", False):
-            logger.debug("Applying normalization...")
-            y_processed = librosa.util.normalize(y_processed)
-            logger.debug("Normalization applied.")
+            # 3. Normalization (Initial)
+            if config.get('normalize', True):
+                logger.debug("Applying initial normalization...")
+                y_processed = librosa.util.normalize(y_processed)
 
-        if config.get("trim_silence", False):
-            logger.debug("Applying silence trimming...")
-            y_trimmed, index = librosa.effects.trim(y_processed, top_db=30)
-            if len(y_trimmed) > 0:
-                 y_processed = y_trimmed
-                 logger.debug(f"Silence trimmed. Original len: {len(y)}, Trimmed len: {len(y_processed)}")
+            # 4. High-pass filter
+            if config.get('highpass_filter', True):
+                logger.debug("Applying high-pass filter (80Hz)...")
+                try:
+                    b, a = scipy.signal.butter(5, 80/(sr/2), 'highpass')
+                    y_processed = scipy.signal.filtfilt(b, a, y_processed)
+                except Exception as hp_err:
+                     logger.warning(f"High-pass filter failed: {hp_err}. Skipping.")
+
+            # 5. Low-pass filter
+            if config.get('lowpass_filter', True):
+                logger.debug("Applying low-pass filter (12kHz)...")
+                try:
+                    b, a = scipy.signal.butter(5, 12000/(sr/2), 'lowpass')
+                    y_processed = scipy.signal.filtfilt(b, a, y_processed)
+                except Exception as lp_err:
+                     logger.warning(f"Low-pass filter failed: {lp_err}. Skipping.")
+
+            # 6. Vocal enhancement
+            if config.get('enhance_vocals', True):
+                logger.debug("Enhancing vocal frequencies (2-4kHz)...")
+                try:
+                    D = librosa.stft(y_processed)
+                    freqs = librosa.fft_frequencies(sr=sr)
+                    vocal_range = (freqs >= 2000) & (freqs <= 4000)
+                    D[vocal_range, :] *= 1.5 # Apply boost (adjust factor as needed)
+                    y_processed = librosa.istft(D, length=len(y_processed))
+                except Exception as ve_err:
+                     logger.warning(f"Vocal enhancement failed: {ve_err}. Skipping.")
+
+            # 7. Compression
+            if config.get('compression', True):
+                logger.debug("Applying simple compression...")
+                try:
+                    threshold = 0.5 # Example threshold (adjust based on audio levels)
+                    ratio = 4.0     # Example ratio
+                    y_abs = np.abs(y_processed)
+                    mask = y_abs > threshold
+                    if np.any(mask): # Apply only if some values exceed threshold
+                        y_processed[mask] = np.sign(y_processed[mask]) * (
+                            threshold + (y_abs[mask] - threshold) / ratio
+                        )
+                        # Normalize again after compression
+                        y_processed = librosa.util.normalize(y_processed)
+                    else:
+                         logger.debug("No values above compression threshold. Skipping compression.")
+                except Exception as comp_err:
+                     logger.warning(f"Compression failed: {comp_err}. Skipping.")
+
+            # --- Final Checks & Save ---
+            # Calculate SNR
+            snr = np.nan # Default to NaN
+            if noise_sample is not None and len(noise_sample) > 0:
+                try:
+                    signal_power = np.mean(y_processed**2)
+                    noise_power = np.mean(noise_sample**2)
+                    snr = 10 * np.log10(signal_power / noise_power) if noise_power > 1e-10 else 100.0
+                    logger.debug(f"Estimated SNR after processing: {snr:.2f} dB")
+                except Exception as snr_err:
+                    logger.warning(f"Could not calculate SNR: {snr_err}")
             else:
-                 logger.warning("Trim silence resulted in empty audio. Skipping trim.")
+                 logger.debug("Skipping SNR calculation (no valid noise sample).")
 
+            # Check minimum length
+            min_len_sec = self.config.get("min_voice_length", 6.0)
+            processed_duration = librosa.get_duration(y=y_processed, sr=sr)
+            if processed_duration < min_len_sec:
+                 logger.warning(f"Processed audio duration ({processed_duration:.2f}s) is less than minimum required ({min_len_sec}s). Skipping save for {output_path.name}.")
+                 return False # Indicate failure due to length
 
-        if config.get("emphasize_bass", False):
-            logger.debug("Applying bass emphasis...")
-            try:
-                # Boost lower frequencies for deeper voices
-                # Simple low-pass filter effect approximation
-                stft = librosa.stft(y_processed)
-                freqs = librosa.fft_frequencies(sr=sr)
-                # Define frequency range for bass boost (e.g., below 250 Hz)
-                bass_range = freqs < 250
-                # Apply boost (e.g., 1.5x magnitude)
-                stft[bass_range, :] *= 1.5
-                y_processed = librosa.istft(stft, length=len(y_processed))
-                logger.debug("Bass emphasis applied.")
-            except Exception as e:
-                logger.warning(f"Bass emphasis failed: {e}. Skipping.")
-
-
-        if config.get("equalize", False):
-             logger.debug("Applying simple equalization...")
-             try:
-                # Simple equalization example (adjust frequencies as needed)
-                stft = librosa.stft(y_processed)
-                freqs = librosa.fft_frequencies(sr=sr)
-                # Example: Reduce low rumble (< 60Hz), boost voice range (300Hz-3kHz)
-                stft[freqs < 60, :] *= 0.5
-                stft[(freqs > 300) & (freqs < 3000), :] *= 1.2
-                y_processed = librosa.istft(stft, length=len(y_processed))
-                logger.debug("Equalization applied.")
-             except Exception as e:
-                 logger.warning(f"Equalization failed: {e}. Skipping.")
-
-
-        # Calculate SNR (Signal-to-Noise Ratio) - Use original noise sample
-        try:
-            signal_power = np.mean(y_processed**2)
-            noise_power = np.mean(noise_sample**2)
-            snr = 10 * np.log10(signal_power / noise_power) if noise_power > 1e-10 else 100.0 # Avoid log(0)
-        except Exception as e:
-            logger.warning(f"Could not calculate SNR: {e}")
-            snr = np.nan # Indicate SNR calculation failed
-
-        # Check if SNR is acceptable
-        min_snr = self.config.get("min_snr", 15.0)
-        if not np.isnan(snr) and snr < min_snr:
-            logger.warning(f"Low SNR ({snr:.2f} dB) for {input_path.name} after processing, quality might be poor.")
-        elif np.isnan(snr):
-             logger.warning(f"SNR calculation failed for {input_path.name}.")
-
-        # Save processed audio
-        try:
+            # Save processed audio
+            logger.debug(f"Saving processed audio to {output_path}")
             sf.write(str(output_path), y_processed, sr)
-            logger.info(f"Preprocessed audio saved to {output_path} (SNR: {snr:.2f} dB)")
+            logger.info(f"Processed audio saved: {output_path.name} ({processed_duration:.2f}s, SNR: {snr:.2f}dB)")
+            return True
+
         except Exception as e:
-            logger.error(f"Failed to write processed audio file {output_path}: {e}")
-            raise
+            logger.error(f"Error during audio preprocessing for {input_path.name}: {e}", exc_info=True)
+            # Clean up potentially incomplete output file
+            output_path.unlink(missing_ok=True)
+            return False
+
+
+    def _isolate_main_voice(self, input_path: Path, output_path: Path) -> bool:
+        """Isolate the main voice using Spleeter. Returns True on success."""
+        if not SPLEETER_AVAILABLE or Separator is None:
+            logger.warning("Spleeter not available. Skipping voice isolation.")
+            return False
+
+        try:
+            logger.info(f"Isolating main voice from {input_path.name} -> {output_path.name}")
+            output_path.parent.mkdir(parents=True, exist_ok=True) # Ensure output dir
+
+            # Use a temporary directory for Spleeter's output structure
+            with tempfile.TemporaryDirectory() as temp_dir:
+                temp_dir_path = Path(temp_dir)
+                logger.debug(f"Using temporary directory for Spleeter: {temp_dir_path}")
+
+                # Initialize the separator (2stems separates vocals from accompaniment)
+                # Consider 'spleeter:4stems' or 'spleeter:5stems' for more control if needed
+                separator = Separator('spleeter:2stems', multiprocess=False) # Disable multiprocess for stability in threads
+
+                # Separate vocals from other sounds
+                separator.separate_to_file(
+                    str(input_path),
+                    str(temp_dir_path),
+                    filename_format='{instrument}.{codec}', # Ensure predictable output names
+                    codec='wav'
+                )
+
+                # Spleeter creates a subdirectory named after the input file stem
+                spleeter_output_dir = temp_dir_path / input_path.stem
+                vocals_file = spleeter_output_dir / "vocals.wav"
+
+                if not vocals_file.exists():
+                    logger.error(f"Spleeter processing completed but vocals file not found at expected path: {vocals_file}")
+                    # Log contents of temp dir for debugging
+                    logger.debug(f"Contents of Spleeter temp dir ({spleeter_output_dir}): {list(spleeter_output_dir.glob('*')) if spleeter_output_dir.exists() else 'Dir not found'}")
+                    return False
+
+                # Copy the vocals file to the final output path
+                shutil.copy2(str(vocals_file), str(output_path))
+                logger.info(f"Main voice isolated and saved to {output_path.name}")
+                return True
+
+        except Exception as e:
+            logger.error(f"Error during voice isolation for {input_path.name}: {e}", exc_info=True)
+            return False
 
 
 # Create a singleton instance

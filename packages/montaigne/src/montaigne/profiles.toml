@@ -133,3 +133,138 @@ youtube_ids = ["9bZkp7q19f0", "HkMNOlYcpHg", "wcLNteez3c4"]
 gender = "male"
 tags = ["singer", "korean"]
 preprocessing = { noise_reduction = true, normalize = true }
+# Montaigne Voice Profiles Configuration
+# This file contains voice profiles for the Montaigne TTS system
+# Each profile includes metadata and a list of source URLs (typically YouTube)
+
+[config]
+# Default settings for all profiles
+download_dir = "voices"
+cache_dir = "${HOME}/.cache/montaigne/voices"
+preprocessed_dir = "${HOME}/.cache/montaigne/preprocessed"
+# Minimum Signal-to-Noise Ratio for acceptable voice sample
+min_snr = 15.0
+# Maximum number of parallel downloads
+max_concurrent_downloads = 4
+# Whether to force redownload if file exists
+force_redownload = false
+# Default voice mode (simple or deep)
+default_mode = "simple"
+# Minimum voice length in seconds
+min_voice_length = 6.0
+# Recommended voice length in seconds (for deep mode)
+recommended_voice_length = 10.0
+# Maximum number of videos to use per profile
+max_videos_per_profile = 5
+
+# XTTS Engine parameters
+[engines.xtts]
+# Number of samples for the autoregressive model (higher = better quality, more time)
+num_gpt_outputs = 16
+# Seconds of audio to be used as conditioning (more = better quality)
+gpt_cond_len = 6
+# Audio chunk size in seconds (smaller = more stability)
+gpt_cond_chunk_len = 3
+# Maximum reference length in seconds
+max_ref_len = 10
+# Whether to normalize reference audio
+sound_norm_refs = true
+
+# Simple mode parameters (faster, less resource intensive)
+[modes.simple]
+num_gpt_outputs = 8
+gpt_cond_len = 4
+gpt_cond_chunk_len = 2
+
+# Deep mode parameters (better quality, more resource intensive)
+[modes.deep]
+num_gpt_outputs = 16
+gpt_cond_len = 12
+gpt_cond_chunk_len = 4
+
+# Profile definitions
+[profiles.bolsonaro]
+name = "Jair Bolsonaro"
+language = "pt"
+description = "Former President of Brazil"
+youtube_ids = ["T2zxZ_xf2Xw", "Z_BoZYSUJv4", "Ift5XYwLvHo"]
+gender = "male"
+tags = ["political", "portuguese", "brazilian"]
+# Optional settings override for this specific profile
+preprocessing = { noise_reduction = true, normalize = true, trim_silence = true }
+
+[profiles.lula]
+name = "Luiz Inácio Lula da Silva"
+language = "pt"
+description = "Current President of Brazil"
+youtube_ids = ["HYVr95umFRc", "vEOtl9IRrmE", "GaB9Gt7qKhQ"]
+gender = "male"
+tags = ["political", "portuguese", "brazilian"]
+
+[profiles.obama]
+name = "Barack Obama"
+language = "en"
+description = "Former President of the United States"
+youtube_ids = ["S_votxsMoTM", "NXsz0jkJ_ZA", "xXH5agV7skw"]
+gender = "male"
+tags = ["political", "english", "american"]
+
+[profiles.morgan_freeman]
+name = "Morgan Freeman"
+language = "en"
+description = "American actor with a distinctive deep voice"
+youtube_ids = ["Ch5MEJk5ZCQ", "dP2yelB60k8", "4TogLvYAwVI"]
+gender = "male"
+tags = ["actor", "english", "american", "narrator"]
+preprocessing = { noise_reduction = true, normalize = true, trim_silence = true, emphasize_bass = true }
+
+[profiles.david_attenborough]
+name = "David Attenborough"
+language = "en"
+description = "British broadcaster and natural historian"
+youtube_ids = ["IMfz_0NFj94", "pcb_4cLUlg8", "rH2adNuZ4AE"]
+gender = "male"
+tags = ["broadcaster", "english", "british", "narrator"]
+
+[profiles.oprah]
+name = "Oprah Winfrey"
+language = "en"
+description = "American talk show host and television producer"
+youtube_ids = ["6p2XUuV4FBI", "SKB9u75XRhU", "gdqvTMXe1WE"]
+gender = "female"
+tags = ["broadcaster", "english", "american"]
+
+[profiles.emma_watson]
+name = "Emma Watson"
+language = "en"
+description = "British actress"
+youtube_ids = ["1NaOzQKmCJ4", "p-1oF_q-2gQ", "ZZg9Y6XnAV0"]
+gender = "female"
+tags = ["actress", "english", "british"]
+
+[profiles.shakira]
+name = "Shakira"
+language = "es"
+description = "Colombian singer"
+youtube_ids = ["KlxbBQ5UEic", "e9vrfEoc8_g", "pRpeEdMmmQ0"]
+gender = "female"
+tags = ["singer", "spanish", "colombian"]
+preprocessing = { noise_reduction = true, normalize = true, equalize = true }
+
+[profiles.adele]
+name = "Adele"
+language = "en"
+description = "British singer"
+youtube_ids = ["svDDuHE0dzM", "YQHsXMglC9A", "hLQl3WQQoQ0"]
+gender = "female"
+tags = ["singer", "english", "british"]
+preprocessing = { noise_reduction = true, normalize = true, equalize = true }
+
+[profiles.psy]
+name = "PSY"
+language = "ko"
+description = "South Korean rapper"
+youtube_ids = ["9bZkp7q19f0", "HkMNOlYcpHg", "wcLNteez3c4"]
+gender = "male"
+tags = ["singer", "korean"]
+preprocessing = { noise_reduction = true, normalize = true }

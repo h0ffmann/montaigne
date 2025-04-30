@@ -567,6 +567,91 @@ You can also adjust global settings, engine parameters, and mode parameters in t
 
 Contributions are welcome! Please follow standard Git workflow (fork, branch, pull request). Ensure code is formatted (`just format`) and passes checks (`just check`).
 
+## Voice Profiles
+
+Montaigne now supports predefined voice profiles through a flexible TOML-based configuration system.
+
+### Using Voice Profiles
+
+To use a predefined voice profile:
+
+```bash
+montaigne synthesize --voice-profile bolsonaro --text "Hello world" --output-file output.wav
+```
+
+You can also specify the voice mode for quality vs. speed tradeoff:
+
+```bash
+# Simple mode - faster, less resource intensive (usually default)
+montaigne synthesize --voice-profile obama --text "Hello world" --mode simple --output-file output.wav
+
+# Deep mode - better quality, more resource intensive
+montaigne synthesize --voice-profile obama --text "Hello world" --mode deep --output-file output.wav
+```
+
+Each voice profile includes multiple YouTube video references to create higher quality voice cloning. The system automatically downloads and processes the first sample listed. Audio preprocessing (noise reduction, normalization, etc.) is applied automatically based on the profile configuration.
+
+### Available Profiles
+
+To list all available voice profiles:
+
+```bash
+montaigne synthesize --help # Look for the --voice-profile option choices
+```
+Or programmatically:
+```python
+from montaigne.voice_profiles import list_voice_profiles
+print(list_voice_profiles())
+```
+
+### How It Works
+
+The voice profile system:
+
+1.  **Configuration (`profiles.toml`)**: Defines profiles, YouTube IDs, preprocessing steps, and engine/mode parameters.
+2.  **Lazy Loading**: Voice profiles are only downloaded when requested for the first time (or if `force_redownload` is set).
+3.  **YouTube Download**: Uses `yt-dlp` via `audio_utils` to fetch the audio from the *first* listed YouTube ID for the profile.
+4.  **Preprocessing**: Improves audio quality with noise reduction, normalization, silence trimming, etc., based on profile settings and `librosa`/`noisereduce` libraries.
+5.  **Modes (`simple`/`deep`)**: Allows selecting different sets of XTTS engine parameters defined in `profiles.toml` for quality/speed trade-offs (Note: Currently, these parameters are loaded but not directly passed to the `TTS.tts_to_file` method in the current implementation).
+6.  **Caching**: Raw downloaded files and preprocessed files are cached locally (configurable paths in `profiles.toml`).
+
+### Adding Custom Profiles
+
+Edit the `packages/montaigne/src/montaigne/profiles.toml` file to add your own voice profiles. Each profile needs:
+
+-   A unique ID (e.g., `[profiles.my_voice]`).
+-   `name`: Display name.
+-   `description`: Brief description.
+-   `language`: Language code (e.g., "en", "pt").
+-   `youtube_ids`: A list of YouTube video IDs. The *first* ID in the list will be used for downloading the voice sample.
+-   `gender`: (Optional) "male", "female", "unknown".
+-   `tags`: (Optional) List of descriptive tags.
+-   `preprocessing`: (Optional) Override default preprocessing steps (e.g., `preprocessing = { noise_reduction = false, normalize = true }`). See `profiles.toml` for examples.
+
+You can also adjust global settings, engine parameters, and mode parameters in the `[config]`, `[engines.xtts]`, `[modes.simple]`, and `[modes.deep]` sections of `profiles.toml`.
+
+## Development
+
+**Environment**: Use Nix (`just nix_setup` or `nix develop --impure`) or Docker for a consistent environment.
+
+**Tasks**: The justfile provides common tasks:
+
+- `just install_workspace`: Install/update Python packages using uv.
+- `just check`: Run linters (ruff check) and formatters (ruff format --check).
+- `just format`: Apply formatting (ruff format).
+- `just test`: Run tests using pytest (ensure tests are written in packages/montaigne/tests/).
+- `just clean`: Remove build artifacts and caches.
+- `just docker_build`: Build the Docker image.
+- `just docker_dev`: Build Docker image using local models.
+- `just docker_run`: Run a test synthesis inside Docker.
+- `just docker_run_gpu`: Run a command inside Docker with GPU access.
+
+**Dependencies**: Managed via pyproject.toml (for Python packages using uv) and flake.nix (for Nix environment).
+
+## Contributing
+
+Contributions are welcome! Please follow standard Git workflow (fork, branch, pull request). Ensure code is formatted (`just format`) and passes checks (`just check`).
+
 ## License
 
 MIT License

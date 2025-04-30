@@ -433,8 +433,10 @@ class VoiceProfileManager:
             if config.get('trim_silence', True):
                 logger.debug("Trimming silence...")
                 y_trimmed, index = librosa.effects.trim(y_processed, top_db=30)
-                if len(y_trimmed) > 0: y_processed = y_trimmed
-                else: logger.warning("Trim silence resulted in empty audio. Skipping trim.")
+                if len(y_trimmed) > 0:
+                    y_processed = y_trimmed
+                else:
+                    logger.warning("Trim silence resulted in empty audio. Skipping trim.")
 
             # 2. Noise reduction
             if config.get('noise_reduction', True) and nr:

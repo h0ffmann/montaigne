@@ -48,6 +48,7 @@
           numba # Add numba (JIT compiler, C extensions)
           transformers # Add transformers for Bark
           accelerate # Add accelerate for HF/Bark
+          uv
         ];
 
         # --- Runtime Libraries ---
@@ -88,7 +89,7 @@
           pkg-config # Needed for building some Python packages
           gnumake
           python
-          uv
+          #uv
           ruff
           nodejs_22
           corepack_22

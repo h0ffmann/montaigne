@@ -494,17 +494,17 @@ To use a predefined voice profile:
 montaigne synthesize --voice-profile bolsonaro --text "Hello world" --output-file output.wav
 ```
 
-You can also specify the voice mode for quality vs. speed tradeoff:
+By default, the system performs voice isolation (if Spleeter is available) and applies all configured audio preprocessing steps. You can skip these steps using flags:
 
 ```bash
-# Simple mode - faster, less resource intensive (usually default)
-montaigne synthesize --voice-profile obama --text "Hello world" --mode simple --output-file output.wav
+# Skip only voice isolation
+montaigne synthesize --voice-profile obama --skip-voice-isol --text "..." -o output.wav
 
-# Deep mode - better quality, more resource intensive
-montaigne synthesize --voice-profile obama --text "Hello world" --mode deep --output-file output.wav
+# Skip all preprocessing (including isolation)
+montaigne synthesize --voice-profile obama --skip-preproc --text "..." -o output.wav
 ```
 
-Each voice profile includes multiple YouTube video references to create higher quality voice cloning. The system automatically downloads and processes the first sample listed. Audio preprocessing (noise reduction, normalization, etc.) is applied automatically based on the profile configuration.
+Each voice profile includes multiple YouTube video references. The system automatically downloads and processes these samples (up to `max_videos_per_profile` defined in `profiles.toml`). Voice isolation and audio preprocessing (noise reduction, normalization, filtering, etc.) are applied automatically based on the profile configuration unless skipped via flags.
 
 ### Available Profiles
 
@@ -526,10 +526,9 @@ The voice profile system:
 1.  **Configuration (`profiles.toml`)**: Defines profiles, YouTube IDs, preprocessing steps, and engine/mode parameters.
 2.  **Lazy Loading**: Voice profiles are only downloaded when requested for the first time (or if `force_redownload` is set).
 3.  **YouTube Download**: Uses `yt-dlp` via `audio_utils` to fetch audio from the specified YouTube IDs (up to `max_videos_per_profile`). Includes basic caching.
-4.  **Voice Isolation (Optional)**: Uses `spleeter` to attempt isolating the main voice from background noise/music if `isolate_voice = true` in the profile's preprocessing settings (requires `spleeter` installed).
-5.  **Advanced Preprocessing (Optional)**: Improves audio quality using `librosa` and `noisereduce` with steps like noise reduction, normalization, silence trimming, filtering, vocal enhancement, and compression based on profile settings.
-6.  **Modes (`simple`/`deep`)**: Allows selecting different sets of XTTS engine parameters defined in `profiles.toml` for quality/speed trade-offs (Note: Currently, these parameters are loaded but not directly passed to the `TTS.tts_to_file` method in the current implementation).
-7.  **Caching**: Raw downloaded files, isolated voice files, and preprocessed files are cached locally (configurable paths in `profiles.toml`).
+4.  **Voice Isolation (Optional, Default: On)**: Uses `spleeter` to attempt isolating the main voice from background noise/music if `isolate_voice = true` (default) in the profile's preprocessing settings and Spleeter is available. Can be skipped with `--skip-voice-isol`.
+5.  **Advanced Preprocessing (Optional, Default: On)**: Improves audio quality using `librosa` and `noisereduce` with steps like noise reduction, normalization, silence trimming, filtering, vocal enhancement, and compression based on profile settings. Can be skipped entirely with `--skip-preproc`. Individual steps can be disabled in `profiles.toml`.
+6.  **Caching**: Raw downloaded files, isolated voice files, and preprocessed files are cached locally (configurable paths in `profiles.toml`).
 
 ### Adding Custom Profiles
 

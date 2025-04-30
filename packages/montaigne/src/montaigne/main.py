@@ -113,17 +113,18 @@ def cli():
     type=click.Choice(list_voice_profiles()),
     help="Use a predefined voice profile (XTTS only).",
 )
+# --mode option removed
 @click.option(
-    "--mode",
-    type=click.Choice(["simple", "deep"]),
-    default=None, # Default is handled by voice_profile_manager
-    help="Voice synthesis quality mode (simple=faster, deep=better quality). Overrides profiles.toml default.",
+    "--skip-preproc",
+    is_flag=True,
+    default=False,
+    help="Skip all audio preprocessing steps (noise reduction, normalization, etc.).",
 )
 @click.option(
-    "--mode",
-    type=click.Choice(["simple", "deep"]),
-    default=None, # Default is handled by voice_profile_manager
-    help="Voice synthesis quality mode (simple=faster, deep=better quality). Overrides profiles.toml default.",
+    "--skip-voice-isol",
+    is_flag=True,
+    default=False,
+    help="Skip the voice isolation step (using Spleeter).",
 )
 @click.option(
     "--speaker-wav",
@@ -195,7 +196,8 @@ def synthesize(
     speed: float,
     evaluate: bool,
     cpu: bool,
-    mode: Optional[str], # Add mode parameter
+    skip_preproc: bool, # Add skip flags
+    skip_voice_isol: bool, # Add skip flags
 ):
     """Synthesizes speech from text using a selected TTS engine."""
     selected_engine_type = EngineChoice(engine)
@@ -242,17 +244,10 @@ def synthesize(
     engine_display_name = selected_engine_type.value.upper()
     speaker_display_name = "Default"
 
-    # Get engine parameters based on mode for XTTS
-    if selected_engine_type == EngineChoice.XTTS:
-        # Use the renamed import get_profile_engine_params
-        # Fetch parameters based on the selected mode (or default from config)
-        xtts_mode_params = get_profile_engine_params("xtts", mode)
-        logger.info(f"Using XTTS mode '{mode or 'default'}'. Parameters: {xtts_mode_params}")
-        # Add these fetched parameters to the engine_params dict that will be passed to synthesize
-        engine_params.update(xtts_mode_params)
-        # Note: These params (num_gpt_outputs etc.) are currently NOT used by the XTTSv2Engine.synthesize method.
-        # The TTS library itself might use them internally if configured differently, or this is for future use.
-        # For now, they are fetched but not directly passed in a way that affects the current synthesize call signature.
+    # Engine parameters are now generally handled by the profile config or engine defaults
+    # The --mode logic for fetching specific XTTS params is removed.
+    # If specific XTTS params (like num_gpt_outputs) need to be passed later,
+    # they could be added as separate CLI options or loaded directly from config.
 
     # Moved this import here as it's now needed for the youtube download function call
     from .audio_utils import download_audio_from_youtube

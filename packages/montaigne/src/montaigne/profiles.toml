@@ -13,11 +13,9 @@ min_snr = 15.0
 max_concurrent_downloads = 4
 # Whether to force redownload if file exists
 force_redownload = false
-# Default voice mode (simple or deep)
-default_mode = "simple"
-# Minimum voice length in seconds
+# Minimum voice length in seconds after processing
 min_voice_length = 6.0
-# Recommended voice length in seconds (for deep mode)
+# Recommended voice length in seconds (for deep mode - informational only now)
 recommended_voice_length = 10.0
 # Maximum number of videos to use per profile
 max_videos_per_profile = 5
@@ -35,17 +33,7 @@ max_ref_len = 10
 # Whether to normalize reference audio
 sound_norm_refs = true
 
-# Simple mode parameters (faster, less resource intensive)
-[modes.simple]
-num_gpt_outputs = 8
-gpt_cond_len = 4
-gpt_cond_chunk_len = 2
-
-# Deep mode parameters (better quality, more resource intensive)
-[modes.deep]
-num_gpt_outputs = 16
-gpt_cond_len = 12
-gpt_cond_chunk_len = 4
+# Removed [modes.simple] and [modes.deep] sections
 
 # Profile definitions
 [profiles.bolsonaro]

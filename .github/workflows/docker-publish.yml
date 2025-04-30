@@ -23,6 +23,11 @@ env: # Define environment variables accessible by all jobs/steps
   # Ensures consistency between jobs and with the cleanup action
   GHCR_PACKAGE_NAME: ${{ github.event.repository.name }}
 
+# Add this concurrency configuration
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+  
 jobs:
   build-and-push:
     name: Build & Push

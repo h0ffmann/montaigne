@@ -12,6 +12,11 @@ on:
         default: true
         type: boolean
 
+# Add this concurrency configuration
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
   lint-and-check:
     name: Code Quality Asserts

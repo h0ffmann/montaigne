@@ -13,6 +13,7 @@
             ".github/*",
             "next/",
             ".venv*",
+            "voices/*",
             "*.egg-info/"
         ]
     },

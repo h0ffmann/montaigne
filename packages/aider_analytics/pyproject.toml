@@ -4,8 +4,9 @@ version = "0.1.0"
 description = "Analytics tool for distinguishing between human and AI commit patterns"
 authors = [{ name = "Matheus Hoffmann", email = "hoffmann@poli.ufrj.br" }]
 requires-python = ">=3.11,<3.12"
+
 dependencies = [
-    "click==8.1.8",
+    "click==7.1.2",
     "matplotlib>=3.5.0",
 ]
 

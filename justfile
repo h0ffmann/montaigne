@@ -32,11 +32,11 @@ default:
 # Installs/Synchronizes workspace packages using uv within the current (presumably nix) environment
 install_workspace:
     @echo "🔄 Synchronizing workspace packages using UV and uv.lock..."
-    @command -v {{UV}} > /dev/null 2>&1 || (echo "❌ '{{UV}}' command not found. Are you inside 'nix develop'?" && exit 1)
-    @{{UV}} pip sync uv.lock # Sync base dependencies first
+    uv --version
+    uv pip sync uv.lock 
     # Re-install workspace packages editably AFTER syncing base dependencies
     @echo "📦 Installing local workspace packages editably..."
-    @{{UV}} pip install -e ./packages/montaigne -e ./packages/aider_analytics --no-deps
+    uv pip install -e ./packages/montaigne --no-deps
     @echo "✅ Workspace environment synchronized and packages installed editably."
 
 setup: install_workspace # Alias

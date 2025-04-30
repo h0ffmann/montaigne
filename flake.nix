@@ -27,7 +27,8 @@
                 hash = "sha256-D/3YqhIjXhvH7hn/dmJ2Xmf1riGjVc9jqbqVJSD5EyA="; # <-- Double-check this Source hash
               };
             in
-            { # Start the attribute set returned by overrideAttrs
+            {
+              # Start the attribute set returned by overrideAttrs
               version = "0.7.0"; # <-- Ensure version is 0.7.0
               # Use the let-bound variable for the derivation's source
               src = drv_src;
@@ -41,7 +42,7 @@
                 # 1. Set this to empty string: hash = "";
                 # 2. Run `nix develop` or `just nix_shell`. Note the failure and the 'got: sha256-...' hash.
                 # 3. Paste the correct hash string (including the "sha256-" prefix) here.
-                hash = ""; # <-- Set to "" first, then paste correct value
+                hash = "sha256-QQv3uAtqC24UkZ1pp7D0izu7xMQGtUPg2iQkp+k9IMI="; # <-- Set to "" first, then paste correct value
               };
             } # End the attribute set returned by overrideAttrs
           ); # End overrideAttrs call

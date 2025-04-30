@@ -33,14 +33,15 @@
               src = drv_src;
 
               # Use fetchCargoVendor and the sha256 attribute
+              # Use fetchCargoVendor and the HASH attribute this time
               cargoDeps = prev.rustPlatform.fetchCargoVendor {
                 # Explicitly pass the let-bound variable here
                 src = drv_src;
                 # !! IMPORTANT STEP REMAINS !!
-                # 1. Set this to empty string: sha256 = "";
+                # 1. Set this to empty string: hash = "";
                 # 2. Run `nix develop` or `just nix_shell`. Note the failure and the 'got: sha256-...' hash.
-                # 3. Paste the correct hash here. (Replace the placeholder below)
-                sha256 = "sha256-XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX="; # <-- Replace this
+                # 3. Paste the correct hash string (including the "sha256-" prefix) here.
+                hash = ""; # <-- Set to "" first, then paste correct value
               };
             } # End the attribute set returned by overrideAttrs
           ); # End overrideAttrs call

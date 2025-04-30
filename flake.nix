@@ -21,16 +21,14 @@
             src = final.fetchFromGitHub {
               owner = "astral-sh";
               repo = "uv";
-              rev = "0.7.0";   # <-- Use the tag/release name 0.7.0
+              rev = "0.7.0"; # <-- Use the tag/release name 0.7.0
               # Use the actual source tarball hash for tag 0.7.0
-              hash = "sha256-d9h1m/Hwz99k+Jp8c8HhQc8Wp9L8t7HwZ0s5g6H7s9s="; # <-- Source hash
+              hash = "sha256-D/3YqhIjXhvH7hn/dmJ2Xmf1riGjVc9jqbqVJSD5EyA="; # <-- Source hash
             };
-            # Optional: If the build fails, you might need cargoDeps or buildInputs overrides here
-            # cargoDeps = prev.rustPlatform.fetchCargoTarball {
-            #   inherit (oldAttrs) src;
-            #   # You might need the Cargo.lock hash for 0.7.0 if the default fetch doesn't work
-            #   hash = "<HASH_FOR_0.7.0_Cargo.lock>";
-            # };
+            cargoDeps = prev.rustPlatform.fetchCargoTarball {
+              inherit (oldAttrs) src;
+              hash = "sha256-XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX=";
+            };
           });
         };
 

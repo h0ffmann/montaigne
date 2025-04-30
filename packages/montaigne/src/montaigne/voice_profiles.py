@@ -413,10 +413,10 @@ class VoiceProfileManager:
         to be callable asynchronously.
         """
         loop = asyncio.get_event_loop()
+        # Pass force_download flag to the underlying sync function
         with ThreadPoolExecutor() as pool:
-            # Pass force_download=False to use caching within download_audio_from_youtube
             return await loop.run_in_executor(
-                pool, download_audio_from_youtube, youtube_id, output_dir, False
+                pool, download_audio_from_youtube, youtube_id, output_dir, force_download
             )
 
     def _preprocess_audio(self, input_path: Path, output_path: Path, config: Dict[str, bool]) -> None:

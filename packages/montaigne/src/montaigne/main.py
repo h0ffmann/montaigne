@@ -108,7 +108,13 @@ def cli():
 @click.option(
     "--voice-profile",
     type=click.Choice(list_voice_profiles()),
-    help="Use a prebuilt voice profile (XTTS only).",
+    help="Use a predefined voice profile (XTTS only).",
+)
+@click.option(
+    "--mode",
+    type=click.Choice(["simple", "deep"]),
+    default=None, # Default is handled by voice_profile_manager
+    help="Voice synthesis quality mode (simple=faster, deep=better quality). Overrides profiles.toml default.",
 )
 @click.option(
     "--speaker-wav",
@@ -180,6 +186,7 @@ def synthesize(
     speed: float,
     evaluate: bool,
     cpu: bool,
+    mode: Optional[str], # Add mode parameter
 ):
     """Synthesizes speech from text using a selected TTS engine."""
     selected_engine_type = EngineChoice(engine)
@@ -222,9 +229,22 @@ def synthesize(
         raise click.UsageError("--text and --text-file are mutually exclusive.")
 
     # --- Engine-Specific Setup ---
-    engine_params = {}
+    engine_params = {} # Initialize empty dict for engine-specific runtime params
     engine_display_name = selected_engine_type.value.upper()
     speaker_display_name = "Default"
+
+    # Get engine parameters based on mode for XTTS
+    if selected_engine_type == EngineChoice.XTTS:
+        from .voice_profiles import get_engine_params as get_profile_engine_params # Avoid name clash
+        # Fetch parameters based on the selected mode (or default from config)
+        xtts_mode_params = get_profile_engine_params("xtts", mode)
+        logger.info(f"Using XTTS mode '{mode or 'default'}'. Parameters: {xtts_mode_params}")
+        # Add these fetched parameters to the engine_params dict that will be passed to synthesize
+        engine_params.update(xtts_mode_params)
+        # Note: These params (num_gpt_outputs etc.) are currently NOT used by the XTTSv2Engine.synthesize method.
+        # The TTS library itself might use them internally if configured differently, or this is for future use.
+        # For now, they are fetched but not directly passed in a way that affects the current synthesize call signature.
+
     # Moved this import here as it's now needed for the youtube download function call
     from .audio_utils import download_audio_from_youtube
 

@@ -21,6 +21,11 @@ dependencies = [
     "transformers>=4.0.0",
     "accelerate>=0.20.0",
     "huggingface-hub>=0.20.0",
+    # New dependencies for voice profiles
+    "tomli>=2.0.0", # For reading profiles.toml
+    "noisereduce>=2.0.0", # For audio preprocessing
+    "librosa>=0.9.0", # For audio analysis and preprocessing
+    # asyncio is built-in
 ]
 
 [project.optional-dependencies]

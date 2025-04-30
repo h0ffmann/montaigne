@@ -83,9 +83,11 @@ def download_audio_from_youtube(
     expected_wav_path = output_dir / f"speaker-{safe_id}.wav"
     youtube_url = f"https://www.youtube.com/watch?v={safe_id}"  # Construct full URL
 
+    # --- Caching Check ---
     if not force_download and expected_wav_path.exists():
-        logger.info(f"Using cached speaker audio: {expected_wav_path.name}")
+        logger.info(f"✅ Cache hit: Using existing speaker audio file: {expected_wav_path.name}")
         return expected_wav_path
+    # --- End Caching Check ---
 
     logger.info(f"Attempting to download speaker audio for YouTube ID: {safe_id}...")
     logger.info(f"Target URL: {youtube_url}")

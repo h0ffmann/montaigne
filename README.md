@@ -6,6 +6,7 @@
 ![License](https://img.shields.io/badge/License-MIT-blue.svg)
 ![Python Version](https://img.shields.io/badge/python-3.11-blue.svg)
 ![Code Style](https://img.shields.io/badge/code%20style-ruff-blue.svg)
+# Montaigne TTS
 
 Montaigne TTS is a command-line interface (CLI) tool designed for flexible Text-to-Speech (TTS) synthesis. It supports multiple TTS engines (XTTSv2, Bark, Piper), various speaker voice input methods (audio file, YouTube URL, predefined profiles), text preprocessing capabilities, and both batch and interactive/streaming synthesis modes. The project is containerized using Docker for ease of deployment and dependency management, with optional Nix support for development environments.
 
@@ -39,57 +40,48 @@ Montaigne acts as an orchestrator and interface for various underlying TTS techn
 
 ```mermaid
 graph LR
-    subgraph User Interaction
-        CLI[CLI (montaigne command)]
-    end
+    CLI["CLI (montaigne command)"]
+    Main["main.py (Click CLI)"]
+    Preprocessing["preprocessing.py"]
+    TTSEngine["tts_engine.py (XTTS/Bark)"]
+    StreamingTTS["streaming_tts.py (Piper)"]
+    AudioUtils["audio_utils.py"]
+    VoiceProfiles["voice_profiles.py"]
+    XTTSModel["XTTSv2 Model"]
+    BarkModel["Bark Model"]
+    PiperModel["Piper Model (HF Hub)"]
+    PyTorch["PyTorch (CPU/CUDA)"]
+    SoundDevice["SoundDevice Lib"]
+    YTDLP["yt-dlp"]
+    Docker["Docker Runtime"]
+    Nix["Nix Environment (Optional)"]
 
-    subgraph Core Logic (Python Modules)
-        Main[main.py (Click CLI)]
-        Preprocessing[preprocessing.py]
-        TTSEngine[tts_engine.py (XTTS/Bark)]
-        StreamingTTS[streaming_tts.py (Piper)]
-        AudioUtils[audio_utils.py]
-        VoiceProfiles[voice_profiles.py]
-    end
+    CLI --> Main
+    Main --> Preprocessing
+    Main --> TTSEngine
+    Main --> StreamingTTS
+    Main --> VoiceProfiles
+    Main --> AudioUtils
 
-    subgraph External Dependencies/Services
-        XTTSModel[XTTSv2 Model]
-        BarkModel[Bark Model]
-        PiperModel[Piper Model (HF Hub)]
-        PyTorch[PyTorch (CPU/CUDA)]
-        SoundDevice[SoundDevice Lib]
-        YTDLP[yt-dlp]
-        Docker[Docker Runtime]
-        Nix[Nix Environment (Optional)]
-    end
+    Preprocessing --> TTSEngine
+    Preprocessing --> StreamingTTS
 
-    UserInteraction -- Input Text/Args --> Main
-    Main -- Text --> Preprocessing
-    Main -- Select Engine --> TTSEngine
-    Main -- Select Engine --> StreamingTTS
-    Main -- Speaker Info --> VoiceProfiles
-    Main -- Speaker Info --> AudioUtils
+    VoiceProfiles --> TTSEngine
+    AudioUtils --> TTSEngine
+    AudioUtils --> Main
 
-    Preprocessing -- Processed Text --> TTSEngine
-    Preprocessing -- Processed Text --> StreamingTTS
+    TTSEngine --> PyTorch
+    TTSEngine --> XTTSModel
+    TTSEngine --> BarkModel
+    TTSEngine --> AudioUtils
 
-    VoiceProfiles -- Profile Path --> TTSEngine
-    AudioUtils -- Speaker Path/Download --> TTSEngine
-    AudioUtils -- Concatenate/Save --> Main
+    StreamingTTS --> PiperModel
+    StreamingTTS --> SoundDevice
 
-    TTSEngine -- Uses --> PyTorch
-    TTSEngine -- Uses --> XTTSModel
-    TTSEngine -- Uses --> BarkModel
-    TTSEngine -- Synthesize Batch --> AudioUtils
+    AudioUtils --> YTDLP
 
-    StreamingTTS -- Uses --> PiperModel
-    StreamingTTS -- Uses --> SoundDevice
-    StreamingTTS -- Synthesize Stream --> SoundDevice
-
-    AudioUtils -- Download --> YTDLP
-
-    CoreLogic -- Runs Within --> Docker
-    CoreLogic -- Runs Within --> Nix
+    Main --> Docker
+    Main --> Nix
 ```
 
 ### 2. Component Interactions
@@ -128,28 +120,34 @@ graph LR
 
 #### A. synthesize Command Flow:
 
-```
-+-------------+      +-----------------+      +-----------------+      +-----------------+      +---------------+      +----------------+      +-------------+      +-----------------+      +-------------+
-| User Input  |----->|   main.py       |----->| preprocessing.py|----->|   main.py       |----->| tts_engine.py |----->| PyTorch / Libs |----->| Audio Chunk |----->| audio_utils.py  |----->| Output File |
-| (CLI Args,  |      | (Parse, Validate|      | (Preprocess,    |      | (Loop Chunks)   |      | (Synthesize   |      | (XTTS/Bark)    |      | (Temp File) |      | (Concatenate)   |      | (.wav)      |
-| Text/File)  |      | Speaker Prep)   |      | Chunk Text)     |      +-----------------+      | Chunk)        |      +----------------+      +-------------+      +-----------------+      +-------------+
-+-------------+      +-----------------+      +-----------------+             ^                +---------------+             |                       |
-                               |                                             |                       |                       |
-                               +---------------------------------------------+-----------------------+-----------------------+
-                                                    (Iteration over Chunks)
+```mermaid
+flowchart LR
+    A["User Input\n(CLI Args, Text/File)"] --> B["main.py\n(Parse, Validate\nSpeaker Prep)"]
+    B --> C["preprocessing.py\n(Preprocess,\nChunk Text)"]
+    C --> D["main.py\n(Loop Chunks)"]
+    D --> E["tts_engine.py\n(Synthesize\nChunk)"]
+    E --> F["PyTorch / Libs\n(XTTS/Bark)"]
+    F --> G["Audio Chunk\n(Temp File)"]
+    G --> H["audio_utils.py\n(Concatenate)"]
+    H --> I["Output File\n(.wav)"]
+    
+    B -.-> D
+    E -.-> D
+    G -.-> D
 ```
 
 #### B. live Command Flow:
 
-```
-+-------------+      +-----------------+      +-----------------+      +-----------------+      +-----------------+      +-------------+      +---------------+
-| User Input  |----->|   main.py       |----->| streaming_tts.py|----->| Piper Model/Lib |----->|  Audio Data     |----->| sounddevice |----->| Audio Output  |
-| (CLI Args,  |      | (Parse, Init    |      | (Chunk, Synth,  |      | (Synthesize     |      |  (In Memory)    |      | (Play Audio)|      | (Speaker/HW)  |
-| REPL/File)  |      | Piper Engine)   |      | Playback Loop)  |      |   Chunk)        |      +-----------------+      +-------------+      +---------------+
-+-------------+      +-----------------+      +-----------------+      +-----------------+                                     |
-                                                     |                                                                         |
-                                                     +-------------------------------------------------------------------------+
-                                                                            (Synthesize & Playback)
+```mermaid
+flowchart LR
+    A["User Input\n(CLI Args, REPL/File)"] --> B["main.py\n(Parse, Init\nPiper Engine)"]
+    B --> C["streaming_tts.py\n(Chunk, Synth,\nPlayback Loop)"]
+    C --> D["Piper Model/Lib\n(Synthesize\nChunk)"]
+    D --> E["Audio Data\n(In Memory)"]
+    E --> F["sounddevice\n(Play Audio)"]
+    F --> G["Audio Output\n(Speaker/HW)"]
+    
+    C -.-> F
 ```
 
 ### 4. Design Decisions and Rationale

@@ -109,7 +109,6 @@ def cli():
 @click.option(
     "--voice-profile",
     type=click.Choice(list_voice_profiles()),
-    type=click.Choice(list_voice_profiles()),
     help="Use a predefined voice profile (XTTS only).",
 )
 @click.option(

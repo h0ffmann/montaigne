@@ -525,10 +525,11 @@ The voice profile system:
 
 1.  **Configuration (`profiles.toml`)**: Defines profiles, YouTube IDs, preprocessing steps, and engine/mode parameters.
 2.  **Lazy Loading**: Voice profiles are only downloaded when requested for the first time (or if `force_redownload` is set).
-3.  **YouTube Download**: Uses `yt-dlp` via `audio_utils` to fetch the audio from the *first* listed YouTube ID for the profile.
-4.  **Preprocessing**: Improves audio quality with noise reduction, normalization, silence trimming, etc., based on profile settings and `librosa`/`noisereduce` libraries.
-5.  **Modes (`simple`/`deep`)**: Allows selecting different sets of XTTS engine parameters defined in `profiles.toml` for quality/speed trade-offs (Note: Currently, these parameters are loaded but not directly passed to the `TTS.tts_to_file` method in the current implementation).
-6.  **Caching**: Raw downloaded files and preprocessed files are cached locally (configurable paths in `profiles.toml`).
+3.  **YouTube Download**: Uses `yt-dlp` via `audio_utils` to fetch audio from the specified YouTube IDs (up to `max_videos_per_profile`). Includes basic caching.
+4.  **Voice Isolation (Optional)**: Uses `spleeter` to attempt isolating the main voice from background noise/music if `isolate_voice = true` in the profile's preprocessing settings (requires `spleeter` installed).
+5.  **Advanced Preprocessing (Optional)**: Improves audio quality using `librosa` and `noisereduce` with steps like noise reduction, normalization, silence trimming, filtering, vocal enhancement, and compression based on profile settings.
+6.  **Modes (`simple`/`deep`)**: Allows selecting different sets of XTTS engine parameters defined in `profiles.toml` for quality/speed trade-offs (Note: Currently, these parameters are loaded but not directly passed to the `TTS.tts_to_file` method in the current implementation).
+7.  **Caching**: Raw downloaded files, isolated voice files, and preprocessed files are cached locally (configurable paths in `profiles.toml`).
 
 ### Adding Custom Profiles
 

@@ -18,6 +18,8 @@ from pathlib import Path
 from typing import Any, Dict, List, Optional, Union
 
 import numpy as np
+import shutil
+import tempfile
 import tomli
 
 # For audio preprocessing
@@ -25,6 +27,7 @@ try:
     import librosa
     import noisereduce as nr
     import soundfile as sf
+    import scipy.signal # For filters
 
     LIBROSA_AVAILABLE = True
 except ImportError:
@@ -32,6 +35,15 @@ except ImportError:
     nr = None  # type: ignore
     sf = None  # type: ignore
     librosa = None  # type: ignore
+    scipy = None # type: ignore
+
+# Attempt Spleeter import
+try:
+    from spleeter.separator import Separator
+    SPLEETER_AVAILABLE = True
+except ImportError:
+    Separator = None # type: ignore
+    SPLEETER_AVAILABLE = False
 
 
 # Import the audio_utils for YouTube download functionality
@@ -80,9 +92,15 @@ class VoiceProfileManager:
         self.profiles_path = Path(profiles_path)
         self.profiles: Dict[str, VoiceProfileConfig] = {}
         self.config: Dict[str, Any] = {}
-        self.engines: Dict[str, Any] = {}
-        self.modes: Dict[str, Any] = {}
+        self.engines: Dict[str, Dict[str, Any]] = {}
+        self.modes: Dict[str, Dict[str, Any]] = {}
         self._load_profiles()
+
+        # Log library availability
+        if not LIBROSA_AVAILABLE:
+            logger.warning("Librosa/Soundfile/Noisereduce not available. Audio preprocessing will be limited.")
+        if not SPLEETER_AVAILABLE:
+            logger.warning("Spleeter not available. Voice isolation will be skipped.")
 
     def _load_profiles(self):
         """Load profiles from TOML file."""
@@ -126,17 +144,23 @@ class VoiceProfileManager:
     def get_download_dir(self) -> Path:
         """Get the download directory for voice profiles."""
         download_dir = self.config.get("download_dir", "voices")
-        return Path(self._expand_vars(download_dir))
+        download_dir = Path(self._expand_vars(download_dir))
+        download_dir.mkdir(parents=True, exist_ok=True) # Ensure exists
+        return download_dir
 
     def get_cache_dir(self) -> Path:
         """Get the cache directory for voice profiles."""
         cache_dir = self.config.get("cache_dir", "${HOME}/.cache/montaigne/voices")
-        return Path(self._expand_vars(cache_dir))
+        cache_dir = Path(self._expand_vars(cache_dir))
+        cache_dir.mkdir(parents=True, exist_ok=True) # Ensure exists
+        return cache_dir
 
     def get_preprocessed_dir(self) -> Path:
         """Get the directory for preprocessed voice samples."""
         prep_dir = self.config.get("preprocessed_dir", "${HOME}/.cache/montaigne/preprocessed")
-        return Path(self._expand_vars(prep_dir))
+        prep_dir = Path(self._expand_vars(prep_dir))
+        prep_dir.mkdir(parents=True, exist_ok=True) # Ensure exists
+        return prep_dir
 
     def _expand_vars(self, path_str: str) -> str:
         """Expand environment variables in a path string."""
@@ -187,7 +211,7 @@ class VoiceProfileManager:
         """
         profile = self.get_profile_by_id(profile_id)
         if not profile:
-            logger.error(f"Voice profile '{profile_id}' not found. Available profiles: {self.get_profile_ids()}")
+            logger.error(f"Voice profile not found: {profile_id}")
             return []
         if not profile.youtube_ids:
             logger.error(f"No YouTube IDs defined for profile '{profile_id}'")
@@ -201,23 +225,33 @@ class VoiceProfileManager:
 
         logger.info(
             f"Processing up to {len(youtube_ids_to_process)} voice samples for profile '{profile_id}' "
-            f"(Max allowed: {max_videos})."
+            f"(Max allowed: {max_videos}). Preprocessing: {preprocess}"
         )
 
+        # Track processed IDs to avoid duplicates within a single call
+        processed_ids = set()
         tasks = []
+
         for i, youtube_id in enumerate(youtube_ids_to_process):
+            if youtube_id in processed_ids:
+                logger.info(f"Skipping duplicate YouTube ID within this request: {youtube_id}")
+                continue
+            processed_ids.add(youtube_id)
+
             # Define paths for this specific sample
             sample_suffix = f"{profile_id}_{i}" # Unique suffix for each sample
             raw_path = download_dir / f"{sample_suffix}.wav"
             prep_path = preprocessed_dir / f"{sample_suffix}.wav"
+
+            # Create task for processing this sample
             tasks.append(
                 self._process_single_sample(
                     youtube_id=youtube_id,
                     raw_path=raw_path,
                     preprocessed_path=prep_path,
+                    profile=profile, # Pass the full profile for config access
                     preprocess=preprocess,
                     force_redownload=force_redownload,
-                    profile_preprocessing_config=profile.preprocessing,
                 )
             )
 
@@ -230,8 +264,10 @@ class VoiceProfileManager:
             if isinstance(result, Path):
                 successful_paths.append(result)
             elif isinstance(result, Exception):
+                # Log exception from gather results
+                yt_id = youtube_ids_to_process[i] # Get corresponding ID
                 logger.error(
-                    f"Error processing sample {i} (YouTube ID: {youtube_ids_to_process[i]}) "
+                    f"Error processing sample {i} (YouTube ID: {yt_id}) "
                     f"for profile '{profile_id}': {result}",
                     exc_info=False, # Don't log full trace for gather errors unless needed
                 )
@@ -244,82 +280,134 @@ class VoiceProfileManager:
 
         return successful_paths
 
+
     async def _process_single_sample(
         self,
         youtube_id: str,
         raw_path: Path,
         preprocessed_path: Path,
+        profile: VoiceProfileConfig, # Receive full profile
         preprocess: bool,
         force_redownload: bool,
-        profile_preprocessing_config: Optional[Dict[str, bool]],
     ) -> Optional[Path]:
-        """Handles download and preprocessing for a single YouTube ID."""
+        """Handles download, preprocessing, and voice isolation for a single YouTube ID."""
+        try:
+            # 1. Check for existing preprocessed file first (if preprocessing is enabled)
+            if preprocess and preprocessed_path.exists() and not force_redownload:
+                logger.info(f"Using existing preprocessed sample: {preprocessed_path.name}")
+                return preprocessed_path
 
-        # 1. Check for existing preprocessed file
-        if preprocess and preprocessed_path.exists() and not force_redownload:
-            logger.info(f"Using existing preprocessed sample: {preprocessed_path.name}")
-            return preprocessed_path
-
-        # 2. Check for existing raw file or download
-        if not raw_path.exists() or force_redownload:
-            logger.info(f"Downloading sample for YouTube ID: {youtube_id} -> {raw_path.name}")
-            try:
-                raw_path.parent.mkdir(parents=True, exist_ok=True)
-                downloaded_path = await self._download_youtube_async(youtube_id, raw_path.parent)
+            # 2. Check for existing raw file or download
+            if not raw_path.exists() or force_redownload:
+                logger.info(f"Downloading sample for YouTube ID: {youtube_id} -> {raw_path.name}")
+                downloaded_path = await self._download_youtube_async(youtube_id, raw_path.parent, force_redownload)
                 if not downloaded_path:
-                    logger.error(f"Failed to download sample for YouTube ID {youtube_id}")
+                    logger.error(f"Failed to download audio for {youtube_id}")
                     return None
 
                 # Rename downloaded file (e.g., speaker-<id>.wav) to our target raw_path name
                 expected_download_name = f"speaker-{youtube_id}.wav"
-                if downloaded_path.name == expected_download_name:
-                    if raw_path.exists(): # Avoid error if file exists due to race condition or previous run
-                        raw_path.unlink()
-                    downloaded_path.rename(raw_path)
-                    logger.info(f"Downloaded and renamed to {raw_path.name}")
+                if downloaded_path.name == expected_download_name and downloaded_path != raw_path:
+                     # Rename only if names differ but ID matches
+                    try:
+                        if raw_path.exists(): raw_path.unlink(missing_ok=True) # Avoid error if exists
+                        shutil.move(str(downloaded_path), str(raw_path)) # Use shutil.move for robustness
+                        logger.info(f"Downloaded and moved to {raw_path.name}")
+                    except Exception as e:
+                        logger.error(f"Error moving {downloaded_path} to {raw_path}: {e}. Using original download path.")
+                        raw_path = downloaded_path # Fallback to using the originally downloaded path
                 elif downloaded_path == raw_path:
-                     logger.info(f"Using existing downloaded file: {raw_path.name}")
+                     logger.info(f"Download resulted directly in target path: {raw_path.name}")
                 else:
                     # This case might happen if download_audio_from_youtube has complex caching/naming
-                    logger.warning(f"Downloaded path '{downloaded_path}' differs from expected raw path '{raw_path}'. Attempting to use downloaded path.")
-                    # If the downloaded path isn't the raw_path, we need to decide strategy.
-                    # For now, let's assume the download function gave us the correct final path to use.
+                    logger.warning(f"Downloaded path '{downloaded_path}' differs significantly from expected raw path '{raw_path}'. Using downloaded path.")
                     raw_path = downloaded_path # Use the path returned by download function
+            else:
+                logger.info(f"Using existing raw sample: {raw_path.name}")
 
-            except Exception as e:
-                logger.error(f"Error downloading sample for YouTube ID {youtube_id}: {e}")
-                return None
-        else:
-            logger.info(f"Using existing raw sample: {raw_path.name}")
+            # --- Start Processing ---
+            current_input_path = raw_path
+            processing_step_succeeded = True # Track if any step fails
 
-        # 3. Preprocess if required
-        if preprocess and LIBROSA_AVAILABLE:
-            logger.info(f"Preprocessing sample: {raw_path.name} -> {preprocessed_path.name}")
-            try:
-                preprocessed_path.parent.mkdir(parents=True, exist_ok=True)
-                # Get effective preprocessing config
-                preprocessing_config = profile_preprocessing_config if profile_preprocessing_config is not None else {}
-                default_preprocessing = {
-                    "noise_reduction": True, "normalize": True, "trim_silence": True,
-                    "emphasize_bass": False, "equalize": False
-                }
-                final_prep_config = {**default_preprocessing, **preprocessing_config}
+            # Get effective preprocessing config
+            profile_preprocessing_config = profile.preprocessing if profile.preprocessing is not None else {}
+            default_preprocessing = {
+                "noise_reduction": True, "normalize": True, "trim_silence": True,
+                "highpass_filter": True, "lowpass_filter": True, "enhance_vocals": True,
+                "compression": True, "isolate_voice": True, # Add new defaults
+            }
+            final_prep_config = {**default_preprocessing, **profile_preprocessing_config}
 
-                self._preprocess_audio(raw_path, preprocessed_path, final_prep_config)
-                return preprocessed_path
-            except Exception as e:
-                logger.warning(f"Preprocessing failed for {raw_path.name}, returning raw path instead: {e}", exc_info=True)
-                return raw_path # Fallback to raw path if preprocessing fails
-        elif preprocess and not LIBROSA_AVAILABLE:
-            logger.warning(f"Librosa/Soundfile/Noisereduce not available. Skipping preprocessing for {raw_path.name}.")
-            return raw_path # Return raw path if preprocessing requested but libs missing
-        else:
-            # Preprocessing not requested, return raw path
-            return raw_path
+            # 3. Isolate main voice if requested and possible
+            isolated_path = None
+            if preprocess and final_prep_config.get("isolate_voice", True) and SPLEETER_AVAILABLE:
+                isolated_dir = self.get_cache_dir() / "isolated"
+                isolated_dir.mkdir(parents=True, exist_ok=True)
+                isolated_path = isolated_dir / f"{raw_path.stem}_isolated.wav"
+
+                if not isolated_path.exists() or force_redownload:
+                    logger.info(f"Isolating main voice from {current_input_path.name}...")
+                    # Run blocking spleeter call in executor
+                    loop = asyncio.get_event_loop()
+                    with ThreadPoolExecutor() as pool:
+                         success = await loop.run_in_executor(
+                             pool, self._isolate_main_voice, current_input_path, isolated_path
+                         )
+                    if success:
+                        logger.info(f"Voice isolation successful: {isolated_path.name}")
+                        current_input_path = isolated_path # Use isolated audio for next steps
+                    else:
+                        logger.warning(f"Voice isolation failed for {raw_path.name}, using original audio for further processing.")
+                        isolated_path = None # Ensure isolated_path is None if failed
+                        # Don't set processing_step_succeeded = False, just use original audio
+                else:
+                    logger.info(f"Using existing isolated voice: {isolated_path.name}")
+                    current_input_path = isolated_path
+            elif preprocess and final_prep_config.get("isolate_voice", True) and not SPLEETER_AVAILABLE:
+                 logger.warning("Voice isolation requested but Spleeter is not available. Skipping.")
 
 
-    async def _download_youtube_async(self, youtube_id: str, output_dir: Path) -> Optional[Path]:
-        """Download audio from YouTube asynchronously.
+            # 4. Preprocess audio if requested and possible
+            if preprocess and LIBROSA_AVAILABLE:
+                 # Preprocessing should happen *after* isolation if isolation was done
+                 # The output of preprocessing is always the final preprocessed_path
+                 if not preprocessed_path.exists() or force_redownload or current_input_path == isolated_path: # Reprocess if isolated or forced
+                    logger.info(f"Preprocessing audio: {current_input_path.name} -> {preprocessed_path.name}")
+                    # Run blocking librosa call in executor
+                    loop = asyncio.get_event_loop()
+                    with ThreadPoolExecutor() as pool:
+                        success = await loop.run_in_executor(
+                             pool, self._preprocess_audio, current_input_path, preprocessed_path, final_prep_config
+                        )
+                    if success:
+                        logger.info(f"Successfully preprocessed: {preprocessed_path.name}")
+                        return preprocessed_path # Return the final preprocessed path
+                    else:
+                        logger.warning(f"Preprocessing failed for {current_input_path.name}. Returning unprocessed (but possibly isolated) audio.")
+                        processing_step_succeeded = False
+                        # Fall through to return current_input_path (which might be raw or isolated)
+                 else:
+                      # This case should have been caught by the check at the start, but included for safety
+                      logger.info(f"Using existing preprocessed file (logic safeguard): {preprocessed_path.name}")
+                      return preprocessed_path
+
+            elif preprocess and not LIBROSA_AVAILABLE:
+                 logger.warning(f"Librosa/Soundfile/Noisereduce not available. Skipping preprocessing for {raw_path.name}.")
+                 # Return the current input path (raw or isolated)
+                 return current_input_path
+
+            # If preprocessing was skipped or failed, return the current input path
+            if not preprocess:
+                 logger.info(f"Preprocessing skipped for {raw_path.name}. Returning current input path.")
+            return current_input_path # This will be raw_path or isolated_path
+
+        except Exception as e:
+            logger.error(f"Error processing sample {youtube_id}: {e}", exc_info=True)
+            return None
+
+
+    async def _download_youtube_async(self, youtube_id: str, output_dir: Path, force_download: bool) -> Optional[Path]:
+        """Download audio from YouTube asynchronously."""
 
         This uses the existing download_audio_from_youtube function but wraps it
         to be callable asynchronously.

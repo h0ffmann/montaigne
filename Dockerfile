@@ -73,6 +73,11 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     # Needed for adding PPA
     software-properties-common \
     gpg-agent \
+    # Audio processing system libs
+    libsndfile1-dev \
+    libfftw3-dev \
+    libasound2-dev \
+    portaudio19-dev \
     # Utilities needed during build
     curl \
     git \
@@ -155,7 +160,8 @@ RUN echo "Setting up PyTorch index URL..." \
     --no-cache \
     --python /usr/bin/python3.11 \
     # Install all workspace members defined in pyproject.toml from the current directory (.)
-    # This should pull in montaigne, aider-analytics, and their dependencies (like huggingface-hub)
+    # This should pull in montaigne, aider-analytics, and their dependencies
+    # including the newly added audio processing libs
     . \
     # Clean up temporary project files and build dependencies
     && echo "Cleaning up build environment..." && rm -rf /tmp/project_files \

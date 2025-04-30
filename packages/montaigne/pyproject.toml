@@ -21,10 +21,17 @@ dependencies = [
     "transformers>=4.0.0",
     "accelerate>=0.20.0",
     "huggingface-hub>=0.20.0",
-    # New dependencies for voice profiles
+    # Voice profiles dependencies
     "tomli>=2.0.0", # For reading profiles.toml
-    "noisereduce>=2.0.0", # For audio preprocessing
-    "librosa>=0.9.0", # For audio analysis and preprocessing
+    # Advanced audio processing dependencies
+    "librosa==0.10.1",
+    "soundfile==0.12.1",
+    "noisereduce==3.0.0",
+    "numba==0.58.1", # Often needed by librosa/noisereduce for performance
+    "llvmlite==0.41.1", # Dependency for numba
+    "resampy==0.4.2", # Dependency for librosa
+    "scipy>=1.12.0", # Dependency for librosa/noisereduce filters
+    "spleeter==2.4.0", # For voice isolation
     # asyncio is built-in
 ]
 

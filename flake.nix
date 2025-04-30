@@ -63,6 +63,7 @@
           openssl
           ncurses5
           portaudio # Added for sounddevice runtime loading
+          libfftw # Added for librosa/noisereduce
         ];
         runtimeLibPath = pkgs.lib.makeLibraryPath runtimeLibs;
 
@@ -132,6 +133,7 @@
           openssl.dev
           ncurses5.dev
           pkgs.portaudio
+          pkgs.libfftw.dev # Added for librosa/noisereduce
         ];
 
       in

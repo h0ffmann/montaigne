@@ -18,15 +18,15 @@
         getUvBinaryInfo = sys:
           if sys == "x86_64-linux" then {
             url = "https://github.com/astral-sh/uv/releases/download/0.7.0/uv-x86_64-unknown-linux-gnu.tar.gz";
-            hash = "sha256-PvyC3P1oH7a6m/c7W+t3P7p8L+F+J/s+r7R+H9w/g8o="; # Hash for x86_64 binary v0.7.0
+            hash = "sha256-yh6Blmcr8EzLkmUZ8gcSCKjWwM4C+2W8fQqFvhtoSw8="; # Hash for x86_64 binary v0.7.0
             target = "x86_64-unknown-linux-gnu";
           } else if sys == "aarch64-linux" then {
             url = "https://github.com/astral-sh/uv/releases/download/0.7.0/uv-aarch64-unknown-linux-gnu.tar.gz";
             hash = "sha256-5yB0pXvB7sQkR6W2nZk1vYnF+H7c9Z3c9GvV1P3jL/U="; # Hash for aarch64 binary v0.7.0
             target = "aarch64-unknown-linux-gnu";
-          # Add other systems like macos if needed, e.g.:
-          # } else if sys == "x86_64-darwin" then { ... }
-          # } else if sys == "aarch64-darwin" then { ... }
+            # Add other systems like macos if needed, e.g.:
+            # } else if sys == "x86_64-darwin" then { ... }
+            # } else if sys == "aarch64-darwin" then { ... }
           } else throw "Unsupported system for pre-built uv binary: ${sys}";
 
         uvInfo = getUvBinaryInfo system;

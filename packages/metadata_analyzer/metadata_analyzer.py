@@ -14,6 +14,7 @@ from typing import Any
 try:
     import click
     import tomli
+
     TOMLI_AVAILABLE = True
 except ImportError:
     TOMLI_AVAILABLE = False
@@ -25,7 +26,7 @@ from montaigne.metadata_manager import MetadataManager
 
 class MetadataAnalyzer:
     """Analyzes synthesis metadata files."""
-    
+
     @staticmethod
     def load_metadata(path: Path) -> dict[str, Any]:
         """Load metadata from TOML file."""
@@ -61,13 +62,13 @@ class MetadataAnalyzer:
         print(f"  Engine: {general.get('engine', 'unknown')}")
         print(f"  Language: {general.get('language', 'unknown')}")
         print(f"  Output Format: {general.get('output_format', 'unknown')}")
-        
+
         # Input info
         input_data = metadata.get("input", {})
         print("\n📥 Input:")
         print(f"  Source: {input_data.get('text_source', 'unknown')}")
         print(f"  Processed Chunks: {input_data.get('processed_chunks', 'unknown')}")
-        
+
         speaker_file = input_data.get("speaker_file")
         if speaker_file:
             print(f"  Voice Source: 🎙️ File ({Path(speaker_file).name})")
@@ -80,7 +81,7 @@ class MetadataAnalyzer:
         print(f"  File: {Path(output.get('file', 'unknown')).name}")
         print(f"  Format: {output.get('format', 'unknown')}")
         print(f"  Duration: {output.get('duration', 'unknown')}s")
-        
+
         # Performance
         stats = metadata.get("stats", {})
         print("\n⏱️ Performance:")
@@ -110,17 +111,17 @@ class MetadataAnalyzer:
         for toml_file in toml_files:
             try:
                 metadata = MetadataAnalyzer.load_metadata(toml_file)
-                
+
                 # Collect stats
                 stats = metadata.get("stats", {})
                 total_processing_time += float(stats.get("processing_time", 0))
                 total_duration += float(metadata.get("output", {}).get("duration", 0))
-                
+
                 # Track engine usage
                 engine = metadata.get("general", {}).get("engine")
                 if engine:
                     engines_used[engine] = engines_used.get(engine, 0) + 1
-                
+
                 # Track language usage
                 language = metadata.get("general", {}).get("language")
                 if language:
@@ -142,14 +143,14 @@ class MetadataAnalyzer:
         print(f"  Average Processing Time per File: {avg_processing_time:.1f}s")
         print(f"  Total Audio Duration: {total_duration:.1f}s")
         print(f"  Average Duration per File: {avg_duration:.1f}s")
-        
+
         # Engine distribution
         if engines_used:
             print("\n🔧 Engine Usage:")
             for engine, count in sorted(engines_used.items(), key=lambda x: x[1], reverse=True):
                 percentage = (count / len(toml_files)) * 100
                 print(f"  {engine}: {count} files ({percentage:.1f}%)")
-        
+
         # Language distribution
         if languages_used:
             print("\n🌍 Language Distribution:")
@@ -169,16 +170,20 @@ class MetadataAnalyzer:
 
 
 @click.command()
-@click.argument('metadata_file', required=False, type=click.Path(exists=True, path_type=Path))
-@click.option('--directory', '-d', type=click.Path(exists=True, file_okay=False, path_type=Path),
-              help='Analyze all metadata files in directory')
-@click.option('--json', 'json_output', is_flag=True, help='Output in JSON format (for future use)')
+@click.argument("metadata_file", required=False, type=click.Path(exists=True, path_type=Path))
+@click.option(
+    "--directory",
+    "-d",
+    type=click.Path(exists=True, file_okay=False, path_type=Path),
+    help="Analyze all metadata files in directory",
+)
+@click.option("--json", "json_output", is_flag=True, help="Output in JSON format (for future use)")
 def main(metadata_file, directory, json_output):
     """Analyze Montaigne TTS metadata files."""
     if directory and metadata_file:
         click.echo("Error: Specify either a metadata file or --directory, not both.", err=True)
         sys.exit(1)
-    
+
     if not directory and not metadata_file:
         click.echo("Error: Either metadata file or --directory must be specified.", err=True)
         sys.exit(1)
@@ -187,7 +192,7 @@ def main(metadata_file, directory, json_output):
     if directory:
         MetadataAnalyzer.analyze_directory(directory)
         return
-    
+
     # Analyze single file
     MetadataAnalyzer.analyze_single_file(metadata_file)
 

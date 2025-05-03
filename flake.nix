@@ -7,14 +7,14 @@
     # You MUST find a working commit hash from:
     # https://github.com/NixOS/nixpkgs/commits/nixos-unstable/
     # Replace the placeholder hash below with a recent, valid commit SHA.
-    nixpkgs.url = "github:NixOS/nixpkgs/481d05d8dfb8627612dec72840a02c17b926b263"; # <-- 0.7.2 https://github.com/astral-sh/uv/commit/481d05d8dfb8627612dec72840a02c17b926b263
+    nixpkgs.url = "github:NixOS/nixpkgs/f02fddb8acef29a8b32f10a335d44828d7825b78"; # <-- EDIT THIS LINE
     flake-utils.url = "github:numtide/flake-utils";
   };
 
   outputs = { self, nixpkgs, flake-utils, ... }:
     flake-utils.lib.eachDefaultSystem (system:
       let
-        # --- Define the overlay to override uv source to 0.7.2 ---
+        # --- Define the overlay to override uv source to 0.7.0 ---
         uv-overlay = final: prev: {
           uv = prev.uv.overrideAttrs (oldAttrs:
             let
@@ -22,14 +22,14 @@
               drv_src = final.fetchFromGitHub {
                 owner = "astral-sh";
                 repo = "uv";
-                rev = "0.7.2"; # <-- Use the tag/release name 0.7.2
-                # Verify this source hash corresponds to the 0.7.2 tag/release
-                hash = "sha256-TUV4Aaqt8RIqzBTF6p9IIEcCtfZaWIozI8GvXzHwpWQ="; # <-- To be updated
+                rev = "0.7.2"; # <-- Use the tag/release name 0.7.0
+                # Verify this source hash corresponds to the 0.7.0 tag/release
+                hash = "sha256-D/3YqhIjXhvH7hn/dmJ2Xmf1riGjVc9jqbqVJSD5EyA="; # <-- Double-check this Source hash
               };
             in
             {
               # Start the attribute set returned by overrideAttrs
-              version = "0.7.2"; # <-- Ensure version is 0.7.2
+              version = "0.7.0"; # <-- Ensure version is 0.7.0
               # Use the let-bound variable for the derivation's source
               src = drv_src;
 

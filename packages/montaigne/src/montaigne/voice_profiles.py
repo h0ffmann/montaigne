@@ -27,7 +27,7 @@ try:
     import librosa
     import noisereduce as nr
     import soundfile as sf
-    import scipy.signal # For filters
+    import scipy.signal  # For filters
 
     LIBROSA_AVAILABLE = True
 except ImportError:
@@ -35,7 +35,7 @@ except ImportError:
     nr = None  # type: ignore
     sf = None  # type: ignore
     librosa = None  # type: ignore
-    scipy = None # type: ignore
+    scipy = None  # type: ignore
 
 # Attempt Spleeter import - Temporarily commented out due to numpy conflict
 # try:
@@ -44,7 +44,7 @@ except ImportError:
 # except ImportError:
 #     Separator = None # type: ignore
 #     SPLEETER_AVAILABLE = False
-SPLEETER_AVAILABLE = False # Assume not available
+SPLEETER_AVAILABLE = False  # Assume not available
 
 
 # Import the audio_utils for YouTube download functionality
@@ -71,6 +71,7 @@ class VoiceProfileConfig:
 
 
 # Removed EngineParams dataclass as --mode is removed
+
 
 class VoiceProfileManager:
     """Manager for voice profiles."""
@@ -138,21 +139,21 @@ class VoiceProfileManager:
         """Get the download directory for voice profiles."""
         download_dir = self.config.get("download_dir", "voices")
         download_dir = Path(self._expand_vars(download_dir))
-        download_dir.mkdir(parents=True, exist_ok=True) # Ensure exists
+        download_dir.mkdir(parents=True, exist_ok=True)  # Ensure exists
         return download_dir
 
     def get_cache_dir(self) -> Path:
         """Get the cache directory for voice profiles."""
         cache_dir = self.config.get("cache_dir", "${HOME}/.cache/montaigne/voices")
         cache_dir = Path(self._expand_vars(cache_dir))
-        cache_dir.mkdir(parents=True, exist_ok=True) # Ensure exists
+        cache_dir.mkdir(parents=True, exist_ok=True)  # Ensure exists
         return cache_dir
 
     def get_preprocessed_dir(self) -> Path:
         """Get the directory for preprocessed voice samples."""
         prep_dir = self.config.get("preprocessed_dir", "${HOME}/.cache/montaigne/preprocessed")
         prep_dir = Path(self._expand_vars(prep_dir))
-        prep_dir.mkdir(parents=True, exist_ok=True) # Ensure exists
+        prep_dir.mkdir(parents=True, exist_ok=True)  # Ensure exists
         return prep_dir
 
     def _expand_vars(self, path_str: str) -> str:
@@ -164,8 +165,8 @@ class VoiceProfileManager:
     async def get_voice_paths_async(
         self,
         profile_id: str,
-        skip_preprocessing: bool = False, # New flag
-        skip_isolation: bool = False      # New flag
+        skip_preprocessing: bool = False,  # New flag
+        skip_isolation: bool = False,  # New flag
     ) -> List[Path]:
         """
         Get paths to voice profile WAV files, downloading and optionally processing.
@@ -213,7 +214,7 @@ class VoiceProfileManager:
             processed_ids.add(youtube_id)
 
             # Define paths for this specific sample
-            sample_suffix = f"{profile_id}_{i}" # Unique suffix for each sample
+            sample_suffix = f"{profile_id}_{i}"  # Unique suffix for each sample
             raw_path = download_dir / f"{sample_suffix}.wav"
             prep_path = preprocessed_dir / f"{sample_suffix}.wav"
 
@@ -224,8 +225,8 @@ class VoiceProfileManager:
                     raw_path=raw_path,
                     preprocessed_path=prep_path,
                     profile=profile,
-                    skip_preprocessing=skip_preprocessing, # Pass flag
-                    skip_isolation=skip_isolation,       # Pass flag
+                    skip_preprocessing=skip_preprocessing,  # Pass flag
+                    skip_isolation=skip_isolation,  # Pass flag
                     force_redownload=force_redownload,
                 )
             )
@@ -240,11 +241,10 @@ class VoiceProfileManager:
                 successful_paths.append(result)
             elif isinstance(result, Exception):
                 # Log exception from gather results
-                yt_id = youtube_ids_to_process[i] # Get corresponding ID
+                yt_id = youtube_ids_to_process[i]  # Get corresponding ID
                 logger.error(
-                    f"Error processing sample {i} (YouTube ID: {yt_id}) "
-                    f"for profile '{profile_id}': {result}",
-                    exc_info=False, # Don't log full trace for gather errors unless needed
+                    f"Error processing sample {i} (YouTube ID: {yt_id}) for profile '{profile_id}': {result}",
+                    exc_info=False,  # Don't log full trace for gather errors unless needed
                 )
             # else: result is None (logged within _process_single_sample)
 
@@ -255,15 +255,14 @@ class VoiceProfileManager:
 
         return successful_paths
 
-
     async def _process_single_sample(
         self,
         youtube_id: str,
         raw_path: Path,
         preprocessed_path: Path,
         profile: VoiceProfileConfig,
-        skip_preprocessing: bool, # New flag
-        skip_isolation: bool,     # New flag
+        skip_preprocessing: bool,  # New flag
+        skip_isolation: bool,  # New flag
         force_redownload: bool,
     ) -> Optional[Path]:
         """Handles download and optional processing for a single YouTube ID."""
@@ -276,8 +275,8 @@ class VoiceProfileManager:
             # otherwise it's the isolated path (if isolation runs) or raw path.
             # This logic gets complex. Simplify: Check for preprocessed_path only if full preprocessing runs.
             if not skip_preprocessing and preprocessed_path.exists() and not force_redownload:
-                 logger.info(f"Using existing fully preprocessed sample: {preprocessed_path.name}")
-                 return preprocessed_path
+                logger.info(f"Using existing fully preprocessed sample: {preprocessed_path.name}")
+                return preprocessed_path
 
             # 2. Check for existing raw file or download (always needed as input)
             if not raw_path.exists() or force_redownload:
@@ -290,21 +289,25 @@ class VoiceProfileManager:
                 # Rename downloaded file (e.g., speaker-<id>.wav) to our target raw_path name
                 expected_download_name = f"speaker-{youtube_id}.wav"
                 if downloaded_path.name == expected_download_name and downloaded_path != raw_path:
-                     # Rename only if names differ but ID matches
+                    # Rename only if names differ but ID matches
                     try:
                         if raw_path.exists():
-                            raw_path.unlink(missing_ok=True) # Avoid error if exists
-                        shutil.move(str(downloaded_path), str(raw_path)) # Use shutil.move for robustness
+                            raw_path.unlink(missing_ok=True)  # Avoid error if exists
+                        shutil.move(str(downloaded_path), str(raw_path))  # Use shutil.move for robustness
                         logger.info(f"Downloaded and moved to {raw_path.name}")
                     except Exception as e:
-                        logger.error(f"Error moving {downloaded_path} to {raw_path}: {e}. Using original download path.")
-                        raw_path = downloaded_path # Fallback to using the originally downloaded path
+                        logger.error(
+                            f"Error moving {downloaded_path} to {raw_path}: {e}. Using original download path."
+                        )
+                        raw_path = downloaded_path  # Fallback to using the originally downloaded path
                 elif downloaded_path == raw_path:
-                     logger.info(f"Download resulted directly in target path: {raw_path.name}")
+                    logger.info(f"Download resulted directly in target path: {raw_path.name}")
                 else:
                     # This case might happen if download_audio_from_youtube has complex caching/naming
-                    logger.warning(f"Downloaded path '{downloaded_path}' differs significantly from expected raw path '{raw_path}'. Using downloaded path.")
-                    raw_path = downloaded_path # Use the path returned by download function
+                    logger.warning(
+                        f"Downloaded path '{downloaded_path}' differs significantly from expected raw path '{raw_path}'. Using downloaded path."
+                    )
+                    raw_path = downloaded_path  # Use the path returned by download function
             else:
                 logger.info(f"Using existing raw sample: {raw_path.name}")
 
@@ -315,9 +318,14 @@ class VoiceProfileManager:
             profile_preprocessing_config = profile.preprocessing if profile.preprocessing is not None else {}
             # Define defaults for *all* steps, even if skipped later
             default_processing_steps = {
-                "noise_reduction": True, "normalize": True, "trim_silence": True,
-                "highpass_filter": True, "lowpass_filter": True, "enhance_vocals": True,
-                "compression": True, "isolate_voice": True,
+                "noise_reduction": True,
+                "normalize": True,
+                "trim_silence": True,
+                "highpass_filter": True,
+                "lowpass_filter": True,
+                "enhance_vocals": True,
+                "compression": True,
+                "isolate_voice": True,
             }
             # Merge profile settings over defaults
             effective_step_config = {**default_processing_steps, **profile_preprocessing_config}
@@ -325,7 +333,9 @@ class VoiceProfileManager:
             # 3. Isolate main voice if not skipped and possible - DISABLED
             isolated_path = None
             if not skip_isolation and effective_step_config.get("isolate_voice", True):
-                 logger.warning("Voice isolation requested but Spleeter is disabled due to dependency issues. Skipping isolation.")
+                logger.warning(
+                    "Voice isolation requested but Spleeter is disabled due to dependency issues. Skipping isolation."
+                )
             # if not skip_isolation and effective_step_config.get("isolate_voice", True):
             #     if SPLEETER_AVAILABLE:
             #         isolated_dir = self.get_cache_dir() / "isolated"
@@ -351,39 +361,43 @@ class VoiceProfileManager:
             #     else:
             #         logger.warning("Voice isolation requested but Spleeter is not available. Skipping.")
             elif skip_isolation:
-                 logger.info("Voice isolation skipped due to --skip-voice-isol flag.")
+                logger.info("Voice isolation skipped due to --skip-voice-isol flag.")
 
             # 4. Preprocess audio if not skipped and possible
             if not skip_preprocessing and LIBROSA_AVAILABLE:
-                 # Preprocessing runs on the output of the isolation step (if it ran) or the raw file.
-                 # The output is always the final preprocessed_path.
-                 # Check if we need to run preprocessing (output doesn't exist, forced, or input changed)
-                 if not preprocessed_path.exists() or force_redownload or current_input_path == isolated_path:
+                # Preprocessing runs on the output of the isolation step (if it ran) or the raw file.
+                # The output is always the final preprocessed_path.
+                # Check if we need to run preprocessing (output doesn't exist, forced, or input changed)
+                if not preprocessed_path.exists() or force_redownload or current_input_path == isolated_path:
                     logger.info(f"Preprocessing audio: {current_input_path.name} -> {preprocessed_path.name}")
                     loop = asyncio.get_event_loop()
                     with ThreadPoolExecutor() as pool:
                         success = await loop.run_in_executor(
-                             pool, self._preprocess_audio, current_input_path, preprocessed_path, effective_step_config
+                            pool, self._preprocess_audio, current_input_path, preprocessed_path, effective_step_config
                         )
                     if success:
                         logger.info(f"Successfully preprocessed: {preprocessed_path.name}")
-                        return preprocessed_path # Return the final preprocessed path
+                        return preprocessed_path  # Return the final preprocessed path
                     else:
-                        logger.warning(f"Preprocessing failed for {current_input_path.name}. Returning unprocessed (but possibly isolated) audio.")
+                        logger.warning(
+                            f"Preprocessing failed for {current_input_path.name}. Returning unprocessed (but possibly isolated) audio."
+                        )
                         # Fall through to return current_input_path
-                 else:
-                      # This case should have been caught by the check at the start, but included for safety
-                      logger.info(f"Using existing preprocessed file (logic safeguard): {preprocessed_path.name}")
-                      return preprocessed_path
+                else:
+                    # This case should have been caught by the check at the start, but included for safety
+                    logger.info(f"Using existing preprocessed file (logic safeguard): {preprocessed_path.name}")
+                    return preprocessed_path
 
             elif skip_preprocessing:
-                 logger.info("Preprocessing skipped due to --skip-preproc flag.")
-                 # Return the current input path (which might be raw or isolated)
-                 return current_input_path
+                logger.info("Preprocessing skipped due to --skip-preproc flag.")
+                # Return the current input path (which might be raw or isolated)
+                return current_input_path
             elif not LIBROSA_AVAILABLE:
-                 logger.warning(f"Librosa/Soundfile/Noisereduce not available. Skipping preprocessing for {raw_path.name}.")
-                 # Return the current input path (raw or isolated)
-                 return current_input_path
+                logger.warning(
+                    f"Librosa/Soundfile/Noisereduce not available. Skipping preprocessing for {raw_path.name}."
+                )
+                # Return the current input path (raw or isolated)
+                return current_input_path
 
             # Fallback: If preprocessing was skipped or failed, return the current input path
             logger.debug(f"Returning current input path after processing checks: {current_input_path}")
@@ -392,7 +406,6 @@ class VoiceProfileManager:
         except Exception as e:
             logger.error(f"Error processing sample {youtube_id}: {e}", exc_info=True)
             return None
-
 
     async def _download_youtube_async(self, youtube_id: str, output_dir: Path, force_download: bool) -> Optional[Path]:
         """
@@ -404,9 +417,7 @@ class VoiceProfileManager:
         loop = asyncio.get_event_loop()
         # Pass force_download flag to the underlying sync function
         with ThreadPoolExecutor() as pool:
-            return await loop.run_in_executor(
-                pool, download_audio_from_youtube, youtube_id, output_dir, force_download
-            )
+            return await loop.run_in_executor(pool, download_audio_from_youtube, youtube_id, output_dir, force_download)
 
     def _preprocess_audio(self, input_path: Path, output_path: Path, config: Dict[str, bool]) -> None:
         """Preprocess audio file for better quality.
@@ -416,25 +427,25 @@ class VoiceProfileManager:
             output_path: Path to output audio file
             config: Dictionary of preprocessing options
         """
-        if not LIBROSA_AVAILABLE or not scipy: # Check scipy too
+        if not LIBROSA_AVAILABLE or not scipy:  # Check scipy too
             logger.warning("Librosa/Soundfile/Noisereduce/Scipy not available. Skipping preprocessing.")
             return False
 
         try:
             # Load audio
             logger.debug(f"Loading audio for preprocessing: {input_path}")
-            y, sr = librosa.load(str(input_path), sr=None) # Use original sample rate
-            output_path.parent.mkdir(parents=True, exist_ok=True) # Ensure output dir
+            y, sr = librosa.load(str(input_path), sr=None)  # Use original sample rate
+            output_path.parent.mkdir(parents=True, exist_ok=True)  # Ensure output dir
 
-            y_processed = y.copy() # Work on a copy
+            y_processed = y.copy()  # Work on a copy
             original_duration = librosa.get_duration(y=y, sr=sr)
             logger.debug(f"Original audio duration: {original_duration:.2f}s, Sample rate: {sr}Hz")
 
             # --- Preprocessing Steps ---
-            noise_sample = None # Define noise_sample before potential use
+            noise_sample = None  # Define noise_sample before potential use
 
             # 1. Trim silence
-            if config.get('trim_silence', True):
+            if config.get("trim_silence", True):
                 logger.debug("Trimming silence...")
                 y_trimmed, index = librosa.effects.trim(y_processed, top_db=30)
                 if len(y_trimmed) > 0:
@@ -443,78 +454,75 @@ class VoiceProfileManager:
                     logger.warning("Trim silence resulted in empty audio. Skipping trim.")
 
             # 2. Noise reduction
-            if config.get('noise_reduction', True) and nr:
+            if config.get("noise_reduction", True) and nr:
                 logger.debug("Applying noise reduction...")
                 noise_sample_length = min(int(sr * 0.5), int(len(y_processed) * 0.1))
                 if noise_sample_length > 0:
                     noise_sample = y_processed[:noise_sample_length]
                     try:
                         y_processed = nr.reduce_noise(
-                            y=y_processed, sr=sr, y_noise=noise_sample,
-                            stationary=False, prop_decrease=0.8
+                            y=y_processed, sr=sr, y_noise=noise_sample, stationary=False, prop_decrease=0.8
                         )
                     except Exception as nr_err:
-                         logger.warning(f"Noisereduce failed: {nr_err}. Skipping noise reduction.")
+                        logger.warning(f"Noisereduce failed: {nr_err}. Skipping noise reduction.")
                 else:
-                     logger.warning("Audio too short for noise sample estimation. Skipping noise reduction.")
+                    logger.warning("Audio too short for noise sample estimation. Skipping noise reduction.")
 
             # 3. Normalization (Initial)
-            if config.get('normalize', True):
+            if config.get("normalize", True):
                 logger.debug("Applying initial normalization...")
                 y_processed = librosa.util.normalize(y_processed)
 
             # 4. High-pass filter
-            if config.get('highpass_filter', True):
+            if config.get("highpass_filter", True):
                 logger.debug("Applying high-pass filter (80Hz)...")
                 try:
-                    b, a = scipy.signal.butter(5, 80/(sr/2), 'highpass')
+                    b, a = scipy.signal.butter(5, 80 / (sr / 2), "highpass")
                     y_processed = scipy.signal.filtfilt(b, a, y_processed)
                 except Exception as hp_err:
-                     logger.warning(f"High-pass filter failed: {hp_err}. Skipping.")
+                    logger.warning(f"High-pass filter failed: {hp_err}. Skipping.")
 
             # 5. Low-pass filter
-            if config.get('lowpass_filter', True):
+            if config.get("lowpass_filter", True):
                 logger.debug("Applying low-pass filter (12kHz)...")
                 try:
-                    b, a = scipy.signal.butter(5, 12000/(sr/2), 'lowpass')
+                    b, a = scipy.signal.butter(5, 12000 / (sr / 2), "lowpass")
                     y_processed = scipy.signal.filtfilt(b, a, y_processed)
                 except Exception as lp_err:
-                     logger.warning(f"Low-pass filter failed: {lp_err}. Skipping.")
+                    logger.warning(f"Low-pass filter failed: {lp_err}. Skipping.")
 
             # 6. Vocal enhancement
-            if config.get('enhance_vocals', True):
+            if config.get("enhance_vocals", True):
                 logger.debug("Enhancing vocal frequencies (2-4kHz)...")
                 try:
                     D = librosa.stft(y_processed)
                     freqs = librosa.fft_frequencies(sr=sr)
                     vocal_range = (freqs >= 2000) & (freqs <= 4000)
-                    D[vocal_range, :] *= 1.5 # Apply boost (adjust factor as needed)
+                    D[vocal_range, :] *= 1.5  # Apply boost (adjust factor as needed)
                     y_processed = librosa.istft(D, length=len(y_processed))
                 except Exception as ve_err:
-                     logger.warning(f"Vocal enhancement failed: {ve_err}. Skipping.")
+                    logger.warning(f"Vocal enhancement failed: {ve_err}. Skipping.")
 
             # 7. Compression
-            if config.get('compression', True):
+            if config.get("compression", True):
                 logger.debug("Applying simple compression...")
                 try:
-                    threshold = 0.5 # Example threshold (adjust based on audio levels)
-                    ratio = 4.0     # Example ratio
+                    threshold = 0.5  # Example threshold (adjust based on audio levels)
+                    ratio = 4.0  # Example ratio
                     y_abs = np.abs(y_processed)
                     mask = y_abs > threshold
-                    if np.any(mask): # Apply only if some values exceed threshold
-                        y_processed[mask] = np.sign(y_processed[mask]) * (
-                            threshold + (y_abs[mask] - threshold) / ratio
-                        )
+                    if np.any(mask):  # Apply only if some values exceed threshold
+                        y_processed[mask] = np.sign(y_processed[mask]) * (threshold + (y_abs[mask] - threshold) / ratio)
                         # Normalize again after compression
                         y_processed = librosa.util.normalize(y_processed)
                     else:
-                         logger.debug("No values above compression threshold. Skipping compression.")
+                        logger.debug("No values above compression threshold. Skipping compression.")
                 except Exception as comp_err:
-                     logger.warning(f"Compression failed: {comp_err}. Skipping.")
+                    logger.warning(f"Compression failed: {comp_err}. Skipping.")
 
             # --- Final Checks & Save ---
             # Calculate SNR
-            snr = np.nan # Default to NaN
+            snr = np.nan  # Default to NaN
             if noise_sample is not None and len(noise_sample) > 0:
                 try:
                     signal_power = np.mean(y_processed**2)
@@ -524,14 +532,16 @@ class VoiceProfileManager:
                 except Exception as snr_err:
                     logger.warning(f"Could not calculate SNR: {snr_err}")
             else:
-                 logger.debug("Skipping SNR calculation (no valid noise sample).")
+                logger.debug("Skipping SNR calculation (no valid noise sample).")
 
             # Check minimum length
             min_len_sec = self.config.get("min_voice_length", 6.0)
             processed_duration = librosa.get_duration(y=y_processed, sr=sr)
             if processed_duration < min_len_sec:
-                 logger.warning(f"Processed audio duration ({processed_duration:.2f}s) is less than minimum required ({min_len_sec}s). Skipping save for {output_path.name}.")
-                 return False # Indicate failure due to length
+                logger.warning(
+                    f"Processed audio duration ({processed_duration:.2f}s) is less than minimum required ({min_len_sec}s). Skipping save for {output_path.name}."
+                )
+                return False  # Indicate failure due to length
 
             # Save processed audio
             logger.debug(f"Saving processed audio to {output_path}")
@@ -544,7 +554,6 @@ class VoiceProfileManager:
             # Clean up potentially incomplete output file
             output_path.unlink(missing_ok=True)
             return False
-
 
     # def _isolate_main_voice(self, input_path: Path, output_path: Path) -> bool:
     #     """
@@ -604,9 +613,9 @@ voice_profile_manager = VoiceProfileManager()
 
 def get_voice_profile(
     profile_name: str,
-    skip_preprocessing: bool = False, # Add flag
-    skip_isolation: bool = False,     # Add flag
-    download_dir: Optional[str] = None, # Keep deprecated arg for now
+    skip_preprocessing: bool = False,  # Add flag
+    skip_isolation: bool = False,  # Add flag
+    download_dir: Optional[str] = None,  # Keep deprecated arg for now
 ) -> List[Path]:
     """
     Get paths to voice profile WAV files, downloading and optionally processing.
@@ -631,7 +640,7 @@ def get_voice_profile(
         logger.debug("Creating new asyncio loop for get_voice_profile.")
         loop = asyncio.new_event_loop()
         asyncio.set_event_loop(loop)
-        close_loop = True # Flag to close the loop we created
+        close_loop = True  # Flag to close the loop we created
     else:
         close_loop = False
 
@@ -646,9 +655,7 @@ def get_voice_profile(
         # Run the async function in the event loop, passing the skip flags
         result = loop.run_until_complete(
             voice_profile_manager.get_voice_paths_async(
-                profile_id=profile_name,
-                skip_preprocessing=skip_preprocessing,
-                skip_isolation=skip_isolation
+                profile_id=profile_name, skip_preprocessing=skip_preprocessing, skip_isolation=skip_isolation
             )
         )
 
@@ -690,7 +697,7 @@ def get_voice_profile_config(profile_name: str) -> Optional[Dict[str, Any]]:
             "youtube_ids": profile.youtube_ids,
             "gender": profile.gender,
             "tags": profile.tags,
-            "preprocessing_settings": profile.preprocessing # Expose preprocessing settings
+            "preprocessing_settings": profile.preprocessing,  # Expose preprocessing settings
         }
     return None
 

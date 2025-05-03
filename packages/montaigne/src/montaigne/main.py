@@ -79,11 +79,20 @@ def get_evaluator():  # Removed unused use_cuda argument
         # evaluator_instance = AudioEvaluator(use_cuda=use_cuda) # Commented out as import is commented
         pass
     return evaluator_instance
-
-
+ 
+ 
 @click.group(context_settings={"help_option_names": ["-h", "--help"]})
-def cli():
+@click.option('--log-file', type=click.Path(), help='Path to log file')
+@click.option('--log-level', type=click.Choice(['DEBUG', 'INFO', 'WARNING', 'ERROR', 'CRITICAL']),
+              default='INFO', help='Set logging level')
+def cli(log_file: str | None, log_level: str):
     """🚀 Montaigne TTS: Synthesizes speech using XTTS v2 or Bark."""
+    # Setup logging at startup
+    setup_logging(
+        log_file=Path(log_file) if log_file else None,
+        level=getattr(logging, log_level.upper())
+    )
+    # The logger is now configured globally
     pass
 
 
@@ -169,9 +178,9 @@ def synthesize(
                 sys.exit(1)
             actual_speaker_wav = downloaded_path
             speaker_display_name = f"YouTube: {speaker_youtube_id} ({actual_speaker_wav.name})"
-            # Add the downloaded path to engine_params
-            engine_params["speaker_wav"] = actual_speaker_wav
-
+            # Add the downloaded path to engine_params (as string)
+            engine_params["speaker_wav"] = str(actual_speaker_wav)
+ 
         elif voice_profile:
             # Get paths for the voice profile (can return a list)
             profile_paths = get_voice_profile(
@@ -347,20 +356,38 @@ def synthesize(
     synthesis_successful = concatenation_successful and not synthesis_failed
 
     # Calculate audio metrics for output
-    output_metrics = calculate_audio_metrics(final_output_path)
-
-    # Calculate metrics for input files if applicable
-    input_metrics = {}
+    output_metrics = {}
+    try:
+        output_metrics = calculate_audio_metrics(final_output_path)
+        # Clean potential inf/NaN values from output metrics before saving
+        output_metrics = MetadataManager._clean_metadata_for_toml(output_metrics) # Use the cleaning function
+    except Exception as e:
+        logger.warning(f"Failed to calculate output metrics for {final_output_path.name}: {e}")
+ 
+    # Calculate metrics for input files if applicable, with error handling
+    input_metrics: dict | list = {} # Define type hint
     if actual_speaker_wav and not skip_audio_processing:
         if isinstance(actual_speaker_wav, list):
             input_metrics = []
-            for path in actual_speaker_wavs:
-                metrics = calculate_audio_metrics(path)
-                if metrics:
-                    input_metrics.append({"file": str(path), "metrics": metrics})
+            # Ensure we iterate over the correct variable (actual_speaker_wavs was used before, but actual_speaker_wav holds the list now)
+            for path in actual_speaker_wav:
+                try:
+                    metrics = calculate_audio_metrics(path)
+                    # Clean potential inf/NaN values from input metrics
+                    cleaned_metrics = MetadataManager._clean_metadata_for_toml(metrics)
+                    if cleaned_metrics:
+                        input_metrics.append({"file": str(path), "metrics": cleaned_metrics})
+                except Exception as e:
+                    logger.warning(f"Failed to calculate input metrics for {path.name}: {e}")
         elif isinstance(actual_speaker_wav, Path):
-            input_metrics = calculate_audio_metrics(actual_speaker_wav)
-
+            try:
+                input_metrics = calculate_audio_metrics(actual_speaker_wav)
+                # Clean potential inf/NaN values from input metrics
+                input_metrics = MetadataManager._clean_metadata_for_toml(input_metrics)
+            except Exception as e:
+                logger.warning(f"Failed to calculate input metrics for {actual_speaker_wav.name}: {e}")
+                input_metrics = {} # Reset to empty dict on failure
+ 
     # Evaluation (kept for compatibility)
 
     # Calculation time stats
@@ -382,13 +409,13 @@ def synthesize(
         engine_params=engine_params,
         cpu=cpu,
         skip_preprocessors=skip_preprocessors,
-        skip_voice_preprocessing=skip_voice_preprocessing,
-        skip_voice_isolation=skip_voice_isolation,
-        skip_audio_processing=skip_audio_processing,
-        final_output_path=final_output_path,
-        synthesis_successful=synthesis_successful,
-        output_metrics=output_metrics,
-        processing_time=total_duration,
+        skip_voice_preprocessing=skip_voice_preprocessing, # Pass flag
+        skip_voice_isolation=skip_voice_isolation, # Pass flag
+        skip_audio_processing=skip_audio_processing, # Pass flag
+        final_output_path=final_output_path, # Pass Path object
+        synthesis_successful=synthesis_successful, # Pass bool
+        output_metrics=output_metrics, # Pass cleaned metrics dict
+        processing_time=total_duration, # Pass float
     )
 
     # Save metadata to TOML file

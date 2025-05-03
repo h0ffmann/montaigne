@@ -57,10 +57,23 @@ class AudioMetrics:
 
             # SNR estimation
             noise_floor = np.percentile(np.abs(y), 5)  # Bottom 5% as noise
+ 
+            # Ensure we have valid values for noise floor
+            if np.isclose(noise_floor, 0.0, atol=1e-10):
+                noise_floor = np.percentile(np.abs(y), 10)  # Try 10% if 5% is too low
+                if np.isclose(noise_floor, 0.0, atol=1e-10):
+                    noise_floor = 1e-6  # Fallback to small value to avoid division by zero
+ 
             signal_power = rms**2
             noise_power = noise_floor**2
-            snr = 10 * np.log10(signal_power / noise_power) if noise_power > 1e-10 else float("inf")
-
+ 
+            if noise_power > 1e-10:
+                snr = 10 * np.log10(signal_power / noise_power)
+                # Clamp SNR to reasonable range
+                snr = max(0.0, min(snr, 120.0))  # Reasonable range: 0-120 dB
+            else:
+                snr = 120.0  # Use a high but finite value instead of inf
+ 
             # Duration
             duration = librosa.get_duration(y=y, sr=sr)
 

@@ -31,9 +31,9 @@ default:
 # === Environment & Dependencies (Managed by Nix Flake) ===
 # Installs/Synchronizes workspace packages using uv within the current (presumably nix) environment
 install_workspace:
-    @echo "🔄 Synchronizing workspace packages using UV and uv.lock..."
+    @echo "🔄 Synchronizing workspace packages using UV..."
     uv --version
-    uv pip sync uv.lock 
+    uv sync 
     # Re-install workspace packages editably AFTER syncing base dependencies
     @echo "📦 Installing local workspace packages editably..."
     uv pip install -e ./packages/montaigne --no-deps

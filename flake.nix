@@ -240,7 +240,7 @@
                 source "$VENV_DIR/bin/activate"
                 echo "📦 Initial sync/install of workspace packages into new venv via uv..."
                 # Use the 'uv' from Nix path (which is the correct one)
-                uv pip sync uv.lock && \
+                uv sync && \
                 uv pip install -e ./packages/montaigne -e ./packages/aider_analytics --no-deps || \
                   { echo "❌ Fatal: Failed initial workspace package install into venv '$VENV_DIR'."; deactivate; exit 1; }
                 deactivate

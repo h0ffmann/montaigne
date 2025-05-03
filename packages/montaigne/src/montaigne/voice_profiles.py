@@ -15,7 +15,7 @@ import os
 from concurrent.futures import ThreadPoolExecutor
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Any, Dict, List, Optional, Union
+from typing import Any, Union
 
 import numpy as np
 import shutil
@@ -83,10 +83,10 @@ class VoiceProfileManager:
             profiles_path: Path to the profiles.toml file
         """
         self.profiles_path = Path(profiles_path)
-        self.profiles: Dict[str, VoiceProfileConfig] = {}
-        self.config: Dict[str, Any] = {}
-        self.engines: Dict[str, Dict[str, Any]] = {}
-        self.modes: Dict[str, Dict[str, Any]] = {}
+        self.profiles: dict[str, VoiceProfileConfig] = {}
+        self.config: dict[str, Any] = {}
+        self.engines: dict[str, dict[str, Any]] = {}
+        self.modes: dict[str, dict[str, Any]] = {}
         self._load_profiles()
 
         # Log library availability
@@ -127,11 +127,11 @@ class VoiceProfileManager:
         except Exception as e:
             logger.error(f"Error loading profiles from {self.profiles_path}: {e}")
 
-    def get_profile_ids(self) -> List[str]:
+    def get_profile_ids(self) -> list[str]:
         """Get list of available profile IDs."""
         return list(self.profiles.keys())
 
-    def get_profile_by_id(self, profile_id: str) -> Optional[VoiceProfileConfig]:
+    def get_profile_by_id(self, profile_id: str) -> VoiceProfileConfig | None:
         """Get profile configuration by ID."""
         return self.profiles.get(profile_id)
 
@@ -167,7 +167,7 @@ class VoiceProfileManager:
         profile_id: str,
         skip_preprocessing: bool = False,  # New flag
         skip_isolation: bool = False,  # New flag
-    ) -> List[Path]:
+    ) -> list[Path]:
         """
         Get paths to voice profile WAV files, downloading and optionally processing.
 
@@ -407,7 +407,7 @@ class VoiceProfileManager:
             logger.error(f"Error processing sample {youtube_id}: {e}", exc_info=True)
             return None
 
-    async def _download_youtube_async(self, youtube_id: str, output_dir: Path, force_download: bool) -> Optional[Path]:
+    async def _download_youtube_async(self, youtube_id: str, output_dir: Path, force_download: bool) -> Path | None:
         """
         Download audio from YouTube asynchronously.
 
@@ -419,7 +419,7 @@ class VoiceProfileManager:
         with ThreadPoolExecutor() as pool:
             return await loop.run_in_executor(pool, download_audio_from_youtube, youtube_id, output_dir, force_download)
 
-    def _preprocess_audio(self, input_path: Path, output_path: Path, config: Dict[str, bool]) -> None:
+    def _preprocess_audio(self, input_path: Path, output_path: Path, config: dict[str, bool]) -> None:
         """Preprocess audio file for better quality.
 
         Args:
@@ -495,7 +495,7 @@ class VoiceProfileManager:
             if config.get("enhance_vocals", True):
                 logger.debug("Enhancing vocal frequencies (2-4kHz)...")
                 try:
-                    D = librosa.stft(y_processed)
+                    d = librosa.stft(y_processed)
                     freqs = librosa.fft_frequencies(sr=sr)
                     vocal_range = (freqs >= 2000) & (freqs <= 4000)
                     D[vocal_range, :] *= 1.5  # Apply boost (adjust factor as needed)
@@ -671,12 +671,12 @@ def get_voice_profile(
             loop.close()
 
 
-def list_voice_profiles() -> List[str]:
+def list_voice_profiles() -> list[str]:
     """Return list of available voice profile names."""
     return voice_profile_manager.get_profile_ids()
 
 
-def get_voice_profile_config(profile_name: str) -> Optional[Dict[str, Any]]:
+def get_voice_profile_config(profile_name: str) -> dict[str, Any] | None:
     """
     Get configuration for a voice profile.
 

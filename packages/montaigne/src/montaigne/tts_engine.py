@@ -207,11 +207,26 @@ class XTTSv2Engine(BaseTTSEngine):
         try:
             start_time = time.time()
             # Pass the validated speaker_paths_str (str or list[str]) directly
+ 
+            # --- Defensive Check: Ensure speaker_wav is str or list[str] ---
+            final_speaker_arg: str | list[str]
+            if isinstance(speaker_paths_str, list):
+                # Ensure all elements in the list are strings
+                final_speaker_arg = [str(p) for p in speaker_paths_str if isinstance(p, (str, Path))]
+            elif isinstance(speaker_paths_str, (str, Path)):
+                 # Ensure it's definitely a string
+                 final_speaker_arg = str(speaker_paths_str)
+            else:
+                 # This case should not happen based on prior checks
+                 logger.error(f"Internal Error: Unexpected type for speaker_paths_str before TTS call: {type(speaker_paths_str)}")
+                 return False
+            # --- End Defensive Check ---
+ 
             self.model.tts_to_file(
                 text=text,
-                speaker_wav=speaker_paths_str,
+                speaker_wav=final_speaker_arg, # <-- Use the explicitly checked/converted variable
                 language=language,
-                file_path=str(output_path),
+                file_path=str(output_path), # Ensure file_path is also a string
                 speed=speed,
                 split_sentences=True,  # Keep sentence splitting enabled
             )

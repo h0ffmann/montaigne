@@ -36,7 +36,7 @@ install_workspace:
     uv sync 
     # Re-install workspace packages editably AFTER syncing base dependencies
     @echo "📦 Installing local workspace packages editably..."
-    uv pip install -e ./packages/montaigne --no-deps
+    uv pip install -e ./packages/montaigne
     @echo "✅ Workspace environment synchronized and packages installed editably."
 
 setup: install_workspace # Alias

@@ -16,11 +16,10 @@ from concurrent.futures import ThreadPoolExecutor
 from dataclasses import dataclass
 from pathlib import Path
 from __future__ import annotations
-from typing import Any, Union, Optional, Dict, List
+from typing import Any, Union
 
 import numpy as np
 import shutil
-import tempfile
 import tomli
 
 # For audio preprocessing

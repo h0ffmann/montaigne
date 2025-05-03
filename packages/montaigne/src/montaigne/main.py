@@ -4,23 +4,22 @@ from pathlib import Path
 import time
 import sys
 from datetime import datetime
-from typing import Union, Optional, Dict, Any
-import json  # For metadata persistence
+from typing import Union, Optional
 
 import click
+
 
 # Define available engines
 class EngineChoice(Enum):
     XTTS = "xtts"
     BARK = "bark"
 
+
 logger = logging.getLogger("montaigne.cli")
 
 # Import the new Piper-based streaming engine (now PiperStreamingTTS)
 from .streaming_tts import (
     PiperStreamingTTS,  # Import new class and checks
-    PIPER_AVAILABLE,
-    SOUNDDEVICE_AVAILABLE,
     run_interactive_prompt,
 )
 
@@ -58,6 +57,7 @@ engine_instances = {}
 # Streaming Engine (PiperStreamingTTS) is instantiated directly in the 'live' command now
 # No factory needed here. Checks PIPER_AVAILABLE and SOUNDDEVICE_AVAILABLE are imported above.
 
+
 def get_tts_engine(engine_type: EngineChoice, use_cuda: bool):
     """Factory function to get or create a Batch TTS engine instance."""
     engine_key = (engine_type, use_cuda)
@@ -80,9 +80,11 @@ def get_tts_engine(engine_type: EngineChoice, use_cuda: bool):
 
     return engine_instances[engine_key]
 
+
 # No global streaming engine instance needed anymore.
 # Evaluator instance can remain global or follow similar pattern if needed later
 evaluator_instance = None
+
 
 def get_evaluator():  # Removed unused use_cuda argument
     """Factory function for audio evaluator."""
@@ -92,66 +94,53 @@ def get_evaluator():  # Removed unused use_cuda argument
         pass
     return evaluator_instance
 
+
 # Import audio metrics and metadata manager modules
 from .audio_metrics import calculate_audio_metrics, generate_metrics_report
 from .metadata_manager import MetadataManager
+
 
 @click.group(context_settings={"help_option_names": ["-h", "--help"]})
 def cli():
     """🚀 Montaigne TTS: Synthesizes speech using XTTS v2 or Bark."""
     pass
 
+
 @cli.command(name="synthesize")
-@click.option("--engine", 
-              type=click.Choice(["xtts", "bark"]), 
-              default="xtts", 
-              help="TTS engine to use.")
+@click.option("--engine", type=click.Choice(["xtts", "bark"]), default="xtts", help="TTS engine to use.")
 @click.option("--text", help="Text to synthesize")
-@click.option("--text-file", 
-              type=click.Path(exists=True), 
-              help="Text file to synthesize")
-@click.option("--language", 
-              default="pt", 
-              help="Language code (en, pt, etc)")
-@click.option("--voice-profile", 
-              help="Named voice profile to use", 
-              type=click.Choice(list_voice_profiles()))
-@click.option("--speaker-wav", 
-              type=click.Path(exists=True), 
-              help="Path to speaker reference audio file (for XTTS)")
-@click.option("--speaker-youtube-id", 
-              type=str, 
-              help="YouTube video ID for speaker voice")
+@click.option("--text-file", type=click.Path(exists=True), help="Text file to synthesize")
+@click.option("--language", default="pt", help="Language code (en, pt, etc)")
+@click.option("--voice-profile", help="Named voice profile to use", type=click.Choice(list_voice_profiles()))
+@click.option("--speaker-wav", type=click.Path(exists=True), help="Path to speaker reference audio file (for XTTS)")
+@click.option("--speaker-youtube-id", type=str, help="YouTube video ID for speaker voice")
 @click.option("--speaker-prompt", help="Speaker prompt (for Bark)")
 @click.option("--speed", type=float, default=1.0, help="Speech speed multiplier (XTTS only)")
 @click.option("--cpu", is_flag=True, help="Use CPU instead of GPU")
-@click.option("--output-file", 
-              type=click.Path(), 
-              help="Output audio file path")
-@click.option("--output-format", 
-              type=click.Choice(["wav", "mp3"]), 
-              default="mp3", 
-              help="Output audio format")
+@click.option("--output-file", type=click.Path(), help="Output audio file path")
+@click.option("--output-format", type=click.Choice(["wav", "mp3"]), default="mp3", help="Output audio format")
 @click.option("--skip-preprocessors", is_flag=True, help="Skip all preprocessing steps")
 @click.option("--skip-voice-preprocessing", is_flag=True, help="Skip voice preprocessing for profile voices")
 @click.option("--skip-voice-isolation", is_flag=True, help="Skip voice isolation for profile voices")
 @click.option("--skip-audio-processing", is_flag=True, help="Skip ALL audio processing (both input and output)")
-def synthesize(engine: str,
-               text: str,
-               text_file: Optional[click.Path],
-               language: str,
-               voice_profile: Optional[str],
-               speaker_wav: Optional[click.Path],
-               speaker_youtube_id: Optional[str],
-               speaker_prompt: Optional[str],
-               speed: float,
-               cpu: bool,
-               output_file: Optional[click.Path],
-               output_format: str,
-               skip_preprocessors: bool,
-               skip_voice_preprocessing: bool,
-               skip_voice_isolation: bool,
-               skip_audio_processing: bool):
+def synthesize(
+    engine: str,
+    text: str,
+    text_file: Optional[click.Path],
+    language: str,
+    voice_profile: Optional[str],
+    speaker_wav: Optional[click.Path],
+    speaker_youtube_id: Optional[str],
+    speaker_prompt: Optional[str],
+    speed: float,
+    cpu: bool,
+    output_file: Optional[click.Path],
+    output_format: str,
+    skip_preprocessors: bool,
+    skip_voice_preprocessing: bool,
+    skip_voice_isolation: bool,
+    skip_audio_processing: bool,
+):
     """Synthesizes speech from text using a selected TTS engine."""
     selected_engine_type = EngineChoice(engine)
 
@@ -204,9 +193,9 @@ def synthesize(engine: str,
 
         elif voice_profile:
             # Get paths for the voice profile (can return a list)
-            profile_paths = get_voice_profile(voice_profile,
-                                            skip_preprocessing=skip_voice_preprocessing,
-                                            skip_isolation=skip_voice_isolation)
+            profile_paths = get_voice_profile(
+                voice_profile, skip_preprocessing=skip_voice_preprocessing, skip_isolation=skip_voice_isolation
+            )
             if not profile_paths:
                 click.echo(f"❌ Error: Failed to load voice profile '{voice_profile}'", err=True)
                 sys.exit(1)
@@ -280,18 +269,17 @@ def synthesize(engine: str,
         default_name = f"{language_part}-{profile_part}-{engine_part}-{model_part}-{timestamp}.{output_format}"
         output_file = Path(default_name)
     elif isinstance(output_file, bytes):
-        output_file = output_file.decode('utf-8')
+        output_file = output_file.decode("utf-8")
         output_file = Path(output_file)
-    
+
     output_file = Path(output_file)
-    
+
     # Ensure output format is respected
     if output_file.suffix != f".{output_format}":
         output_file = output_file.with_suffix(f".{output_format}")
-    
+
     output_dir = output_file.parent
     output_base_name = output_file.stem
-    output_suffix = output_file.suffix if output_file.suffix else ".wav"  # Ensure suffix
 
     # Get the engine instance (lazy loaded)
     try:
@@ -345,6 +333,7 @@ def synthesize(engine: str,
         # If MP3 output is requested, convert WAV to MP3
         if output_format == "mp3":
             from pydub import AudioSegment
+
             try:
                 audio = AudioSegment.from_wav(str(temp_wav_path))
                 audio.export(str(output_file), format="mp3", bitrate="192k")
@@ -385,7 +374,6 @@ def synthesize(engine: str,
             input_metrics = calculate_audio_metrics(actual_speaker_wav)
 
     # Evaluation (kept for compatibility)
-    evaluation_result = None  # Disabled for now
 
     # Calculation time stats
     total_duration = time.time() - start_total_time
@@ -412,7 +400,7 @@ def synthesize(engine: str,
         final_output_path=final_output_path,
         synthesis_successful=synthesis_successful,
         output_metrics=output_metrics,
-        processing_time=total_duration
+        processing_time=total_duration,
     )
 
     # Save metadata to TOML file
@@ -425,13 +413,13 @@ def synthesize(engine: str,
     # --- Display Results ---
     if synthesis_successful:
         click.echo(f"✅ Synthesis complete: {final_output_path}")
-        
+
         # Generate and display metrics report
         metrics_report = generate_metrics_report(input_metrics, output_metrics)
         click.echo(metrics_report)
-        
+
         click.echo(f"⏱️ Time taken: {total_duration:.1f}s")
-        
+
         # Display metadata summary if available
         if metadata:
             click.echo("\n📋 Synthesis Summary:")
@@ -439,26 +427,18 @@ def synthesize(engine: str,
     else:
         click.echo("❌ Synthesis completed with errors.", err=True)
 
+
 # --- Live TTS Command (Using PiperStreamingTTS with HF Download) ---
 @cli.command(name="live")
-@click.option("--piper-voice", 
-              type=str, 
-              default="en_US-amy-low", 
-              help="Piper voice model to use")
-@click.option("--file", 
-              type=click.File("r"), 
-              help="Text file to process (default: interactive prompt)")
-@click.option("--output-dir", 
-              type=click.Path(), 
-              default="output", 
-              help="Directory to save audio output")
+@click.option("--piper-voice", type=str, default="en_US-amy-low", help="Piper voice model to use")
+@click.option("--file", type=click.File("r"), help="Text file to process (default: interactive prompt)")
+@click.option("--output-dir", type=click.Path(), default="output", help="Directory to save audio output")
 @click.option("--cpu", is_flag=True, help="Use CPU instead of GPU")
 def live(piper_voice: str, file: click.File | None, output_dir: click.Path, cpu: bool):
     """Starts a live TTS session using Piper, downloading the specified voice."""
-    from .audio_utils import YTDLP_AVAILABLE  # Might be needed for any future enhancements
 
     # Checks for library availability are done inside PiperStreamingTTS constructor now
-    
+
     session_id = uuid.uuid4()  # Generate a random UUID (uuid7 not available in Python < 3.13)
     output_dir = Path(output_dir)
     use_cuda = not cpu
@@ -472,7 +452,7 @@ def live(piper_voice: str, file: click.File | None, output_dir: click.Path, cpu:
         # Initialize the Piper engine instance
         click.echo("🚀 Initializing Piper engine...")
         engine = PiperStreamingTTS(use_cuda=use_cuda)
-        
+
         # Load the specified model
         if not engine.load_model(piper_voice):
             click.echo("❌ Failed to load Piper model. Exiting.", err=True)
@@ -506,6 +486,7 @@ def live(piper_voice: str, file: click.File | None, output_dir: click.Path, cpu:
         if engine:
             engine.stop()  # Attempt cleanup if engine was initialized
         click.echo("\n👋 Goodbye!")
+
 
 if __name__ == "__main__":
     cli()

@@ -4,6 +4,7 @@ on:
   push:
     branches:
       - master # Trigger build/push on merge/push to master
+      - feat/voice-profiles
   schedule:
     - cron: '0 0 * * 0' # Run cleanup every Sunday at 00:00 UTC
   workflow_dispatch:

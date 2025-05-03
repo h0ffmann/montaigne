@@ -23,6 +23,7 @@ dependencies = [
     "accelerate>=0.20.0",
     "huggingface-hub>=0.20.0",
     "tomli>=2.0.0",
+    "tomli-w>=1.0.0",  # Added for TOML writing
     "librosa==0.10.1",
     "soundfile==0.12.1",
     "noisereduce==3.0.0",

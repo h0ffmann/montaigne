@@ -1,12 +1,10 @@
-import logging # Added missing import and moved to top
-import uuid  # For generating session IDs
-import json  # For metadata persistence (assuming needed from previous context)
+import logging  # Added missing import and moved to top
 import sys
 import time
+import uuid  # For generating session IDs
 from datetime import datetime
 from enum import Enum
 from pathlib import Path
-from typing import Optional, Union # Adjusted typing imports
 
 import click
 
@@ -81,8 +79,8 @@ def get_evaluator():  # Removed unused use_cuda argument
         # evaluator_instance = AudioEvaluator(use_cuda=use_cuda) # Commented out as import is commented
         pass
     return evaluator_instance
-    
-    
+
+
 @click.group(context_settings={"help_option_names": ["-h", "--help"]})
 def cli():
     """🚀 Montaigne TTS: Synthesizes speech using XTTS v2 or Bark."""
@@ -109,15 +107,15 @@ def cli():
 def synthesize(
     engine: str,
     text: str,
-    text_file: Optional[click.Path],
+    text_file: click.Path | None,
     language: str,
-    voice_profile: Optional[str],
-    speaker_wav: Optional[click.Path],
-    speaker_youtube_id: Optional[str],
-    speaker_prompt: Optional[str],
+    voice_profile: str | None,
+    speaker_wav: click.Path | None,
+    speaker_youtube_id: str | None,
+    speaker_prompt: str | None,
     speed: float,
     cpu: bool,
-    output_file: Optional[click.Path],
+    output_file: click.Path | None,
     output_format: str,
     skip_preprocessors: bool,
     skip_voice_preprocessing: bool,
@@ -156,7 +154,7 @@ def synthesize(
     speaker_display_name = "Default"
 
     # Determine the actual speaker WAV path based on provided mutually exclusive options
-    actual_speaker_wav: Optional[Union[Path, list[Path]]] = None
+    actual_speaker_wav: Path | list[Path] | None = None
 
     if selected_engine_type == EngineChoice.XTTS:
         # Process XTTS speaker input
@@ -214,7 +212,7 @@ def synthesize(
         try:
             input_content = text_file.read_text("utf-8")
             source_name = text_file.name
-        except IOError as e:
+        except OSError as e:
             click.echo(f"❌ Error reading text file '{text_file}': {e}", err=True)
             sys.exit(1)
     else:  # text must be provided if text_file is None (validated above)

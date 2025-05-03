@@ -59,13 +59,13 @@ lint:
     ruff check --force-exclude --config=ruff.toml packages/
 
 format:
-    ruff format --force-exclude --config=ruff.toml packages/
+    ruff format --force-exclude --config=ruff.toml packages/ 
 
 check: format lint
     @echo "✅ Lint and format checks passed."
 
 fix:
-    ruff check packages/ --fix --unsafe-fixes
+    ruff check --config=ruff.toml packages/ --fix --unsafe-fixes
 
 # === Analysis (Run inside Nix Shell) ===
 # Assuming aider-analytics is installed in the venv and runnable via `python`

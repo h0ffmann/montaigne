@@ -1,4 +1,4 @@
-from __future__ import annotations # Inserted at the top
+from __future__ import annotations # Kept at the top
 
 """
 Module for managing voice profiles in Montaigne TTS.
@@ -8,31 +8,37 @@ This module handles:
 2. Lazy loading of voice data (only download when requested)
 3. Parallel downloading of files using asyncio
 4. Preprocessing of voice samples for quality improvement
-5. Two modes of operation: simple and deep cloning
+5. Voice isolation using Spleeter - Currently Disabled
+6. Advanced preprocessing options
 """
 
+# Standard library imports
 import asyncio
 import logging
 import os
+import shutil # Moved import
+import tomli # Moved import
 from concurrent.futures import ThreadPoolExecutor
 from dataclasses import dataclass
 from pathlib import Path
-# from __future__ import annotations # Deleted from here
 from typing import Any, Union
- 
-import numpy as np
-import shutil
-import tomli
 
-# For audio preprocessing
+# Third-party imports
+import numpy as np
+
+# Local application imports
+from .audio_utils import download_audio_from_youtube # Moved import
+
+# Optional audio processing libraries
 try:
-    import librosa
-    import noisereduce as nr
-    import soundfile as sf
+    import librosa  # For audio processing
+    import noisereduce as nr  # For noise reduction
     import scipy.signal  # For filters
+    import soundfile as sf  # For saving audio files
 
     LIBROSA_AVAILABLE = True
 except ImportError:
+    # Define fallbacks if imports fail
     LIBROSA_AVAILABLE = False
     nr = None  # type: ignore
     sf = None  # type: ignore

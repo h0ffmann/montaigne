@@ -1,12 +1,34 @@
+import logging # Added missing import and moved to top
 import uuid  # For generating session IDs
+import json  # For metadata persistence (assuming needed from previous context)
+import sys
+import time
+from datetime import datetime
 from enum import Enum
 from pathlib import Path
-import time
-import sys
-from datetime import datetime
-from typing import Union, Optional
+from typing import Optional, Union # Adjusted typing imports
 
 import click
+
+# Moved and organized imports from lower in the file and previous diffs
+from .audio_metrics import calculate_audio_metrics, generate_metrics_report
+from .audio_utils import (
+    YTDLP_AVAILABLE,
+    cleanup_files,
+    concatenate_audio_files,
+    download_audio_from_youtube,
+)
+from .metadata_manager import MetadataManager
+from .preprocessing import chunk_text, preprocess_text_for_tts
+from .streaming_tts import PiperStreamingTTS, run_interactive_prompt
+from .tts_engine import (
+    BARK_AVAILABLE,
+    TTS_AVAILABLE,
+    BarkEngine,
+    BaseTTSEngine,
+    XTTSv2Engine,
+)
+from .voice_profiles import get_voice_profile, list_voice_profiles
 
 
 # Define available engines
@@ -14,12 +36,11 @@ class EngineChoice(Enum):
     XTTS = "xtts"
     BARK = "bark"
 
-
 logger = logging.getLogger("montaigne.cli")
-    
+
 # Global instances are tricky with multiple engines; maybe lazy load in get function
 # Batch Engine instances
-engine_instances = {}
+engine_instances = {} # type: ignore
 
 # Streaming Engine (PiperStreamingTTS) is instantiated directly in the 'live' command now
 # No factory needed here. Checks PIPER_AVAILABLE and SOUNDDEVICE_AVAILABLE are imported above.

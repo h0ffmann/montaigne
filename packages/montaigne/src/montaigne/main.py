@@ -16,13 +16,7 @@ class EngineChoice(Enum):
 
 
 logger = logging.getLogger("montaigne.cli")
-
-# Import the new Piper-based streaming engine (now PiperStreamingTTS)
-from .streaming_tts import (
-    PiperStreamingTTS,  # Import new class and checks
-    run_interactive_prompt,
-)
-
+    
 # Import engine classes with checks
 from .tts_engine import (
     BaseTTSEngine,
@@ -31,25 +25,7 @@ from .tts_engine import (
     TTS_AVAILABLE,
     BARK_AVAILABLE,
 )
-
-# Import preprocessing and chunking
-from .preprocessing import preprocess_text_for_tts, chunk_text
-
-# Import audio utils
-from .audio_utils import (
-    concatenate_audio_files,
-    cleanup_files,
-    download_audio_from_youtube,
-    YTDLP_AVAILABLE,
-)
-
-# from .evaluation import AudioEvaluator # Keep evaluation for batch mode TODO
-from .voice_profiles import (
-    get_voice_profile,
-    list_voice_profiles,
-    # get_voice_profile_config, # Not used in main.py
-)
-
+    
 # Global instances are tricky with multiple engines; maybe lazy load in get function
 # Batch Engine instances
 engine_instances = {}
@@ -93,13 +69,8 @@ def get_evaluator():  # Removed unused use_cuda argument
         # evaluator_instance = AudioEvaluator(use_cuda=use_cuda) # Commented out as import is commented
         pass
     return evaluator_instance
-
-
-# Import audio metrics and metadata manager modules
-from .audio_metrics import calculate_audio_metrics, generate_metrics_report
-from .metadata_manager import MetadataManager
-
-
+    
+    
 @click.group(context_settings={"help_option_names": ["-h", "--help"]})
 def cli():
     """🚀 Montaigne TTS: Synthesizes speech using XTTS v2 or Bark."""

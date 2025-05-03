@@ -15,9 +15,9 @@ import os
 from concurrent.futures import ThreadPoolExecutor
 from dataclasses import dataclass
 from pathlib import Path
-from __future__ import annotations
+# from __future__ import annotations # Deleted from here
 from typing import Any, Union
-
+ 
 import numpy as np
 import shutil
 import tomli
@@ -45,11 +45,11 @@ except ImportError:
 #     Separator = None # type: ignore
 #     SPLEETER_AVAILABLE = False
 SPLEETER_AVAILABLE = False  # Assume not available
-
-
+ 
+ 
 # Import the audio_utils for YouTube download functionality
-from .audio_utils import download_audio_from_youtube
-
+# from .audio_utils import download_audio_from_youtube # Deleted from here
+ 
 logger = logging.getLogger(__name__)
 
 # Default location for profiles.toml file

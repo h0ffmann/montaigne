@@ -188,9 +188,16 @@ def synthesize(
 
         elif speaker_wav:
             # Single speaker_wav file provided
-            actual_speaker_wav = speaker_wav  # type: ignore [assignment] - Click ensures it exists
-            speaker_display_name = f"File: {actual_speaker_wav.name}"
-            engine_params["speaker_wav"] = str(actual_speaker_wav)  # Pass single path string
+            # Convert the string path from Click into a Path object
+            speaker_wav_path = Path(speaker_wav) # Convert string to Path
+            if not speaker_wav_path.exists():
+                 # Although Click checks exists=True, add a safeguard if needed
+                 logger.error(f"Speaker WAV file provided via --speaker-wav does not exist: {speaker_wav}")
+                 sys.exit(1)
+            actual_speaker_wav = speaker_wav_path # Assign the Path object
+            speaker_display_name = f"File: {actual_speaker_wav.name}" # Now .name works
+            # Pass the string representation to the engine parameters
+            engine_params["speaker_wav"] = str(actual_speaker_wav)
 
         # Common setup for XTTS speed parameter
         engine_params["speed"] = speed

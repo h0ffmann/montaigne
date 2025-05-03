@@ -36,7 +36,8 @@ install_workspace:
     uv sync 
     # Re-install workspace packages editably AFTER syncing base dependencies
     @echo "📦 Installing local workspace packages editably..."
-    uv pip install -e ./packages/montaigne
+    # Install workspace members editably, letting uv resolve and install their specific dependencies
+    uv pip install -e ./packages/montaigne -e ./packages/aider_analytics -e ./packages/metadata_analyzer
     @echo "✅ Workspace environment synchronized and packages installed editably."
 
 setup: install_workspace # Alias

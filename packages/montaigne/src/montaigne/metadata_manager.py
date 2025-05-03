@@ -287,11 +287,11 @@ class MetadataManager:
             summary.append(f"  Duration: {metrics.get('duration_sec', 'N/A'):.1f}s")
             # Handle potential 'N/A' before formatting
             quality_score = metrics.get("voice_quality_score", "N/A")
-            if isinstance(quality_score, (int, float)):
+            if isinstance(quality_score, int | float):
                 summary.append(f"  Quality Score: {quality_score:.1f}/100")
             else:
                 summary.append(f"  Quality Score: {quality_score}") # Display 'N/A' or other non-numeric value directly
- 
+
         return "\n".join(summary)
 
 

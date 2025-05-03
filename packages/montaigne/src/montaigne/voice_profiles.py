@@ -1,3 +1,5 @@
+from __future__ import annotations # Inserted at the top
+
 """
 Module for managing voice profiles in Montaigne TTS.
 

@@ -17,15 +17,6 @@ class EngineChoice(Enum):
 
 logger = logging.getLogger("montaigne.cli")
     
-# Import engine classes with checks
-from .tts_engine import (
-    BaseTTSEngine,
-    XTTSv2Engine,
-    BarkEngine,
-    TTS_AVAILABLE,
-    BARK_AVAILABLE,
-)
-    
 # Global instances are tricky with multiple engines; maybe lazy load in get function
 # Batch Engine instances
 engine_instances = {}

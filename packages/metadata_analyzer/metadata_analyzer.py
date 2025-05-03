@@ -21,7 +21,6 @@ except ImportError:
     click.echo("Error: tomli package is required for metadata analysis", err=True)
     sys.exit(1)
 
-from montaigne.metadata_manager import MetadataManager
 
 
 class MetadataAnalyzer:
@@ -36,7 +35,7 @@ class MetadataAnalyzer:
         except (tomli.TOMLDecodeError, UnicodeDecodeError) as e:
             click.echo(f"❌ Error parsing TOML file {path}: {e}", err=True)
             sys.exit(1)
-        except IOError as e:
+        except OSError as e:
             click.echo(f"❌ Error reading file {path}: {e}", err=True)
             sys.exit(1)
 
@@ -178,7 +177,7 @@ class MetadataAnalyzer:
     help="Analyze all metadata files in directory",
 )
 @click.option("--json", "json_output", is_flag=True, help="Output in JSON format (for future use)")
-def main(metadata_file, directory, json_output):
+def main(metadata_file, directory, json_output):  # noqa: ARG001
     """Analyze Montaigne TTS metadata files."""
     if directory and metadata_file:
         click.echo("Error: Specify either a metadata file or --directory, not both.", err=True)

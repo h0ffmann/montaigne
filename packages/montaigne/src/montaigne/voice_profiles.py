@@ -15,7 +15,8 @@ import os
 from concurrent.futures import ThreadPoolExecutor
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Any, Union
+from __future__ import annotations
+from typing import Any, Union, Optional, Dict, List
 
 import numpy as np
 import shutil
@@ -64,10 +65,10 @@ class VoiceProfileConfig:
     name: str
     language: str
     description: str
-    youtube_ids: List[str]  # Changed from youtube_id to youtube_ids
+    youtube_ids: list[str]  # Changed from youtube_id to youtube_ids
     gender: str
-    tags: List[str]
-    preprocessing: Optional[Dict[str, bool]] = None
+    tags: list[str]
+    preprocessing: dict[str, bool] | None = None
 
 
 # Removed EngineParams dataclass as --mode is removed
@@ -235,7 +236,7 @@ class VoiceProfileManager:
         results = await asyncio.gather(*tasks, return_exceptions=True)
 
         # Filter out None results (failures) and exceptions
-        successful_paths: List[Path] = []
+        successful_paths: list[Path] = []
         for i, result in enumerate(results):
             if isinstance(result, Path):
                 successful_paths.append(result)
@@ -264,7 +265,7 @@ class VoiceProfileManager:
         skip_preprocessing: bool,  # New flag
         skip_isolation: bool,  # New flag
         force_redownload: bool,
-    ) -> Optional[Path]:
+    ) -> Path | None:
         """Handles download and optional processing for a single YouTube ID."""
         try:
             # Determine if any processing step (isolation or preprocessing) should run
@@ -495,11 +496,11 @@ class VoiceProfileManager:
             if config.get("enhance_vocals", True):
                 logger.debug("Enhancing vocal frequencies (2-4kHz)...")
                 try:
-                    d = librosa.stft(y_processed)
+                    stft = librosa.stft(y_processed)
                     freqs = librosa.fft_frequencies(sr=sr)
                     vocal_range = (freqs >= 2000) & (freqs <= 4000)
-                    D[vocal_range, :] *= 1.5  # Apply boost (adjust factor as needed)
-                    y_processed = librosa.istft(D, length=len(y_processed))
+                    stft[vocal_range, :] *= 1.5  # Apply boost (adjust factor as needed)
+                    y_processed = librosa.istft(stft, length=len(y_processed))
                 except Exception as ve_err:
                     logger.warning(f"Vocal enhancement failed: {ve_err}. Skipping.")
 
@@ -615,8 +616,8 @@ def get_voice_profile(
     profile_name: str,
     skip_preprocessing: bool = False,  # Add flag
     skip_isolation: bool = False,  # Add flag
-    download_dir: Optional[str] = None,  # Keep deprecated arg for now
-) -> List[Path]:
+    download_dir: str | None = None,  # Keep deprecated arg for now
+) -> list[Path]:
     """
     Get paths to voice profile WAV files, downloading and optionally processing.
 

@@ -16,6 +16,7 @@ from .audio_utils import (
     concatenate_audio_files,
     download_audio_from_youtube,
 )
+from .logger_config import setup_logging  # Added missing import
 from .metadata_manager import MetadataManager
 from .preprocessing import chunk_text, preprocess_text_for_tts
 from .streaming_tts import PiperStreamingTTS, run_interactive_prompt

@@ -107,7 +107,7 @@ prepare-dirs:
         (echo "❌ Failed to create speaker.wav." && exit 1); \
     fi
 
-xtts: prepare_dirs
+xtts: prepare-dirs
     @command -v python > /dev/null 2>&1 || (echo "❌ 'python' not found in Nix env." && exit 1)
     @echo "✨ Running XTTS synthesis..."
     @python -m montaigne.main synthesize \

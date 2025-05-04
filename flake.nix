@@ -91,10 +91,16 @@
           # Core C/C++ libs
           stdenv.cc.cc.lib
           gcc-unwrapped.lib
+          
           # Application runtime libs
           ffmpeg
           libsndfile
           alsa-lib
+          fftw                  # Required for librosa's spectral processing
+          libopus               # Enhanced audio codec support
+          flac                  # FLAC audio format support
+          libvorbis             # Ogg Vorbis audio format support
+          libjack2              # Audio connection kit
           libGL
           openssl
           ncurses5
@@ -132,6 +138,12 @@
           docker-compose
           docker-credential-helpers
           hadolint # Added hadolint
+          
+          # Audio utilities
+          sox                   # Sound processing utility
+          mpg123                # MP3 player/decoder (helps with MP3 support)
+          lame                  # MP3 encoder
+          
           # nvidia-smi wrapper
           (pkgs.runCommand "nvidia-smi-wrapper" { } ''
             mkdir -p $out/bin ; _host_nvidia_smi=""
@@ -162,9 +174,17 @@
           pkg-config
           cudatoolkit
           cudnn
+          
+          # Audio processing libraries
           (ffmpeg.dev or ffmpeg)
-          libsndfile.dev
+          libsndfile.dev  
           alsa-lib.dev
+          fftw.dev            # For librosa's FFT operations
+          libopus.dev         # For audio codec support
+          flac.dev            # For FLAC format support
+          libvorbis.dev       # For Ogg Vorbis format support
+          libjack2.dev        # For audio connection kit
+          
           libGL.dev
           openssl.dev
           ncurses5.dev

@@ -14,7 +14,7 @@ just install_workspace
 
 echo "--- [Nix Env] Running Linter and Formatter Checks (via just) ---"
 # Delegate to the just task which should find ruff
-just check # Runs 'just lint' and 'just format' internally
+just fix # Runs 'just lint' and 'just format' internally
 
 echo "--- [Nix Env] Generating Repomix (via just) ---"
 # Delegate to the just task which should find repomix

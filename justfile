@@ -30,7 +30,7 @@ default:
 
 # === Environment & Dependencies (Managed by Nix Flake) ===
 # Installs/Synchronizes workspace packages using uv within the current (presumably nix) environment
-install_workspace:
+install-workspace:
     @echo "🔄 Synchronizing workspace packages using UV..."
     uv --version
     uv sync 
@@ -40,10 +40,10 @@ install_workspace:
     uv pip install -e ./packages/montaigne -e ./packages/aider_analytics -e ./packages/metadata_analyzer
     @echo "✅ Workspace environment synchronized and packages installed editably."
 
-setup: install_workspace # Alias
+setup: install-workspace # Alias
 
 # Update flake and enter nix shell, running the setup script inside
-nix_setup:
+nix-setup:
     @nix flake update
     @echo "Entering Nix shell and setting up workspace..."
     # Pass MODEL_PATH_VAR for scripts that might need it inside nix develop (like prepare_local_model if called indirectly)
@@ -83,21 +83,21 @@ test:
     @pytest packages/montaigne/tests/ # Update test path if tests were moved
 
 # === Cleaning ===
-clean_pycache:
+clean-pycache:
     @echo "🧹 Removing __pycache__ directories and .pyc files..."
     @find . \( -type d -name "__pycache__" -o -type f -name "*.py[co]" \) -delete
 
-clean_build:
+clean-build:
     @echo "🧹 Removing build artifacts..."
     @rm -rf build/ dist/ *.egg-info/ htmlcov/ .coverage* .pytest_cache/ model_files/ entrypoint.sh Dockerfile.bak .venv/
     @echo "   (Note: Scripts in scripts/ dir are not removed by clean)"
 
-clean: clean_pycache clean_build
+clean: clean-pycache clean-build
     @echo "✅ Project directories cleaned."
 
 # === TTS Tasks (Run inside Nix Shell) ===
 # Simple python/ffmpeg calls, kept inline
-prepare_dirs:
+prepare-dirs:
     @echo "📁 Preparing directories and sample audio..."
     @mkdir -p input output
     @command -v ffmpeg > /dev/null 2>&1 || (echo "❌ 'ffmpeg' not found in Nix env." && exit 1)
@@ -311,7 +311,7 @@ all:
     @echo "✅✅✅ Montaigne TTS pipeline ('just all') completed successfully! ✅✅✅"
 
 # === Ubuntu TTS Tasks (CPU-Only, No Nix/Flake required) ===
-run_tts_tasks_ubuntu_cpu:
+run-tts-tasks-ubuntu-cpu:
     @echo "🚀 Running Ubuntu CPU TTS tasks via external script..."
     bash scripts/run_ubuntu_cpu_tasks.sh || exit 1
 

@@ -7,7 +7,7 @@ Provides audio quality metrics including SNR, spectral analysis, and other acous
 import logging
 from pathlib import Path
 
-import numpy as np
+import numpy as np  # Ensure numpy is imported
 
 # Try importing librosa, handle if missing
 try:

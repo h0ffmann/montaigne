@@ -27,6 +27,6 @@ just prepare-dirs
 echo "--- [Nix Env] Running TTS Synthesis Tasks (via just) ---"
 # Delegate to the just task which should find python and run the modules
 # This single task runs xtts, bark, and yt internally
-just run-nix-tts-tasks
+just run_nix_tts_tasks
 
 echo "--- [Nix Env] Script tasks via delegation completed Successfully ---"

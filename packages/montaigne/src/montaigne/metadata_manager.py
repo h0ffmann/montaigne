@@ -20,8 +20,8 @@ except ImportError:
     tomli_w = None  # type: ignore
 
 logger = logging.getLogger(__name__)
- 
- 
+
+
 class MetadataManager:
     """
     Manages synthesis metadata in TOML format.
@@ -106,7 +106,7 @@ class MetadataManager:
         }
 
         return metadata
- 
+
     @staticmethod
     def _clean_metadata_for_toml(data: Any) -> Any:
         """Recursively clean data structure for TOML serialization."""
@@ -133,12 +133,12 @@ class MetadataManager:
         elif isinstance(data, datetime):
              return data.isoformat()
         # Ensure basic types are returned directly
-        elif isinstance(data, (str, int, bool)):
+        elif isinstance(data, str | int | bool):
              return data
         else:
              # Convert unknown types to string as a fallback
              return str(data)
- 
+
     @staticmethod
     def save_metadata(metadata: dict[str, Any], output_path: Path) -> bool:
         """
@@ -154,12 +154,12 @@ class MetadataManager:
         if not TOMLI_AVAILABLE:
             logger.warning("tomli_w not available. Cannot save metadata to TOML.")
             return False
- 
+
         metadata_path = output_path.with_suffix(output_path.suffix + ".toml")
         try:
             # Clean metadata before saving
             cleaned_metadata = MetadataManager._clean_metadata_for_toml(metadata)
- 
+
             with open(metadata_path, "wb") as f:
                 tomli_w.dump(cleaned_metadata, f)
             logger.info(f"Metadata saved to: {metadata_path}") # Use standard logger

@@ -116,7 +116,7 @@ xtts: prepare-dirs
         --language en \
         --text "This is a test with XTTS."
 
-bark: prepare_dirs
+bark: prepare-dirs
     @command -v python > /dev/null 2>&1 || (echo "❌ 'python' not found in Nix env." && exit 1)
     @echo "🐾 Running Bark synthesis..."
     @python -m montaigne.main synthesize \
@@ -125,7 +125,7 @@ bark: prepare_dirs
         --language en \
         --output-file output/bark_en_default.wav
 
-yt: prepare_dirs
+yt: prepare-dirs
     @command -v python > /dev/null 2>&1 || (echo "❌ 'python' not found in Nix env." && exit 1)
     @echo "▶️ Running XTTS with YouTube speaker..."
     @python -m montaigne.main synthesize \
@@ -137,7 +137,7 @@ yt: prepare_dirs
 
 # === Debugging Tasks (Run inside Nix Shell) ===
 # Simple python calls, kept inline
-debug: prepare_dirs
+debug: prepare-dirs
     @command -v python > /dev/null 2>&1 || (echo "❌ 'python' not found in Nix env." && exit 1)
     @echo "🐛 Running debug XTTS synthesis (CPU)..."
     @python -m montaigne.main synthesize \
@@ -215,7 +215,7 @@ docker_push: docker_check
      bash scripts/push_docker.sh || exit 1
 
 # Run container - Simplified using direct realpath and single docker run
-docker_run *ARGS: prepare_dirs docker_check
+docker_run *ARGS: prepare-dirs docker_check
     @echo "🐳 Running default synthesis in Docker container..."
     @if [ ! -f "input/speaker.wav" ]; then \
         echo "   ⚠️ Re-creating missing dummy input/speaker.wav..."; \
@@ -238,7 +238,7 @@ docker_run *ARGS: prepare_dirs docker_check
         {{ARGS}} || { echo "❌ Docker run failed"; exit 1; }
     @echo "✅ Docker synthesis complete. Check output/docker_output.wav"
 
-docker_run_gpu *ARGS: prepare_dirs docker_check
+docker_run_gpu *ARGS: prepare-dirs docker_check
     @echo "🐳 Running Docker container with GPU support..."
     @if [ ! -f "input/speaker.wav" ]; then \
         echo "   ⚠️ Re-creating missing dummy input/speaker.wav..."; \
@@ -272,7 +272,7 @@ mix:
 
 # === Individual TTS Tasks (Run inside Nix Shell) ===
 # These are called by run_nix_tts_tasks or the 'all' pipeline script
-run_nix_tts_tasks: prepare_dirs xtts bark yt
+run_nix_tts_tasks: prepare-dirs xtts bark yt
     @echo "✅ All Nix TTS tasks completed."
 
 # === Main Pipeline (Refactored - Recommended) ===
@@ -317,3 +317,8 @@ run-tts-tasks-ubuntu-cpu:
 
 # Removed all_original_flow task as it was complex and less preferred
 # Removed workspace_add_pkg task
+
+clipf:
+    @cat flake.nix | xclip -selection clipboard
+    @echo "Contents of 'flake.nix' copied to clipboard"
+

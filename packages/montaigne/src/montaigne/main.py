@@ -80,8 +80,8 @@ def get_evaluator():  # Removed unused use_cuda argument
         # evaluator_instance = AudioEvaluator(use_cuda=use_cuda) # Commented out as import is commented
         pass
     return evaluator_instance
- 
- 
+
+
 @click.group(context_settings={"help_option_names": ["-h", "--help"]})
 @click.option('--log-file', type=click.Path(), help='Path to log file')
 @click.option('--log-level', type=click.Choice(['DEBUG', 'INFO', 'WARNING', 'ERROR', 'CRITICAL']),
@@ -181,7 +181,7 @@ def synthesize(
             speaker_display_name = f"YouTube: {speaker_youtube_id} ({actual_speaker_wav.name})"
             # Add the downloaded path to engine_params (as string)
             engine_params["speaker_wav"] = str(actual_speaker_wav)
- 
+
         elif voice_profile:
             # Get paths for the voice profile (can return a list)
             profile_paths = get_voice_profile(
@@ -364,7 +364,7 @@ def synthesize(
         output_metrics = MetadataManager._clean_metadata_for_toml(output_metrics) # Use the cleaning function
     except Exception as e:
         logger.warning(f"Failed to calculate output metrics for {final_output_path.name}: {e}")
- 
+
     # Calculate metrics for input files if applicable, with error handling
     input_metrics: dict | list = {} # Define type hint
     if actual_speaker_wav and not skip_audio_processing:
@@ -388,7 +388,7 @@ def synthesize(
             except Exception as e:
                 logger.warning(f"Failed to calculate input metrics for {actual_speaker_wav.name}: {e}")
                 input_metrics = {} # Reset to empty dict on failure
- 
+
     # Evaluation (kept for compatibility)
 
     # Calculation time stats

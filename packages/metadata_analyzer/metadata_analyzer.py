@@ -22,7 +22,6 @@ except ImportError:
     sys.exit(1)
 
 
-
 class MetadataAnalyzer:
     """Analyzes synthesis metadata files."""
 

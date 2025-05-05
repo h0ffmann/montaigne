@@ -85,11 +85,13 @@ def download_audio_from_youtube(
     # --- Caching Check ---
     if not force_download and expected_wav_path.exists():
         file_size = expected_wav_path.stat().st_size
-        if file_size > 1000: # Basic integrity check (over 1KB)
-            logger.info(f"📂 Cache HIT: Using existing file {expected_wav_path.name} ({file_size/1024:.1f}KB)")
+        if file_size > 1000:  # Basic integrity check (over 1KB)
+            logger.info(f"📂 Cache HIT: Using existing file {expected_wav_path.name} ({file_size / 1024:.1f}KB)")
             return expected_wav_path
         else:
-            logger.warning(f"⚠️ Cache file exists but may be corrupt: {expected_wav_path} ({file_size} bytes). Re-downloading.")
+            logger.warning(
+                f"⚠️ Cache file exists but may be corrupt: {expected_wav_path} ({file_size} bytes). Re-downloading."
+            )
     else:
         logger.info(f"📥 Cache MISS: Downloading {youtube_id} to {expected_wav_path.name}")
 
@@ -97,7 +99,7 @@ def download_audio_from_youtube(
     output_template = output_dir / f"speaker-{safe_id}.%(ext)s"
     logger.info(f"Attempting to download speaker audio for YouTube ID: {safe_id}...")
     logger.info(f"Target URL: {youtube_url}")
-    logger.info(f"Output path template: {output_template}") # Log template used by ytdl
+    logger.info(f"Output path template: {output_template}")  # Log template used by ytdl
 
     ydl_opts = {
         "format": "bestaudio/best",
@@ -105,7 +107,7 @@ def download_audio_from_youtube(
             {
                 "key": "FFmpegExtractAudio",
                 "preferredcodec": "wav",
-                "preferredquality": "192", # Added quality setting
+                "preferredquality": "192",  # Added quality setting
             }
         ],
         "outtmpl": str(output_template),  # yt-dlp needs string path template
@@ -116,7 +118,7 @@ def download_audio_from_youtube(
             lambda d: print(f"\rDownloading: {d['_percent_str'] if d.get('_percent_str') else '...'} ", end="")
             if d["status"] == "downloading"
             else None
-        ], # Basic progress
+        ],  # Basic progress
     }
 
     start_time = time.time()
@@ -133,15 +135,19 @@ def download_audio_from_youtube(
 
         # Verify the expected output file exists *after* download
         if not expected_wav_path.exists():
-             logger.error(f"Download process finished but expected WAV file not found: {expected_wav_path}")
-             # Check if a file with a different extension exists due to postprocessor issue
-             possible_other_exts = list(output_dir.glob(f"speaker-{safe_id}.*"))
-             if possible_other_exts:
-                 logger.warning(f"Found potential files with different extensions: {possible_other_exts}. Check yt-dlp/ffmpeg setup.")
-             return None
+            logger.error(f"Download process finished but expected WAV file not found: {expected_wav_path}")
+            # Check if a file with a different extension exists due to postprocessor issue
+            possible_other_exts = list(output_dir.glob(f"speaker-{safe_id}.*"))
+            if possible_other_exts:
+                logger.warning(
+                    f"Found potential files with different extensions: {possible_other_exts}. Check yt-dlp/ffmpeg setup."
+                )
+            return None
 
         file_size = expected_wav_path.stat().st_size
-        logger.info(f"✅ Downloaded {expected_wav_path.name} successfully ({file_size/1024:.1f}KB in {download_time:.1f}s)")
+        logger.info(
+            f"✅ Downloaded {expected_wav_path.name} successfully ({file_size / 1024:.1f}KB in {download_time:.1f}s)"
+        )
         return expected_wav_path
     except Exception:
         print()  # Ensure newline after potential progress output on error
@@ -149,10 +155,10 @@ def download_audio_from_youtube(
         # Clean up potentially incomplete file
         if expected_wav_path.exists():
             try:
-                expected_wav_path.unlink(missing_ok=True) # Use missing_ok
+                expected_wav_path.unlink(missing_ok=True)  # Use missing_ok
                 logger.info(f"Removed potentially incomplete download: {expected_wav_path.name}")
             except OSError:
-                 logger.warning(f"Could not remove potentially incomplete file {expected_wav_path.name}")
+                logger.warning(f"Could not remove potentially incomplete file {expected_wav_path.name}")
         return None
 
 

@@ -1,7 +1,7 @@
 import logging
 import sys
 from pathlib import Path
-from typing import Any
+
 
 class ColoredFormatter(logging.Formatter):
     """Custom formatter with colors and emojis for better readability."""

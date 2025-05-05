@@ -1,4 +1,4 @@
-from __future__ import annotations # Kept at the top
+from __future__ import annotations  # Kept at the top
 
 """
 Module for managing voice profiles in Montaigne TTS.
@@ -16,18 +16,18 @@ This module handles:
 import asyncio
 import logging
 import os
-import shutil # Moved import
-import tomli # Moved import
+import shutil  # Moved import
 from concurrent.futures import ThreadPoolExecutor
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Any, Union
+from typing import Any
 
 # Third-party imports
 import numpy as np
+import tomli  # Moved import
 
 # Local application imports
-from .audio_utils import download_audio_from_youtube # Moved import
+from .audio_utils import download_audio_from_youtube  # Moved import
 
 # Optional audio processing libraries
 try:
@@ -53,11 +53,11 @@ except ImportError:
 #     Separator = None # type: ignore
 #     SPLEETER_AVAILABLE = False
 SPLEETER_AVAILABLE = False  # Assume not available
- 
- 
+
+
 # Import the audio_utils for YouTube download functionality
 # from .audio_utils import download_audio_from_youtube # Deleted from here
- 
+
 logger = logging.getLogger(__name__)
 
 # Default location for profiles.toml file
@@ -84,7 +84,7 @@ class VoiceProfileConfig:
 class VoiceProfileManager:
     """Manager for voice profiles."""
 
-    def __init__(self, profiles_path: Union[str, Path] = PROFILES_TOML_PATH):
+    def __init__(self, profiles_path: str | Path = PROFILES_TOML_PATH):
         """Initialize the voice profile manager.
 
         Args:

@@ -29,17 +29,21 @@ default:
     @just --list
 
 # === Environment & Dependencies (Managed by Nix Flake) ===
-# Installs workspace packages using uv within the current (presumably nix) environment
-install_workspace:
-    @echo "📦 Installing/Updating workspace packages using UV..."
-    @command -v {{UV}} > /dev/null 2>&1 || (echo "❌ '{{UV}}' command not found. Are you inside 'nix develop'?" && exit 1)
-    @{{UV}} pip install -e . --verbose
-    @echo "✅ Workspace packages installed."
+# Installs/Synchronizes workspace packages using uv within the current (presumably nix) environment
+install-workspace:
+    @echo "🔄 Synchronizing workspace packages using UV..."
+    uv --version
+    uv sync 
+    # Re-install workspace packages editably AFTER syncing base dependencies
+    @echo "📦 Installing local workspace packages editably..."
+    # Install workspace members editably, letting uv resolve and install their specific dependencies
+    uv pip install -e ./packages/montaigne -e ./packages/aider_analytics -e ./packages/metadata_analyzer
+    @echo "✅ Workspace environment synchronized and packages installed editably."
 
-setup: install_workspace # Alias
+setup: install-workspace # Alias
 
 # Update flake and enter nix shell, running the setup script inside
-nix_setup:
+nix-setup:
     @nix flake update
     @echo "Entering Nix shell and setting up workspace..."
     # Pass MODEL_PATH_VAR for scripts that might need it inside nix develop (like prepare_local_model if called indirectly)
@@ -56,13 +60,13 @@ lint:
     ruff check --force-exclude --config=ruff.toml packages/
 
 format:
-    ruff format --force-exclude --config=ruff.toml packages/
+    ruff format --force-exclude --config=ruff.toml packages/ 
 
 check: format lint
     @echo "✅ Lint and format checks passed."
 
 fix:
-    ruff check packages/ --fix
+    ruff check --config=ruff.toml packages/ --fix --unsafe-fixes
 
 # === Analysis (Run inside Nix Shell) ===
 # Assuming aider-analytics is installed in the venv and runnable via `python`
@@ -79,21 +83,21 @@ test:
     @pytest packages/montaigne/tests/ # Update test path if tests were moved
 
 # === Cleaning ===
-clean_pycache:
+clean-pycache:
     @echo "🧹 Removing __pycache__ directories and .pyc files..."
     @find . \( -type d -name "__pycache__" -o -type f -name "*.py[co]" \) -delete
 
-clean_build:
+clean-build:
     @echo "🧹 Removing build artifacts..."
     @rm -rf build/ dist/ *.egg-info/ htmlcov/ .coverage* .pytest_cache/ model_files/ entrypoint.sh Dockerfile.bak .venv/
     @echo "   (Note: Scripts in scripts/ dir are not removed by clean)"
 
-clean: clean_pycache clean_build
+clean: clean-pycache clean-build
     @echo "✅ Project directories cleaned."
 
 # === TTS Tasks (Run inside Nix Shell) ===
 # Simple python/ffmpeg calls, kept inline
-prepare_dirs:
+prepare-dirs:
     @echo "📁 Preparing directories and sample audio..."
     @mkdir -p input output
     @command -v ffmpeg > /dev/null 2>&1 || (echo "❌ 'ffmpeg' not found in Nix env." && exit 1)
@@ -103,7 +107,7 @@ prepare_dirs:
         (echo "❌ Failed to create speaker.wav." && exit 1); \
     fi
 
-xtts: prepare_dirs
+xtts: prepare-dirs
     @command -v python > /dev/null 2>&1 || (echo "❌ 'python' not found in Nix env." && exit 1)
     @echo "✨ Running XTTS synthesis..."
     @python -m montaigne.main synthesize \
@@ -112,7 +116,7 @@ xtts: prepare_dirs
         --language en \
         --text "This is a test with XTTS."
 
-bark: prepare_dirs
+bark: prepare-dirs
     @command -v python > /dev/null 2>&1 || (echo "❌ 'python' not found in Nix env." && exit 1)
     @echo "🐾 Running Bark synthesis..."
     @python -m montaigne.main synthesize \
@@ -121,7 +125,7 @@ bark: prepare_dirs
         --language en \
         --output-file output/bark_en_default.wav
 
-yt: prepare_dirs
+yt: prepare-dirs
     @command -v python > /dev/null 2>&1 || (echo "❌ 'python' not found in Nix env." && exit 1)
     @echo "▶️ Running XTTS with YouTube speaker..."
     @python -m montaigne.main synthesize \
@@ -133,7 +137,7 @@ yt: prepare_dirs
 
 # === Debugging Tasks (Run inside Nix Shell) ===
 # Simple python calls, kept inline
-debug: prepare_dirs
+debug: prepare-dirs
     @command -v python > /dev/null 2>&1 || (echo "❌ 'python' not found in Nix env." && exit 1)
     @echo "🐛 Running debug XTTS synthesis (CPU)..."
     @python -m montaigne.main synthesize \
@@ -211,7 +215,7 @@ docker_push: docker_check
      bash scripts/push_docker.sh || exit 1
 
 # Run container - Simplified using direct realpath and single docker run
-docker_run *ARGS: prepare_dirs docker_check
+docker_run *ARGS: prepare-dirs docker_check
     @echo "🐳 Running default synthesis in Docker container..."
     @if [ ! -f "input/speaker.wav" ]; then \
         echo "   ⚠️ Re-creating missing dummy input/speaker.wav..."; \
@@ -234,7 +238,7 @@ docker_run *ARGS: prepare_dirs docker_check
         {{ARGS}} || { echo "❌ Docker run failed"; exit 1; }
     @echo "✅ Docker synthesis complete. Check output/docker_output.wav"
 
-docker_run_gpu *ARGS: prepare_dirs docker_check
+docker_run_gpu *ARGS: prepare-dirs docker_check
     @echo "🐳 Running Docker container with GPU support..."
     @if [ ! -f "input/speaker.wav" ]; then \
         echo "   ⚠️ Re-creating missing dummy input/speaker.wav..."; \
@@ -268,7 +272,7 @@ mix:
 
 # === Individual TTS Tasks (Run inside Nix Shell) ===
 # These are called by run_nix_tts_tasks or the 'all' pipeline script
-run_nix_tts_tasks: prepare_dirs xtts bark yt
+run_nix_tts_tasks: prepare-dirs xtts bark yt
     @echo "✅ All Nix TTS tasks completed."
 
 # === Main Pipeline (Refactored - Recommended) ===
@@ -307,9 +311,14 @@ all:
     @echo "✅✅✅ Montaigne TTS pipeline ('just all') completed successfully! ✅✅✅"
 
 # === Ubuntu TTS Tasks (CPU-Only, No Nix/Flake required) ===
-run_tts_tasks_ubuntu_cpu:
+run-tts-tasks-ubuntu-cpu:
     @echo "🚀 Running Ubuntu CPU TTS tasks via external script..."
     bash scripts/run_ubuntu_cpu_tasks.sh || exit 1
 
 # Removed all_original_flow task as it was complex and less preferred
 # Removed workspace_add_pkg task
+
+clipf:
+    @cat flake.nix | xclip -selection clipboard
+    @echo "Contents of 'flake.nix' copied to clipboard"
+

@@ -1,0 +1,21 @@
+[project]
+name = "metadata_analyzer"
+version = "0.1.0"
+description = "Analyzer tool for metadata"
+authors = [{ name = "Matheus Hoffmann", email = "hoffmann@poli.ufrj.br" }]
+requires-python = ">=3.11,<3.12"
+
+dependencies = [
+    "click==7.1.2",
+    "matplotlib>=3.5.0",
+]
+
+[project.scripts]
+metadata-analyzer = "metadata_analyzer.main:main"
+
+[build-system]
+requires = ["setuptools>=61.0"]
+build-backend = "setuptools.build_meta"
+
+[tool.ruff.format]
+quote-style = "double"

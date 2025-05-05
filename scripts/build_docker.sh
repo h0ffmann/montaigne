@@ -24,16 +24,16 @@ for arg in "$@"; do
 done
 
 if [ "$USE_LOCAL_ARG_FOUND" = "true" ]; then
-    echo "   Build argument USE_LOCAL_MODEL=true found. Ensure 'prepare_docker_files' was run."
+    echo "   Build argument USE_LOCAL_MODEL=true found. Ensure 'prepare-docker-files' was run."
     # Preparation should happen *before* calling this script now
     if [ ! -f entrypoint.sh ]; then
-       echo "   ⚠️ WARNING: USE_LOCAL_MODEL=true but entrypoint.sh not found. 'prepare_docker_files' might be missing."
+       echo "   ⚠️ WARNING: USE_LOCAL_MODEL=true but entrypoint.sh not found. 'prepare-docker-files' might be missing."
     fi
 else
     echo "   Build argument USE_LOCAL_MODEL=true not found."
      # Check if entrypoint exists even if not using local model, as prepare step should create it
     if [ ! -f entrypoint.sh ]; then
-       echo "   ⚠️ WARNING: entrypoint.sh not found. 'prepare_docker_files' might be missing."
+       echo "   ⚠️ WARNING: entrypoint.sh not found. 'prepare-docker-files' might be missing."
     fi
 fi
 

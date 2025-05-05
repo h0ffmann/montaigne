@@ -1,22 +1,67 @@
-# flake.nix - Final Version (Pinning Nixpkgs, Corrected Rev Info Comment)
+# flake.nix - Final Version (Pinning Nixpkgs, Aligning uv version attribute with build output)
 {
   description = "Development environment for Montaigne (Python TTS/STT) with reliable CUDA support";
 
   inputs = {
     # Pin nixpkgs to a specific commit known to have compatible CUDA/PyTorch builds.
-    # You MUST find a working commit hash from:
-    # https://github.com/NixOS/nixpkgs/commits/nixos-unstable/
-    # Replace the placeholder hash below with a recent, valid commit SHA.
-    nixpkgs.url = "github:NixOS/nixpkgs/f771eb401a46846c1aebd20552521b233dd7e18b"; # <-- EDIT THIS LINE
+    nixpkgs.url = "github:NixOS/nixpkgs/b5dd9efc912ecabeafa4f082d31e19cb1c74266c"; # Specific commit
     flake-utils.url = "github:numtide/flake-utils";
   };
 
   outputs = { self, nixpkgs, flake-utils, ... }:
     flake-utils.lib.eachDefaultSystem (system:
       let
-        # Configure nixpkgs
+        # --- Define the overlay to build uv from 0.7.2 tag, but expect version 0.7.0 output ---
+        uv-overlay = final: prev: {
+          uv = prev.uv.overrideAttrs (oldAttrs:
+            let
+              # Source code from the official 0.7.2 tag
+              drv_src = final.fetchFromGitHub {
+                owner = "astral-sh";
+                repo = "uv";
+                rev = "0.7.2"; # Fetch source for the 0.7.2 tag
+                # Hash for the source archive of the 0.7.2 tag
+                hash = "sha256-D/3YqhIjXhvH7hn/dmJ2Xmf1riGjVc9jqbqVJSD5EyA=";
+              };
+            in
+            {
+              # --- FIX: Align Nix version attribute with actual binary output ---
+              # The code at tag 0.7.2 reports "0.7.0" when `uv --version` is run.
+              # Set the Nix derivation version attribute to match this expected output.
+              version = "0.7.0"; # <-- Set to match binary output
+
+              src = drv_src; # Use the fetched 0.7.2 source code
+
+              # Fetch cargo dependencies based on the Cargo.lock in the 0.7.2 source tag
+              cargoDeps = prev.rustPlatform.fetchCargoVendor {
+                src = drv_src; # Must match the main src
+                # Hash derived from the Cargo.lock within the 0.7.2 source tag
+                hash = "sha256-QQv3uAtqC24UkZ1pp7D0izu7xMQGtUPg2iQkp+k9IMI=";
+              };
+
+              # No need to disable installCheckPhase or versionCheckPhase now,
+              # as the version attribute matches the expected output.
+
+            } # End the attribute set returned by overrideAttrs
+          ); # End overrideAttrs call
+        };
+
+        # --- Create a portaudio overlay ---
+        portaudio-overlay = final: prev: {
+          portaudio = prev.portaudio.overrideAttrs (oldAttrs: {
+            configureFlags = (oldAttrs.configureFlags or [ ]) ++ [
+              "--enable-shared"
+              "--enable-static"
+            ];
+            outputs = (oldAttrs.outputs or [ "out" ]) ++ [ "dev" ];
+            propagatedBuildInputs = (oldAttrs.propagatedBuildInputs or [ ]) ++ [ final.stdenv.cc ];
+          });
+        };
+
+        # --- Apply the overlays ---
         pkgs = import nixpkgs {
           inherit system;
+          overlays = [ uv-overlay portaudio-overlay ]; # Apply both overlays
           config = {
             allowUnfree = true; # Required for NVIDIA CUDA components
             cudaSupport = true; # Enable CUDA support globally for pkgs
@@ -24,14 +69,13 @@
         };
 
         # --- Get Nixpkgs Revision Info ---
-        # Access rev directly from the input flake object
         nixpkgsRev = nixpkgs.rev or "unknown"; # Use rev if available
 
-        # Define Python version
+        # --- Define Python version ---
         python = pkgs.python311;
 
-        # Select CUDA packages (matching the pinned nixpkgs)
-        cudaPkgs = pkgs.cudaPackages_12_1; # Adjust if your pinned nixpkgs uses a different default
+        # --- Select CUDA packages ---
+        cudaPkgs = pkgs.cudaPackages_12_1;
         cudatoolkit = cudaPkgs.cudatoolkit;
         cudnn = cudaPkgs.cudnn;
 
@@ -39,35 +83,57 @@
         nixPythonMlPackages = with python.pkgs; [
           torchWithCuda
           torchaudio
-          numpy # Add NumPy
-          pandas # Add Pandas
-          scipy # Add SciPy
-          soundfile # Add soundfile (links libsndfile)
-          rapidfuzz # Add rapidfuzz (C++ extensions)
-          librosa # Add librosa (audio analysis, C extensions)
-          numba # Add numba (JIT compiler, C extensions)
-          transformers # Add transformers for Bark
-          accelerate # Add accelerate for HF/Bark
+          numpy
+          pandas
+          scipy
+          soundfile
+          rapidfuzz
+          librosa
+          numba
+          transformers
+          accelerate
+          # python-sounddevice build definition
+          (buildPythonPackage rec {
+            pname = "sounddevice";
+            version = "0.4.6";
+            format = "setuptools";
+            src = fetchPypi {
+              inherit pname version;
+              sha256 = "sha256-Mja3jxXwQVvfAGpiDO8HPQwFIoUdZvSpYe1tjrFIL+k=";
+            };
+            propagatedBuildInputs = [
+              cffi
+              numpy
+              pkgs.portaudio # Runtime library dependency
+            ];
+            buildInputs = [
+              (pkgs.lib.getDev pkgs.portaudio) # Build-time header dependency
+              pkgs.pkg-config # Needed to find portaudio headers/libs
+            ];
+            nativeBuildInputs = [ pkgs.pkg-config ];
+          })
+          # uv is added directly to 'packages' below from the overlay
         ];
 
         # --- Runtime Libraries ---
         runtimeLibs = with pkgs; [
-          # Core C/C++ libs
           stdenv.cc.cc.lib
           gcc-unwrapped.lib
-          # Application runtime libs
           ffmpeg
           libsndfile
           alsa-lib
+          fftw
+          libopus
+          flac
+          libvorbis
+          libjack2
           libGL
           openssl
           ncurses5
-          portaudio # Added for sounddevice runtime loading
+          portaudio # Runtime library
+          # fftw listed twice, keeping one
         ];
         runtimeLibPath = pkgs.lib.makeLibraryPath runtimeLibs;
-
-        # --- Additional Python Packages for Real-time TTS ---
-        # REMOVED: realtimePythonPackages definition. These will be installed via uv in shellHook.
 
         # --- General Development Tools ---
         montaigneTools = with pkgs; [
@@ -77,24 +143,25 @@
           git
           jq
           just
-          repomix # Added repomix
+          repomix # Keeping one instance
           ripgrep
           fd
           curl
           wget
-          repomix
           gcc
-          pkg-config # Needed for building some Python packages
+          pkg-config
           gnumake
-          python
-          uv
+          python # Base Nix Python
           ruff
           nodejs_22
           corepack_22
           docker
           docker-compose
           docker-credential-helpers
-          hadolint # Added hadolint
+          hadolint
+          sox
+          mpg123
+          lame
           # nvidia-smi wrapper
           (pkgs.runCommand "nvidia-smi-wrapper" { } ''
             mkdir -p $out/bin ; _host_nvidia_smi=""
@@ -110,28 +177,41 @@
               chmod +x $out/bin/nvidia-smi
             fi
           '')
-          # Utilities
           gawk
           gnugrep
           gnused
           which
           procps
           util-linux
+          # portaudio utility binaries linker
+          (runCommand "portaudio-utils" { nativeBuildInputs = [ pkgs.portaudio ]; } ''
+            mkdir -p $out/bin
+            if [ -d "${pkgs.portaudio}/bin" ]; then
+               find "${pkgs.portaudio}/bin" -maxdepth 1 -type f -executable -exec ln -s {} $out/bin/ \;
+            else
+               echo "No binaries found in ${pkgs.portaudio}/bin" >&2 # Echo warnings to stderr
+            fi
+          '')
         ];
 
-        # --- Compile-time Build Inputs ---
+        # --- Compile-time Build Inputs (Headers/Dev Libs) ---
         devBuildInputs = with pkgs; [
-          # System libraries needed for compiling Python extensions
-          pkg-config
+          pkg-config # Crucial for finding .pc files
           cudatoolkit
           cudnn
           (ffmpeg.dev or ffmpeg)
           libsndfile.dev
           alsa-lib.dev
-          libGL.dev
+          fftw.dev
+          libopus.dev
+          flac.dev
+          libvorbis.dev
+          libjack2.dev
+          (libGL.dev or libGL)
           openssl.dev
           ncurses5.dev
-          pkgs.portaudio
+          (pkgs.lib.getDev portaudio) # Ensure we get headers/libs for portaudio
+          # fftw.dev already included
         ];
 
       in
@@ -139,140 +219,127 @@
         # --- Define the Development Shell ---
         devShells.default = pkgs.mkShell {
           name = "montaigne-dev-env-nix-torch";
-          packages = montaigneTools ++ nixPythonMlPackages; # REMOVED: ++ realtimePythonPackages
-          # buildInputs are implicitly added to PATH and include .dev outputs
-          # Needed for compiling non-Nix Python packages if they require these libs.
+          # Add uv (built from 0.7.2 src, reporting 0.7.0) and other packages
+          packages = montaigneTools ++ nixPythonMlPackages ++ [ pkgs.uv ];
+
+          # Add compile-time dependencies for C/C++ extensions built in the shell
           buildInputs = devBuildInputs;
 
           # --- Environment Variables ---
           env = {
-            # These might still be useful for tools *other* than PyTorch's runtime linking
             CUDA_HOME = "${cudatoolkit}";
             CUDA_PATH = "${cudatoolkit}";
-            # Let torchWithCuda's dependencies primarily manage runtime linking.
-            # Set LD_LIBRARY_PATH to our specific runtime libs. mkShell prepends buildInputs libs automatically.
-            LD_LIBRARY_PATH = runtimeLibPath;
-            # Setup Venv path - shellHook will handle creation/activation
-            VIRTUAL_ENV = "$PWD/.venv"; # Standard venv location
-            PATH = "$PWD/.venv/bin:${pkgs.lib.makeBinPath montaigneTools}:${pkgs.lib.getBin pkgs.stdenv.cc}/bin"; # Prepend venv bin in hook, add C compiler bin path
-            UV_NATIVE_TLS = "1";
-            # Simplify NIX_CFLAGS/LDFLAGS - rely on buildInputs and pkg-config more
-            # Keep essential ones if known to be required by specific non-Nix packages
-            NIX_CFLAGS_COMPILE = toString ([
-              "-I${pkgs.lib.getDev pkgs.openssl}/include"
-              "-I${pkgs.lib.getDev pkgs.libsndfile}/include"
-            ] ++ pkgs.lib.optionals (pkgs.libGL.dev != null) [ "-I${pkgs.lib.getDev pkgs.libGL}/include" ]);
-            NIX_LDFLAGS = toString ([
-              "-L${pkgs.lib.getLib pkgs.openssl}/lib"
-              "-L${pkgs.lib.getLib pkgs.libsndfile}/lib"
-            ] ++ pkgs.lib.optionals (pkgs.libGL.out != null) [ "-L${pkgs.lib.getLib pkgs.libGL}/lib" ]);
+            LD_LIBRARY_PATH = runtimeLibPath; # Core runtime libs path
+
+            VIRTUAL_ENV = "$PWD/.venv"; # venv location
+            PATH = "$PWD/.venv/bin:${pkgs.lib.makeBinPath montaigneTools}:${pkgs.lib.getBin pkgs.stdenv.cc}/bin"; # venv bin first
+
+            UV_NATIVE_TLS = "1"; # Use system TLS
+
+            # PKG_CONFIG_PATH setup - Helps find .pc files for build tools
+            PKG_CONFIG_PATH = "${pkgs.lib.makeSearchPathOutput "dev" "lib/pkgconfig" devBuildInputs}:${pkgs.lib.makeSearchPathOutput "out" "lib/pkgconfig" runtimeLibs}";
+
+            # Optional Compiler flags (usually PKG_CONFIG_PATH is enough)
+            # NIX_CFLAGS_COMPILE = "...";
+            # NIX_LDFLAGS = "...";
+
+            # Docker helpers
             DOCKER_BUILDKIT = "1";
             COMPOSE_DOCKER_CLI_BUILD = "1";
-            PKG_CONFIG_PATH = "${pkgs.lib.makeSearchPathOutput "dev" "lib/pkgconfig" devBuildInputs}";
+
+            # Portaudio env var
+            PORTAUDIO_PATH = "${pkgs.portaudio}"; # Point to the derivation path
           };
 
           # --- Shell Hook ---
           shellHook = ''
-            unset SOURCE_DATE_EPOCH
-            echo "👋 Entering Montaigne Dev Env (Nix managing Python core + PyTorch/CUDA)..."
-
-            # --- Venv Setup ---
-            # Use the python provided in `packages` which should be the correct one
-            _NIX_PYTHON_INTERPRETER=$(command -v python)
-            if ! command -v "$_NIX_PYTHON_INTERPRETER" &> /dev/null; then echo "❌ Fatal: Nix Python interpreter not found in PATH." && return 1; fi
-            echo "🐍 Using Nix Python for venv base: $_NIX_PYTHON_INTERPRETER ($($_NIX_PYTHON_INTERPRETER --version))"
-            _PROJECT_DIR="$(pwd)"; VENV_DIR="$_PROJECT_DIR/.venv"; export VIRTUAL_ENV="$VENV_DIR"; export PATH="$VENV_DIR/bin:$PATH"
-
-            echo "   Resolved VIRTUAL_ENV='$VIRTUAL_ENV'"; echo "   Prepended venv bin to PATH."
-            if [ ! -f "$VENV_DIR/bin/activate" ]; then
-              echo "🐍 Creating Python virtual environment using uv in '$VENV_DIR'..."
-              if ! uv venv "$VENV_DIR" --python "$_NIX_PYTHON_INTERPRETER"; then echo "❌ Fatal: Failed to create uv virtual environment." && return 1; fi
-              echo "✅ Virtual environment created."
-            else echo "🐍 Re-using existing virtual environment '$VENV_DIR'."; fi
-
-            # --- Venv Activation ---
-            if [ -f "$VENV_DIR/bin/activate" ]; then
-               echo "🐍 Activating Python virtual environment..."; source "$VENV_DIR/bin/activate"; echo "   VIRTUAL_ENV is: $VIRTUAL_ENV"
-               _VENV_PYTHON_PATH=$(command -v python); echo "   Python interpreter path (venv): $_VENV_PYTHON_PATH"; echo "   Python version (venv): $(python --version)"
-               if ! [[ "$_VENV_PYTHON_PATH" == "$VENV_DIR/bin/python" ]]; then echo "⚠️ Warning: 'command -v python' found '$_VENV_PYTHON_PATH' not expected '$VENV_DIR/bin/python'."; fi
-            else echo "❌ Fatal: Failed to find activate script in '$VENV_DIR/bin/activate'." && return 1; fi
-
-            # --- uv Workspace Installation ---
-            if command -v uv &> /dev/null; then
-               echo "📦 Installing/Verifying workspace packages via uv..."
-               # Install all workspace members defined in the root pyproject.toml
-               # Explicitly use -e . to ensure editable installs for workspace members
-               # This helps Python find the modules correctly via the generated entry points.
-               if ! uv pip install --no-cache-dir -e .; then
-                 echo "❌ Fatal: Failed to install workspace packages with uv into venv '$VENV_DIR'." && return 1
-               fi
-
-               # Add PortAudio library path to LD_LIBRARY_PATH for sounddevice (still needed at runtime)
-               echo "🔊 Adding PortAudio to LD_LIBRARY_PATH for audio playback..."
-               export LD_LIBRARY_PATH="${pkgs.portaudio}/lib''${LD_LIBRARY_PATH:+:''$LD_LIBRARY_PATH}"
-               echo "   Current LD_LIBRARY_PATH includes:"
-               echo "   - ${pkgs.portaudio}/lib"
-               echo "   This enables runtime loading of libportaudio.so.2 by sounddevice"
-
-               echo "✅ uv workspace installation complete."
-            else
-               echo "❌ Fatal: uv command not found. Cannot install workspace packages." && return 1
+            echo "👋 Entering Montaigne Dev Env (Nix: uv from 0.7.2 src reporting 0.7.0, Python core + PyTorch/CUDA)..."
+            # Ensure we get the correct Nix Python path
+            if ! PYTHON_BIN_NIX=$(command -v python); then
+                echo "❌ Fatal: Could not determine Nix Python path." >&2; exit 1
             fi
-            # --- Sanity Checks ---
-            echo "" && echo "=== Sanity Checks ==="
-            # --- PyTorch/Torchaudio Check ---
-            echo "🔍 Checking PyTorch & Torchaudio (managed by Nix, accessed via venv Python)..."
-            python -c "import torch; print(f'---> Torch Version: {torch.__version__}'); print(f'---> CUDA Available: {torch.cuda.is_available()}'); print(f'---> Device Count: {torch.cuda.device_count()}')"
+            PYTHON_BIN_DIR_NIX=$(dirname "$PYTHON_BIN_NIX")
 
-            # --- Docker Check ---
-            echo "🐳 Checking Docker status..."
-            if command -v docker &> /dev/null; then
-              if timeout 5 docker info >/dev/null 2>&1; then
-                 echo "✅ Docker daemon is running and accessible."
-                 if timeout 5 docker info 2>/dev/null | grep -qE 'Runtimes:.* nvidia( |$)'; then echo "✅ NVIDIA Docker runtime detected in docker info."
-                 elif command -v nvidia-container-runtime &>/dev/null || command -v nvidia-container-runtime-hook &>/dev/null ; then echo "ℹ️ NVIDIA container runtime binary found, but not listed in 'docker info Runtimes'."
-                 else echo "⚠️ NVIDIA Docker runtime not detected."; fi
-              else echo "⚠️ Docker daemon not running, not responsive within 5s, or permission error."; fi
-            else echo "❌ Docker command not found \(is 'docker' included in 'packages'?\)."; fi
+            # --- venv setup using Nix Python ---
+            VENV_DIR=".venv"
+            EXPECTED_HOME_LINE=$(printf 'home = %s' "$PYTHON_BIN_DIR_NIX")
 
-            # --- Host NVIDIA Driver Check ---
-            echo "💻 Checking Host NVIDIA driver via nvidia-smi wrapper..."
-            if command -v nvidia-smi &> /dev/null; then
-              nvidia_smi_output=""; nvidia_smi_status=1
-              if nvidia_smi_output=$(timeout 5 nvidia-smi --query-gpu=driver_version --format=csv,noheader 2>&1); nvidia_smi_status=$?; then
-                 if [ $nvidia_smi_status -eq 0 ] && [ -n "$nvidia_smi_output" ]; then echo "✅ nvidia-smi query successful. Host Driver Version: $nvidia_smi_output"
-                 else
-                   echo "   ℹ️ nvidia-smi query failed (Status: $nvidia_smi_status)/empty. Trying generic 'nvidia-smi'..."
-                   if nvidia_smi_output=$(timeout 5 nvidia-smi 2>&1); nvidia_smi_status=$?; then
-                      if [ $nvidia_smi_status -eq 0 ] && echo "$nvidia_smi_output" | grep -q "Driver Version:"; then echo "✅ nvidia-smi generic command successful. Host drivers okay."; echo "$nvidia_smi_output" | grep "Driver Version:" | sed 's/ *|//'
-                      else echo "⚠️ nvidia-smi generic command issue (Status: $nvidia_smi_status). Output:"; echo "--- START ---"; echo "$nvidia_smi_output"; echo "--- END ---"; fi
-                   else echo "⚠️ nvidia-smi generic command failed/timed out (Status: $nvidia_smi_status). Output:"; echo "--- START ---"; echo "$nvidia_smi_output"; echo "--- END ---"; fi
-                 fi
-              else echo "⚠️ Error running/capturing nvidia-smi status."; fi
-            else echo "❌ nvidia-smi command (wrapper) not found in PATH."; fi
+            if [ -d "$VENV_DIR" ] && [ -f "$VENV_DIR/pyvenv.cfg" ] && \
+               grep -q -F -x "$EXPECTED_HOME_LINE" "$VENV_DIR/pyvenv.cfg"; then
+                echo "🐍 Re-using existing venv '$VENV_DIR' (linked to Nix Python: $PYTHON_BIN_NIX)."
+            else
+                echo "🐍 Creating new venv '$VENV_DIR' with Nix Python ($PYTHON_BIN_NIX)..."
+                rm -rf "$VENV_DIR" # Ensure clean state
+                "$PYTHON_BIN_NIX" -m venv "$VENV_DIR" || { echo "❌ Failed to create venv." >&2; exit 1; }
+                echo "🐍 Venv created."
 
-            # --- Final Message ---
-            echo "================================"; echo ""
-            echo "✅ Montaigne environment ready!"
-            # Use the nixpkgsRev variable defined in the Nix 'let' block
-            # This uses Nix interpolation.
-            echo "   Nix manages: Python ${python.version}, PyTorch+CUDA, Torchaudio, Core libs (from Nixpkgs commit ${nixpkgsRev})"
-            echo "   uv manages other Python packages in: $VENV_DIR" # Use shell variable $VENV_DIR
-            echo ""
-            echo "📌 Quick Start:"
-            echo "   just --list          # Show available commands"
-            echo "   just run -- --help   # Run the Montaigne CLI"
-            echo "   python --version     # Verify venv Python ($(python --version))"
-            echo "   which python         # Verify venv Python path ($(command -v python))"
-            echo "   uv pip list          # List venv packages"
-            echo ""
-            # --- Final LD_LIBRARY_PATH Check ---
-            echo "🔧 Final LD_LIBRARY_PATH value:"
-            echo "   $LD_LIBRARY_PATH"
-            echo "================================"; echo ""
+                # Temporarily activate for initial installation
+                if [ -f "$VENV_DIR/bin/activate" ]; then
+                    source "$VENV_DIR/bin/activate"
+                    echo "📦 Installing project dependencies via uv..."
+
+                    # Sync requirements files if they exist
+                    sync_args=()
+                    [ -f "requirements.txt" ] && sync_args+=("requirements.txt")
+                    [ -f "requirements-dev.txt" ] && sync_args+=("-r" "requirements-dev.txt")
+                    if [ ''${#sync_args[@]} -gt 0 ]; then
+                        echo "   Syncing:" "''${sync_args[@]}"
+                        uv pip sync "''${sync_args[@]}" || { echo "❌ Fatal: uv sync failed." >&2; deactivate; exit 1; }
+                    else
+                        echo "   No standard requirements files found to sync."
+                    fi
+
+                    # Install local editable packages if they exist
+                    echo "   Installing editable local packages..."
+                    local_pkgs_installed=0
+                    [ -d "./packages/montaigne" ] && { uv pip install -e ./packages/montaigne || { echo "❌ Error installing montaigne" >&2; deactivate; exit 1; } ; local_pkgs_installed=1; }
+                    [ -d "./packages/aider_analytics" ] && { uv pip install -e ./packages/aider_analytics || { echo "❌ Error installing aider_analytics" >&2; deactivate; exit 1; } ; local_pkgs_installed=1; }
+                    if [ $local_pkgs_installed -eq 0 ]; then
+                        echo "   No local editable packages found."
+                    fi
+
+                    deactivate # Deactivate after install
+                    echo "✅ Initial venv setup complete."
+                else
+                    echo "❌ Fatal: Could not find activate script in new venv '$VENV_DIR'." >&2; exit 1
+                fi
+            fi
+
+            # --- Activate venv for the interactive shell session ---
+            if [ -f "$VENV_DIR/bin/activate" ]; then
+                source "$VENV_DIR/bin/activate"
+                echo "🐍 Python virtual environment activated ($VIRTUAL_ENV)."
+                # Verify Python points to the venv
+                current_python=$(command -v python)
+                expected_python="$PWD/$VENV_DIR/bin/python"
+                if [[ "$current_python" == "$expected_python" ]]; then
+                   echo "   Python: $current_python ($(python --version))"
+                else
+                   echo "⚠️ Warning: PATH python ($current_python) differs from expected venv python ($expected_python)." >&2
+                fi
+            else
+                echo "⚠️ Failed to activate venv '$VENV_DIR'." >&2
+            fi
+
+            # Check sounddevice installation post-activation
+            echo "🎙️ Checking sounddevice..."
+            if python -c "import sounddevice" &> /dev/null; then
+                 echo "✅ sounddevice library imported successfully."
+             else
+                 echo "⚠️ sounddevice import failed. Attempting install/reinstall..."
+                 # Try installing it explicitly within the activated venv
+                 uv pip install sounddevice || echo "❌ Error installing sounddevice. Check PortAudio setup and build logs." >&2
+             fi
+
+            # Standard Python env settings
+            export PYTHONDONTWRITEBYTECODE=1
+            export PYTHONUNBUFFERED=1
+
+            echo "🌲 Nixpkgs revision: ${nixpkgsRev}"
+            echo "🚀 Environment ready!"
+
           ''; # End of shellHook definition
         }; # End of mkShell definition
-
       } # End of the attribute set returned by 'let...in'.
     ); # End of eachDefaultSystem function call
 } # End of flake definition

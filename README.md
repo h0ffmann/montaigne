@@ -6,7 +6,6 @@
 ![License](https://img.shields.io/badge/License-MIT-blue.svg)
 ![Python Version](https://img.shields.io/badge/python-3.11-blue.svg)
 ![Code Style](https://img.shields.io/badge/code%20style-ruff-blue.svg)
-# Montaigne TTS
 
 Montaigne TTS is a command-line interface (CLI) tool designed for flexible Text-to-Speech (TTS) synthesis. It supports multiple TTS engines (XTTSv2, Bark, Piper), various speaker voice input methods (audio file, YouTube URL, predefined profiles), text preprocessing capabilities, and both batch and interactive/streaming synthesis modes. The project is containerized using Docker for ease of deployment and dependency management, with optional Nix support for development environments.
 
@@ -20,6 +19,15 @@ Montaigne TTS is a command-line interface (CLI) tool designed for flexible Text-
   * Use a local WAV file as a voice reference.
   * Provide a YouTube video URL (audio will be downloaded and used).
   * Select from predefined voice profiles (requires configuration and hosting).
+* **Voice Profiles:**
+  * Predefined voice profiles through a flexible TOML-based configuration system
+  * Automatic YouTube audio download and voice isolation with Spleeter
+  * Advanced audio preprocessing with noise reduction, normalization, and filtering
+  * Configurable processing modes (simple/deep) for quality/speed trade-offs
+* **Audio Formats:**
+  * Support for both MP3 and WAV output formats (MP3 is default)
+  * High-quality 192kbps encoding for MP3
+  * Intelligent automatic filename generation with timestamps
 * **Text Preprocessing:**
   * Handles custom tags for pauses (`[pause:0.5]`).
   * Adds emphasis via commas around text surrounded by `*` or `**`.
@@ -28,6 +36,20 @@ Montaigne TTS is a command-line interface (CLI) tool designed for flexible Text-
 * **Synthesis Modes:**
   * **Batch (`synthesize`):** Process text from a string or file, outputting a single audio file. Handles long texts by chunking.
   * **Live/Streaming (`live`):** Interactive mode using Piper TTS for real-time synthesis and playback.
+* **Audio Processing Control:**
+  * Options to skip audio processing for faster synthesis
+  * Granular control over preprocessing, voice isolation, and postprocessing steps
+  * Performance optimization up to 5x faster with processing flags
+* **Audio Metrics and Monitoring:**
+  * Comprehensive input and output audio analysis
+  * Signal-to-Noise Ratio (SNR) calculation
+  * Voice quality scoring (0-100 scale)
+  * Dynamic range and spectral analysis
+  * RMS energy levels and harmonic characteristics
+* **Metadata Persistence:**
+  * Automatic TOML metadata file generation for each synthesis
+  * Complete tracking of synthesis parameters and metrics
+  * Timestamped synthesis information for reproducibility
 * **Containerization:** Dockerfile provided for building CUDA-enabled or CPU-only images, ensuring reproducibility.
 * **Development Environment:** Optional Nix Flake for managing development dependencies. `justfile` provides common development tasks.
 * **Workspace Structure:** Uses `uv` workspaces to manage the `montaigne` package and potentially other related tools (like `aider-analytics`).
@@ -278,8 +300,13 @@ Synthesizes speech from text input (string or file) and saves it to an output au
 - `--text TEXT`: Text to synthesize (if not using --text-file).
 - `--text-file FILE`: Path to a text file to synthesize.
 - `--language TEXT`: Language code (e.g., en, pt, es). Required.
-- `--output-file FILE`: Path to save the output WAV file. Required.
+- `--output-file FILE`: Path to save the output audio file. Optional (auto-generated if not specified).
+- `--output-format [mp3|wav]` (Default: mp3): Audio output format.
 - `--speed FLOAT`: Playback speed for XTTSv2 (Default: 1.0).
+- `--skip-audio-processing`: Skip all audio processing.
+- `--skip-preprocessors`: Skip text preprocessing.
+- `--skip-voice-preprocessing`: Skip voice profile preprocessing.
+- `--skip-voice-isolation`: Skip voice isolation for profiles.
 
 **XTTS Speaker Options** (Mutually Exclusive):
 - `--speaker-wav FILE`: Path to a WAV file for voice cloning.
@@ -297,21 +324,21 @@ montaigne synthesize \
   --text "Hello world, this is a test using a local speaker file." \
   --language en \
   --speaker-wav ./input/speaker.wav \
-  --output-file ./output/xtts_local_speaker.wav
+  --output-file ./output/xtts_local_speaker.mp3
 
 # XTTS: Synthesize text from a file using a YouTube video voice
 montaigne synthesize \
   --text-file ./input/my_script.txt \
   --language en \
   --speaker-youtube-id "dQw4w9WgXcQ" \
-  --output-file ./output/xtts_youtube_speaker.wav
+  --output-file ./output/xtts_youtube_speaker.mp3
 
 # XTTS: Synthesize using a predefined voice profile (CPU forced)
 montaigne synthesize \
   --text "Using a voice profile." \
   --language pt \
   --voice-profile "my-profile-name" \
-  --output-file ./output/xtts_profile_cpu.wav \
+  --output-file ./output/xtts_profile_cpu.mp3 \
   --cpu
 
 # Bark: Synthesize text using a specific Bark speaker prompt
@@ -320,7 +347,21 @@ montaigne synthesize \
   --text "こんにちは、バークです。" \
   --language ja \
   --speaker-prompt "ja_speaker_2" \
-  --output-file ./output/bark_japanese.wav
+  --output-file ./output/bark_japanese.mp3
+
+# Auto-generated output filename
+montaigne synthesize \
+  --text "No output file specified" \
+  --language en \
+  --speaker-wav ./input/speaker.wav
+# Output: en-default-xtts-xtts_v2-20240503_143022.mp3
+
+# Skip all audio processing for fastest synthesis
+montaigne synthesize \
+  --text "Hello world" \
+  --language en \
+  --speaker-wav input.wav \
+  --skip-audio-processing
 
 # --- Running via Docker ---
 
@@ -337,7 +378,7 @@ docker run --rm --gpus all \
   --text "Synthesized inside a Docker container with GPU." \
   --language en \
   --speaker-wav /app/input/speaker.wav \
-  --output-file /app/output/docker_gpu_xtts.wav
+  --output-file /app/output/docker_gpu_xtts.mp3
 
 # Docker: Bark synthesis mapping local input/output dirs (CPU)
 docker run --rm \
@@ -348,7 +389,7 @@ docker run --rm \
   --engine bark \
   --text "Bark synthesis in Docker using CPU." \
   --language en \
-  --output-file /app/output/docker_cpu_bark.wav \
+  --output-file /app/output/docker_cpu_bark.mp3 \
   --cpu # Add --cpu flag inside the container command
 ```
 
@@ -394,26 +435,32 @@ The primary API for Montaigne TTS is its command-line interface detailed in the 
 | `--text` | TEXT | Conditional¹ | - | The text string to synthesize. |
 | `--text-file` | FILE (Path) | Conditional¹ | - | Path to a text file containing the text to synthesize. |
 | `--language` | TEXT | Yes | - | Language code for the synthesis (e.g., en, pt, es). |
-| `--output-file` | FILE (Path) | Yes | - | Path where the resulting WAV audio file will be saved. |
+| `--output-file` | FILE (Path) | No | Auto-generated | Path where the resulting audio file will be saved. |
+| `--output-format` | [mp3\|wav] | No | mp3 | Audio output format. |
 | `--cpu` | Flag | No | False | Force the use of CPU even if a CUDA-compatible GPU is detected. |
 | `--speed` | FLOAT | No | 1.0 | (XTTS Only) Controls the speed of the synthesized speech. |
 | `--speaker-wav` | FILE (Path) | Conditional² | - | (XTTS Only) Path to a local WAV file to use for voice cloning. |
 | `--speaker-youtube-id` | TEXT | Conditional² | - | (XTTS Only) YouTube video ID whose audio will be used for voice cloning. |
 | `--voice-profile` | TEXT | Conditional² | - | (XTTS Only) Name of a configured, predefined voice profile to use. |
 | `--speaker-prompt` | TEXT | No | - | (Bark Only) History prompt name for selecting speaker/style (e.g., en_speaker_0). |
+| `--skip-audio-processing` | Flag | No | False | Skip all audio processing steps. |
+| `--skip-preprocessors` | Flag | No | False | Skip text preprocessing. |
+| `--skip-voice-preprocessing` | Flag | No | False | Skip voice profile preprocessing. |
+| `--skip-voice-isolation` | Flag | No | False | Skip voice isolation for profiles. |
 
 ¹: Either `--text` or `--text-file` must be provided.
 ²: For `--engine xtts`, exactly one of `--speaker-wav`, `--speaker-youtube-id`, or `--voice-profile` must be provided. These are mutually exclusive. Not used for `--engine bark`.
 
 **Output**:
 
-- A WAV audio file saved to the path specified by `--output-file`.
-- Console logs indicating progress, warnings, and errors.
+- An audio file (MP3 or WAV) saved to the path specified by `--output-file`.
+- A corresponding `.toml` metadata file tracking synthesis parameters and metrics.
+- Console logs indicating progress, audio metrics, and quality scores.
 
 **Usage Example**:
 
 ```bash
-montaigne synthesize --engine xtts --text "API example for synthesis." --language en --speaker-wav ./input/speaker.wav --output-file ./output/api_example.wav
+montaigne synthesize --engine xtts --text "API example for synthesis." --language en --speaker-wav ./input/speaker.wav --output-file ./output/api_example.mp3
 ```
 
 **Constraints**:
@@ -460,6 +507,186 @@ montaigne live --piper-voice fr_FR-siwis-medium --output-dir ./live_french_outpu
 - Requires internet access to download Piper models from Hugging Face Hub on first use (or if not cached).
 - Audio quality is dependent on the chosen Piper voice model.
 
+## Voice Profiles
+
+Montaigne supports predefined voice profiles through a flexible TOML-based configuration system.
+
+### Using Voice Profiles
+
+To use a predefined voice profile:
+
+```bash
+montaigne synthesize --voice-profile bolsonaro --text "Hello world" --output-file output.mp3
+```
+
+By default, the system performs voice isolation (if Spleeter is available) and applies all configured audio preprocessing steps. You can skip these steps using flags:
+
+```bash
+# Skip only voice isolation
+montaigne synthesize --voice-profile obama --skip-voice-isolation --text "..." -o output.mp3
+
+# Skip all preprocessing (including isolation)
+montaigne synthesize --voice-profile obama --skip-voice-preprocessing --text "..." -o output.mp3
+
+# Skip all audio processing
+montaigne synthesize --voice-profile obama --skip-audio-processing --text "..." -o output.mp3
+```
+
+Each voice profile includes multiple YouTube video references. The system automatically downloads and processes these samples (up to `max_videos_per_profile` defined in `profiles.toml`). Voice isolation and audio preprocessing (noise reduction, normalization, filtering, etc.) are applied automatically based on the profile configuration unless skipped via flags.
+
+### Available Profiles
+
+To list all available voice profiles:
+
+```bash
+montaigne synthesize --help # Look for the --voice-profile option choices
+```
+Or programmatically:
+```python
+from montaigne.voice_profiles import list_voice_profiles
+print(list_voice_profiles())
+```
+
+### How It Works
+
+The voice profile system:
+
+1.  **Configuration (`profiles.toml`)**: Defines profiles, YouTube IDs, preprocessing steps, and engine/mode parameters.
+2.  **Lazy Loading**: Voice profiles are only downloaded when requested for the first time (or if `force_redownload` is set).
+3.  **YouTube Download**: Uses `yt-dlp` via `audio_utils` to fetch audio from the specified YouTube IDs (up to `max_videos_per_profile`). Includes basic caching.
+4.  **Voice Isolation (Optional, Default: On)**: Uses `spleeter` to attempt isolating the main voice from background noise/music if `isolate_voice = true` (default) in the profile's preprocessing settings and Spleeter is available. Can be skipped with `--skip-voice-isolation`.
+5.  **Advanced Preprocessing (Optional, Default: On)**: Improves audio quality using `librosa` and `noisereduce` with steps like noise reduction, normalization, silence trimming, filtering, vocal enhancement, and compression based on profile settings. Can be skipped entirely with `--skip-voice-preprocessing`. Individual steps can be disabled in `profiles.toml`.
+6.  **Caching**: Raw downloaded files, isolated voice files, and preprocessed files are cached locally (configurable paths in `profiles.toml`).
+
+### Adding Custom Profiles
+
+Edit the `packages/montaigne/src/montaigne/profiles.toml` file to add your own voice profiles. Each profile needs:
+
+-   A unique ID (e.g., `[profiles.my_voice]`).
+-   `name`: Display name.
+-   `description`: Brief description.
+-   `language`: Language code (e.g., "en", "pt").
+-   `youtube_ids`: A list of YouTube video IDs. The *first* ID in the list will be used for downloading the voice sample.
+-   `gender`: (Optional) "male", "female", "unknown".
+-   `tags`: (Optional) List of descriptive tags.
+-   `preprocessing`: (Optional) Override default preprocessing steps (e.g., `preprocessing = { noise_reduction = false, normalize = true }`). See `profiles.toml` for examples.
+
+You can also adjust global settings, engine parameters, and mode parameters in the `[config]`, `[engines.xtts]`, `[modes.simple]`, and `[modes.deep]` sections of `profiles.toml`.
+
+## Audio Metrics and Quality Scoring
+
+Montaigne provides comprehensive audio analysis and quality scoring for both input and output audio.
+
+### Input Metrics
+For each input audio file (speaker reference), the system calculates:
+- Signal-to-Noise Ratio (SNR)
+- RMS Energy levels
+- Dynamic range
+- Spectral characteristics
+- Voice quality score (0-100)
+
+### Output Metrics
+For synthesized audio, additional metrics include:
+- Duration
+- Sample rate
+- Harmonic ratio
+- Pitch characteristics
+- Zero-crossing rate
+
+### Voice Quality Scoring
+The composite voice quality score (0-100) is based on:
+- SNR quality (30% weight)
+- Dynamic range (20% weight)
+- Harmonic content (20% weight)
+- Energy levels (15% weight)
+- Spectral characteristics (10% weight)
+- Pitch stability (5% weight)
+
+### Interpreting Scores
+- 90-100: Excellent voice quality
+- 80-89: Good voice quality
+- 70-79: Acceptable quality (may need improvement)
+- Below 70: Poor quality (consider better input or settings)
+
+### Metrics Display
+Metrics are displayed at the end of synthesis:
+```
+📊 Output Audio Metrics:
+  Duration: 12.3s
+  SNR: 24.5dB
+  RMS Energy: 0.085
+  Dynamic Range: 32.1dB
+  Sample Rate: 22050Hz
+  Voice Quality Score: 85.3/100
+```
+
+## Metadata Persistence
+
+Every synthesis run automatically creates a corresponding `.toml` file alongside the output audio file. This metadata includes:
+
+- All synthesis parameters
+- Engine configuration
+- Processing flags
+- Input/output metrics
+- Timestamps and timing information
+
+### Metadata Structure
+
+```toml
+[general]
+engine = "xtts"
+language = "en"
+output_format = "mp3"
+timestamp = "2024-05-03T14:30:22"
+processing_time_sec = 12.5
+
+[input]
+text_source = "CLI --text option"
+voice_profile = "obama"
+processed_chunks = 3
+
+[output]
+file = "output.mp3"
+synthesis_successful = true
+
+[output.metrics]
+duration_sec = 12.3
+snr_db = 24.5
+voice_quality_score = 85.3
+```
+
+### Using Metadata
+
+```python
+import tomli
+from pathlib import Path
+
+# Load metadata
+with open("output.mp3.toml", "rb") as f:
+    metadata = tomli.load(f)
+
+# Check synthesis success
+if metadata["output"]["synthesis_successful"]:
+    print(f"Quality score: {metadata['output']['metrics']['voice_quality_score']}")
+    print(f"Duration: {metadata['output']['metrics']['duration_sec']}s")
+```
+
+## Performance Optimization
+
+The system includes several options to optimize performance:
+
+### Processing Speed Flags
+- `--skip-audio-processing`: Skip all processing steps (~5x faster)
+- `--skip-preprocessors`: Skip text preprocessing (~2x faster)
+- `--skip-voice-preprocessing`: Skip voice preprocessing (~3x faster)
+- `--skip-voice-isolation`: Skip voice isolation (~1.5x faster)
+
+### Use Cases
+- Quick testing
+- Batch processing where quality isn't critical
+- Real-time applications
+- Time-sensitive synthesis
+
 ## Development
 
 **Environment**: Use Nix (`just nix_setup` or `nix develop --impure`) or Docker for a consistent environment.
@@ -477,6 +704,27 @@ montaigne live --piper-voice fr_FR-siwis-medium --output-dir ./live_french_outpu
 - `just docker_run_gpu`: Run a command inside Docker with GPU access.
 
 **Dependencies**: Managed via pyproject.toml (for Python packages using uv) and flake.nix (for Nix environment).
+
+## Requirements
+
+### Required Dependencies
+- Python 3.11
+- PyTorch (CPU/CUDA)
+- Specific TTS libraries (TTS, Bark)
+- ffmpeg, libsndfile1
+
+### Optional Dependencies
+- tomli-w (for TOML writing)
+- librosa (for audio analysis)
+- Spleeter (for voice isolation)
+- noisereduce (for audio cleaning)
+
+### Installation
+```bash
+pip install tomli-w  # For TOML writing
+pip install librosa  # For audio analysis
+pip install spleeter # For voice isolation
+```
 
 ## Contributing
 

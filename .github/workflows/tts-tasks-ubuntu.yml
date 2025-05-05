@@ -4,6 +4,7 @@ on:
   push:
     branches:
       - master
+      - feat/voice-profiles
   workflow_dispatch:
     inputs:
       debug_enabled:

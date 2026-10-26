@@ -2,7 +2,7 @@
 
 > [!WARNING]
 > **This project is archived and no longer maintained.**
-> For voice cloning and multilingual TTS, use [OpenVoice](https://github.com/myshell-ai/OpenVoice) instead. It is actively developed and a better option than Montaigne.
+> For voice cloning and multilingual TTS, use [OpenVoice](https://github.com/myshell-ai/OpenVoice) instead. It is a better option than Montaigne.
 
 <!-- Badges -->
 [![Docker CI](https://github.com/h0ffmann/montaigne/actions/workflows/docker-publish.yml/badge.svg)](https://github.com/h0ffmann/montaigne/actions/workflows/docker-publish.yml)
